@@ -1,8 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:swiftclean_admin/MVVM/utils/constants.dart';
-import 'package:swiftclean_admin/MVVM/utils/expansion_tile.dart';
-import 'package:swiftclean_admin/MVVM/utils/notification_badge.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/Ads%20Promotion/Ads%20Promotion.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/Bookings/Bookings.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/Dashboard/Dashboard.dart';
@@ -10,7 +8,11 @@ import 'package:swiftclean_admin/MVVM/view/pages.dart/Loyalty%20Points/Loyalty%2
 import 'package:swiftclean_admin/MVVM/view/pages.dart/Notifications/Notifications.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/Payments/Payments.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/Services/Services.dart';
+import 'package:swiftclean_admin/MVVM/view/pages.dart/Services/Categories.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/User/Profile_user.dart';
+import 'package:swiftclean_admin/MVVM/view/pages.dart/User/User_roles.dart';
+import 'package:swiftclean_admin/MVVM/view/pages.dart/User/Banned_users.dart';
+import 'package:swiftclean_admin/MVVM/view/pages.dart/worker/All_workers.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/worker/Verification_Worker.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/worker/profile_Worker.dart';
 
@@ -37,8 +39,6 @@ class DesktopScaffold extends StatefulWidget {
 
 class _DesktopScaffoldState extends State<DesktopScaffold> {
   String selectedTile = "Dashboard";
-  String? expandedTile;
-  final List<String> _suggestion = ["1", "2", "3"];
   List<NotificationItem> notifications = [];
 
   @override
@@ -74,286 +74,435 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
         return const ProfileWorker();
       case "Verification":
         return const VerificationWorker();
+      case "All Workers":
+        return AllWorkersPage(
+          initialFilter: "All",
+          onTabChanged: (tab) => setState(() => selectedTile = tab),
+        );
+      case "Pending Approvals":
+        return AllWorkersPage(
+          initialFilter: "Pending",
+          onTabChanged: (tab) => setState(() => selectedTile = tab),
+        );
+      case "Approved Workers":
+        return AllWorkersPage(
+          initialFilter: "Approved",
+          onTabChanged: (tab) => setState(() => selectedTile = tab),
+        );
+      case "Rejected Workers":
+        return AllWorkersPage(
+          initialFilter: "Rejected",
+          onTabChanged: (tab) => setState(() => selectedTile = tab),
+        );
+      case "Suspended Workers":
+        return AllWorkersPage(
+          initialFilter: "Suspended",
+          onTabChanged: (tab) => setState(() => selectedTile = tab),
+        );
       case "User Profile":
         return const ProfileUser();
+      case "User Roles":
+        return const UserRolesPage();
+      case "Banned Users":
+        return const BannedUsersPage();
       case "Services":
+      case "All Services":
         return const Services();
+      case "Categories":
+        return const ServiceCategoriesPage();
+      case "Service Reviews":
+        return _buildPlaceholderPage("Service Reviews", Icons.rate_review_rounded);
       case "Payments":
-        return  PaymentPage();
-      case "Bookings":
-        return  const Bookings();
+        return PaymentPage();
+      case "All Bookings":
+        return Bookings(
+          initialFilter: "All",
+          onTabChanged: (tab) => setState(() => selectedTile = tab),
+        );
+      case "Pending Bookings":
+        return Bookings(
+          initialFilter: "Pending",
+          onTabChanged: (tab) => setState(() => selectedTile = tab),
+        );
+      case "Confirmed Bookings":
+        return Bookings(
+          initialFilter: "Confirmed",
+          onTabChanged: (tab) => setState(() => selectedTile = tab),
+        );
+      case "Completed Bookings":
+        return Bookings(
+          initialFilter: "Completed",
+          onTabChanged: (tab) => setState(() => selectedTile = tab),
+        );
+      case "Cancelled Bookings":
+        return Bookings(
+          initialFilter: "Cancelled",
+          onTabChanged: (tab) => setState(() => selectedTile = tab),
+        );
       case "Loyalty Points":
         return const Loyaltypoints();
       case "Notifications":
         return const Notifications();
       case "Ads Promotion":
         return const Adspromotion();
+      case "Products":
+        return _buildPlaceholderPage("Products Catalog", Icons.shopping_bag_rounded);
+      case "Orders":
+        return _buildPlaceholderPage("Orders Management", Icons.shopping_cart_rounded);
+      case "Bus Routes":
+        return _buildPlaceholderPage("Bus Routes", Icons.directions_bus_rounded);
+      case "Taxi Drivers":
+        return _buildPlaceholderPage("Taxi Drivers", Icons.local_taxi_rounded);
+      case "Coupons":
+        return _buildPlaceholderPage("Coupons & Offers", Icons.local_offer_rounded);
+      case "Profile":
+        return _buildPlaceholderPage("Admin Profile", Icons.person_rounded);
       default:
-        return Center(child: Text("Selected: $selectedTile"));
+        return Center(
+          child: Text(
+            "Selected: $selectedTile",
+            style: GoogleFonts.inter(fontSize: 18, color: const Color(0xFF64748B)),
+          ),
+        );
     }
   }
 
-  void onTileExpandToggle(String titleTile) {
-    setState(() {
-      expandedTile = expandedTile == titleTile ? null : titleTile;
-    });
-  }
-
-  void onItemSelected(String subItem) {
-    setState(() {
-      selectedTile = subItem;
-    });
+  Widget _buildPlaceholderPage(String title, IconData icon) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 64, color: const Color(0xFF94A3B8)),
+          const SizedBox(height: 16),
+          Text(
+            title,
+            style: GoogleFonts.inter(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: const Color(0xFF1E293B),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            "This section is currently under development.",
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              color: const Color(0xFF64748B),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: myDefultBackround,
+      backgroundColor: const Color(0xFFF8FAFC),
       body: Row(
         children: [
+          // Sidebar
           Container(
-            width: 300,
+            width: 280,
             height: double.infinity,
-            color: AppColors.drawer,
+            color: const Color(0xFF0F172A), // Slate 900
             child: SafeArea(
-              child: SingleChildScrollView(
-                child: Column(
-                  children: [
-                    Image.asset("assets/icon/logo.png", scale: 3, errorBuilder: (context, error, stackTrace) => const Icon(Icons.error)),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Image.asset("assets/icon/SWIFT.png", errorBuilder: (context, error, stackTrace) => const Icon(Icons.error)),
-                        const SizedBox(width: 5),
-                        Image.asset("assets/icon/CLEAN.png", errorBuilder: (context, error, stackTrace) => const Icon(Icons.error)),
-                      ],
-                    ),
-                    const SizedBox(height: 50),
-                    buildDrawerTile("Dashboard", "assets/icon/dashboard.png"),
-                    CustomExpansionTile(
-                      title: "Workers",
-                       MainIcon: Image.asset("assets/icon/worker.png", errorBuilder: (context, error, stackTrace) => const Icon(Icons.people)),
-                      subItems: [
-                        SubItem(title: "Worker Profile", icon: const Icon(Icons.person)),
-                        SubItem(title: "Verification", icon: const Icon(Icons.verified)),
-                      ],
-                      expandedTile: expandedTile,
-                      selectedTile: selectedTile,
-                      onTileExpandToggle: onTileExpandToggle,
-                      onItemSelected: onItemSelected,
-                    ),
-                    CustomExpansionTile(
-                      title: "Users",
-                      MainIcon: const Icon(Icons.person),
-                      subItems: [
-                        SubItem(title: "User Profile", icon: const Icon(Icons.person)),
-                      ],
-                      expandedTile: expandedTile,
-                      selectedTile: selectedTile,
-                      onTileExpandToggle: onTileExpandToggle,
-                      onItemSelected: onItemSelected,
-                    ),
-                    CustomExpansionTile(
-                      title: "Manage Services",
-                       MainIcon: Image.asset("assets/icon/services.png", errorBuilder: (context, error, stackTrace) => const Icon(Icons.home_repair_service)),
-                      subItems: [
-                        SubItem(title: "Services", icon: Image.asset("assets/icon/services.png")),
-                      ],
-                      expandedTile: expandedTile,
-                      selectedTile: selectedTile,
-                      onTileExpandToggle: onTileExpandToggle,
-                      onItemSelected: onItemSelected,
-                    ),
-                    CustomExpansionTile(
-                      title: "Billing & Payments",
-                       MainIcon: Image.asset("assets/icon/payment.png", errorBuilder: (context, error, stackTrace) => const Icon(Icons.payment)),
-                      subItems: [
-                         SubItem(title: "Payments", icon: Image.asset("assets/icon/payment.png")),
-                      ],
-                      expandedTile: expandedTile,
-                      selectedTile: selectedTile,
-                      onTileExpandToggle: onTileExpandToggle,
-                      onItemSelected: onItemSelected,
-                    ),
-                    CustomExpansionTile(
-                      title: "Manage Bookings",
-                       MainIcon: Image.asset("assets/icon/bookings.png", errorBuilder: (context, error, stackTrace) => const Icon(Icons.book_online)),
-                      subItems: [
-                        SubItem(title: "Bookings", icon: Image.asset("assets/icon/bookings.png")),
-                      ],
-                      expandedTile: expandedTile,
-                      selectedTile: selectedTile,
-                      onTileExpandToggle: onTileExpandToggle,
-                      onItemSelected: onItemSelected,
-                    ),
-                    CustomExpansionTile(
-                      title: "Rewards Management",
-                       MainIcon: Image.asset("assets/icon/Loyalty_Point.png", errorBuilder: (context, error, stackTrace) => const Icon(Icons.star)),
-                      subItems: [
-                        SubItem(title: "Loyalty Points", icon: Image.asset("assets/icon/Loyalty_Point.png")),
-                      ],
-                      expandedTile: expandedTile,
-                      selectedTile: selectedTile,
-                      onTileExpandToggle: onTileExpandToggle,
-                      onItemSelected: onItemSelected,
-                    ),
-                    CustomExpansionTile(
-                      title: "Notifications",
-                       MainIcon: Image.asset("assets/icon/notification.png", errorBuilder: (context, error, stackTrace) => const Icon(Icons.notifications)),
-                      subItems: [
-                        SubItem(title: "Notifications", icon: Image.asset("assets/icon/notification.png")),
-                      ],
-                      expandedTile: expandedTile,
-                      selectedTile: selectedTile,
-                      onTileExpandToggle: onTileExpandToggle,
-                      onItemSelected: onItemSelected,
-                    ),
-                    CustomExpansionTile(
-                      title: "Ad Center",
-                       MainIcon: Image.asset("assets/icon/ads_promotion.png", scale: 2, errorBuilder: (context, error, stackTrace) => const Icon(Icons.campaign)),
-                      subItems: [
-                        SubItem(title: "Ads Promotion", icon: Image.asset("assets/icon/ads_promotion.png")),
-                      ],
-                      expandedTile: expandedTile,
-                      selectedTile: selectedTile,
-                      onTileExpandToggle: onTileExpandToggle,
-                      onItemSelected: onItemSelected,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          Expanded(
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Autocomplete<String>(
-                          fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
-                            return TextFormField(
-                              controller: controller,
-                              focusNode: focusNode,
-                              onFieldSubmitted: (value) {
-                                focusNode.unfocus();
-                                onFieldSubmitted();
-                              },
-                              decoration: InputDecoration(
-                                fillColor: Colors.white,
-                                filled: true,
-                                hintText: "Search here",
-                                hintStyle: const TextStyle(color: AppColors.textcolor1),
-                                suffixIcon: const Icon(CupertinoIcons.search, color: AppColors.textcolor1),
-                                border: OutlineInputBorder(
-                                  borderSide: const BorderSide(color: AppColors.border),
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
+              child: Column(
+                children: [
+                  // Brand Header
+                  _buildBrandHeader(),
+                  const SizedBox(height: 16),
+
+                  // Sidebar Menu Items
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SidebarTile(
+                            title: "Dashboard",
+                            icon: Icons.dashboard_rounded,
+                            isSelected: selectedTile == "Dashboard",
+                            onTap: () => setState(() => selectedTile = "Dashboard"),
+                          ),
+                           SidebarExpansionTile(
+                            title: "User Management",
+                            icon: Icons.people_alt_rounded,
+                            isInitiallyExpanded: selectedTile == "User Profile" || selectedTile == "User Roles" || selectedTile == "Banned Users",
+                            onTap: () => setState(() => selectedTile = "User Profile"),
+                            children: [
+                              SidebarTile(
+                                title: "Users",
+                                icon: Icons.person_outline_rounded,
+                                isSelected: selectedTile == "User Profile",
+                                onTap: () => setState(() => selectedTile = "User Profile"),
                               ),
-                              style: const TextStyle(color: AppColors.black),
-                            );
-                          },
-                          optionsBuilder: (TextEditingValue textEditingValue) {
-                            if (textEditingValue.text.isEmpty) {
-                              return const Iterable<String>.empty();
-                            }
-                            return _suggestion.where((item) => item.toLowerCase().contains(textEditingValue.text.toLowerCase()));
-                          },
-                          onSelected: (selection) => debugPrint("Selected: $selection"),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      NotificationBadge(
-                        icon: Icons.notifications_none_rounded,
-                        count: notifications.length,
-                        onTap: () {
-                          showDialog(
-                            context: context,
-                            barrierColor: Colors.transparent,
-                            builder: (context) => Stack(
-                              children: [
-                                Positioned(
-                                  top: 80,
-                                  right: 30,
-                                  child: Material(
-                                    color: Colors.transparent,
-                                    child: Container(
-                                      width: 300,
-                                      constraints: const BoxConstraints(maxHeight: 400),
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        borderRadius: BorderRadius.circular(10),
-                                        boxShadow: const [
-                                          BoxShadow(blurRadius: 10, color: Colors.black26, offset: Offset(0, 4)),
-                                        ],
-                                      ),
-                                      child: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          const SizedBox(height: 8),
-                                          const Text("Notifications", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                                          const Divider(height: 0),
-                                          if (notifications.isEmpty)
-                                            const Padding(
-                                              padding: EdgeInsets.all(20),
-                                              child: Text("No notifications"),
-                                            )
-                                          else
-                                            SizedBox(
-                                              height: 300,
-                                              child: ListView(
-                                                children: notifications.map((note) => ListTile(
-                                                  leading: Icon(note.icon, color: note.color),
-                                                  title: Text(note.message),
-                                                  onTap: () {
-                                                    Navigator.pop(context);
-                                                    note.onTap();
-                                                  },
-                                                )).toList(),
-                                              ),
-                                            ),
-                                        ],
-                                      ),
+                              SidebarTile(
+                                title: "User Roles",
+                                icon: Icons.shield_outlined,
+                                isSelected: selectedTile == "User Roles",
+                                onTap: () => setState(() => selectedTile = "User Roles"),
+                              ),
+                              SidebarTile(
+                                title: "Banned Users",
+                                icon: Icons.block_flipped,
+                                isSelected: selectedTile == "Banned Users",
+                                onTap: () => setState(() => selectedTile = "Banned Users"),
+                              ),
+                            ],
+                          ),
+                          SidebarExpansionTile(
+                            title: "Worker Management",
+                            icon: Icons.engineering_rounded,
+                            isInitiallyExpanded: selectedTile == "All Workers" || selectedTile == "Pending Approvals" || selectedTile == "Approved Workers" || selectedTile == "Rejected Workers" || selectedTile == "Suspended Workers",
+                            onTap: () => setState(() => selectedTile = "All Workers"),
+                            children: [
+                              SidebarTile(
+                                title: "All Workers",
+                                icon: Icons.group_outlined,
+                                isSelected: selectedTile == "All Workers",
+                                onTap: () => setState(() => selectedTile = "All Workers"),
+                              ),
+                              SidebarTile(
+                                title: "Pending Approvals",
+                                icon: Icons.hourglass_empty_rounded,
+                                isSelected: selectedTile == "Pending Approvals",
+                                onTap: () => setState(() => selectedTile = "Pending Approvals"),
+                                trailing: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF59E0B),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Text(
+                                    "24",
+                                    style: GoogleFonts.inter(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
                                     ),
                                   ),
                                 ),
-                              ],
-                            ),
-                          );
-                        },
+                              ),
+                              SidebarTile(
+                                title: "Approved Workers",
+                                icon: Icons.check_circle_outline_rounded,
+                                isSelected: selectedTile == "Approved Workers",
+                                onTap: () => setState(() => selectedTile = "Approved Workers"),
+                              ),
+                              SidebarTile(
+                                title: "Rejected Workers",
+                                icon: Icons.cancel_outlined,
+                                isSelected: selectedTile == "Rejected Workers",
+                                onTap: () => setState(() => selectedTile = "Rejected Workers"),
+                              ),
+                              SidebarTile(
+                                title: "Suspended Workers",
+                                icon: Icons.pause_circle_outline_rounded,
+                                isSelected: selectedTile == "Suspended Workers",
+                                onTap: () => setState(() => selectedTile = "Suspended Workers"),
+                              ),
+                            ],
+                          ),
+                          SidebarExpansionTile(
+                            title: "Bookings",
+                            icon: Icons.book_online_rounded,
+                            isInitiallyExpanded: selectedTile == "All Bookings" || selectedTile == "Pending Bookings" || selectedTile == "Confirmed Bookings" || selectedTile == "Completed Bookings" || selectedTile == "Cancelled Bookings",
+                            onTap: () => setState(() => selectedTile = "All Bookings"),
+                            children: [
+                              SidebarTile(
+                                title: "All Bookings",
+                                icon: Icons.list_alt_rounded,
+                                isSelected: selectedTile == "All Bookings",
+                                onTap: () => setState(() => selectedTile = "All Bookings"),
+                              ),
+                              SidebarTile(
+                                title: "Pending Bookings",
+                                icon: Icons.hourglass_empty_rounded,
+                                isSelected: selectedTile == "Pending Bookings",
+                                onTap: () => setState(() => selectedTile = "Pending Bookings"),
+                                trailing: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF59E0B),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Text(
+                                    "18",
+                                    style: GoogleFonts.inter(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              SidebarTile(
+                                title: "Confirmed Bookings",
+                                icon: Icons.check_circle_outline_rounded,
+                                isSelected: selectedTile == "Confirmed Bookings",
+                                onTap: () => setState(() => selectedTile = "Confirmed Bookings"),
+                              ),
+                              SidebarTile(
+                                title: "Completed Bookings",
+                                icon: Icons.assignment_turned_in_outlined,
+                                isSelected: selectedTile == "Completed Bookings",
+                                onTap: () => setState(() => selectedTile = "Completed Bookings"),
+                              ),
+                              SidebarTile(
+                                title: "Cancelled Bookings",
+                                icon: Icons.cancel_outlined,
+                                isSelected: selectedTile == "Cancelled Bookings",
+                                onTap: () => setState(() => selectedTile = "Cancelled Bookings"),
+                              ),
+                            ],
+                          ),
+                          SidebarExpansionTile(
+                            title: "Services",
+                            icon: Icons.home_repair_service_rounded,
+                            isInitiallyExpanded: selectedTile == "All Services" || selectedTile == "Categories" || selectedTile == "Service Reviews",
+                            onTap: () => setState(() => selectedTile = "All Services"),
+                            children: [
+                              SidebarTile(
+                                title: "All Services",
+                                icon: Icons.list_alt_rounded,
+                                isSelected: selectedTile == "All Services",
+                                onTap: () => setState(() => selectedTile = "All Services"),
+                              ),
+                              SidebarTile(
+                                title: "Categories",
+                                icon: Icons.category_rounded,
+                                isSelected: selectedTile == "Categories",
+                                onTap: () => setState(() => selectedTile = "Categories"),
+                              ),
+                              SidebarTile(
+                                title: "Service Reviews",
+                                icon: Icons.rate_review_rounded,
+                                isSelected: selectedTile == "Service Reviews",
+                                onTap: () => setState(() => selectedTile = "Service Reviews"),
+                              ),
+                            ],
+                          ),
+                          SidebarExpansionTile(
+                            title: "Products",
+                            icon: Icons.shopping_bag_rounded,
+                            isInitiallyExpanded: selectedTile == "Products",
+                            children: [
+                              SidebarTile(
+                                title: "Products List",
+                                icon: Icons.list_alt_rounded,
+                                isSelected: selectedTile == "Products",
+                                onTap: () => setState(() => selectedTile = "Products"),
+                              ),
+                            ],
+                          ),
+                          SidebarTile(
+                            title: "Orders",
+                            icon: Icons.shopping_cart_rounded,
+                            isSelected: selectedTile == "Orders",
+                            onTap: () => setState(() => selectedTile = "Orders"),
+                          ),
+                          SidebarTile(
+                            title: "Advertisements",
+                            icon: Icons.campaign_rounded,
+                            isSelected: selectedTile == "Ads Promotion",
+                            onTap: () => setState(() => selectedTile = "Ads Promotion"),
+                          ),
+                          SidebarExpansionTile(
+                            title: "Transport",
+                            icon: Icons.local_shipping_rounded,
+                            children: [
+                              SidebarTile(
+                                title: "Overview",
+                                icon: Icons.map_outlined,
+                                isSelected: selectedTile == "Transport Overview",
+                                onTap: () => setState(() => selectedTile = "Transport Overview"),
+                              ),
+                            ],
+                          ),
+                          SidebarTile(
+                            title: "Bus Routes",
+                            icon: Icons.directions_bus_rounded,
+                            isSelected: selectedTile == "Bus Routes",
+                            onTap: () => setState(() => selectedTile = "Bus Routes"),
+                          ),
+                          SidebarTile(
+                            title: "Taxi Drivers",
+                            icon: Icons.local_taxi_rounded,
+                            isSelected: selectedTile == "Taxi Drivers",
+                            onTap: () => setState(() => selectedTile = "Taxi Drivers"),
+                          ),
+                          SidebarTile(
+                            title: "Coupons",
+                            icon: Icons.local_offer_rounded,
+                            isSelected: selectedTile == "Coupons",
+                            onTap: () => setState(() => selectedTile = "Coupons"),
+                          ),
+                          SidebarTile(
+                            title: "Notifications",
+                            icon: Icons.notifications_rounded,
+                            isSelected: selectedTile == "Notifications",
+                            onTap: () => setState(() => selectedTile = "Notifications"),
+                          ),
+                          SidebarExpansionTile(
+                            title: "Reports",
+                            icon: Icons.bar_chart_rounded,
+                            children: [
+                              SidebarTile(
+                                title: "Overview",
+                                icon: Icons.trending_up_rounded,
+                                isSelected: selectedTile == "Reports Overview",
+                                onTap: () => setState(() => selectedTile = "Reports Overview"),
+                              ),
+                            ],
+                          ),
+                          SidebarExpansionTile(
+                            title: "Settings",
+                            icon: Icons.settings_rounded,
+                            children: [
+                              SidebarTile(
+                                title: "Preferences",
+                                icon: Icons.tune_rounded,
+                                isSelected: selectedTile == "Preferences",
+                                onTap: () => setState(() => selectedTile = "Preferences"),
+                              ),
+                            ],
+                          ),
+                          SidebarTile(
+                            title: "Profile",
+                            icon: Icons.person_rounded,
+                            isSelected: selectedTile == "Profile",
+                            onTap: () => setState(() => selectedTile = "Profile"),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 8),
-                      Container(height: 60, width: 2, color: AppColors.border),
-                      const SizedBox(width: 10),
-                      Container(
-                        height: 60,
-                        width: 220,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(25),
-                          gradient: const LinearGradient(colors: [AppColors.gradient1, AppColors.gradient2]),
-                        ),
-                        child: const Row(
-                          children: [
-                            SizedBox(width: 12),
-                            Text("Hi", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                            SizedBox(width: 7),
-                            Text("Admin Name", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                            SizedBox(width: 20),
-                            CircleAvatar(
-                              backgroundColor: Colors.white,
-                              maxRadius: 27,
-                              child: Icon(Icons.person, color: AppColors.black),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                    ],
+                    ),
                   ),
+
+                  // Divider
+                  const Divider(color: Colors.white10, height: 1),
+
+                  // Logout
+                  SidebarLogoutTile(
+                    onTap: () => _showLogoutDialog(context),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Main Screen
+          Expanded(
+            child: Column(
+              children: [
+                // Top Header Bar
+                _buildTopHeader(context),
+                const Divider(color: Color(0xFFE2E8F0), height: 1),
+
+                // Main Page Body
+                Expanded(
+                  child: getSelectedPage(),
                 ),
-                Expanded(child: SingleChildScrollView(child: getSelectedPage())),
               ],
             ),
           ),
@@ -362,26 +511,534 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
     );
   }
 
-  Widget buildDrawerTile(String title, String assetPath) {
-    return Container(
-      color: selectedTile == title ? AppColors.gradient1 : Colors.transparent,
-      child: ListTile(
-        leading: Image.asset(
-          assetPath,
-          color: selectedTile == title ? Colors.white : AppColors.textcolor1,
-          errorBuilder: (context, error, stackTrace) => const Icon(Icons.error),
-        ),
-        title: Text(
-          title,
-          style: TextStyle(
-            color: selectedTile == title ? Colors.white : AppColors.textcolor1,
+  Widget _buildBrandHeader() {
+    return Padding(
+      padding: const EdgeInsets.all(24.0),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: const BoxDecoration(
+              color: Color(0xFF10B981), // Green
+              shape: BoxShape.circle,
+            ),
+            child: const Center(
+              child: Icon(
+                Icons.spa_rounded, // Leaf style icon
+                color: Colors.white,
+                size: 20,
+              ),
+            ),
           ),
-        ),
-        selected: selectedTile == title,
-        onTap: () => onItemSelected(title),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "NaattuLink",
+                style: GoogleFonts.inter(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              Text(
+                "Admin Panel",
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  color: const Color(0xFF94A3B8), // Slate 400
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTopHeader(BuildContext context) {
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      child: Row(
+        children: [
+          // Hamburger Icon & Search Bar
+          InkWell(
+            onTap: () {},
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.menu, color: Color(0xFF475569), size: 20),
+            ),
+          ),
+          const SizedBox(width: 16),
+          SizedBox(
+            width: 320,
+            child: TextFormField(
+              decoration: InputDecoration(
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                fillColor: Colors.white,
+                filled: true,
+                hintText: "Search anything...",
+                hintStyle: GoogleFonts.inter(color: const Color(0xFF94A3B8), fontSize: 13),
+                prefixIcon: const Icon(CupertinoIcons.search, color: Color(0xFF94A3B8), size: 18),
+                border: OutlineInputBorder(
+                  borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderSide: const BorderSide(color: Color(0xFF10B981)),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              style: GoogleFonts.inter(color: const Color(0xFF1E293B), fontSize: 13),
+            ),
+          ),
+
+          const Spacer(),
+
+          // Notifications Badge Icon
+          TopBarBadgeIcon(
+            icon: Icons.notifications_none_rounded,
+            count: 5,
+            onTap: () => _showNotificationsDialog(context),
+          ),
+          const SizedBox(width: 20),
+
+          // Message Badge Icon
+          TopBarBadgeIcon(
+            icon: Icons.chat_bubble_outline_rounded,
+            count: 3,
+            onTap: () {},
+          ),
+          const SizedBox(width: 24),
+
+          // Vertical Divider
+          Container(
+            height: 32,
+            width: 1,
+            color: const Color(0xFFE2E8F0),
+          ),
+          const SizedBox(width: 24),
+
+          // User Profile Info
+          Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: Image.network(
+                  'https://randomuser.me/api/portraits/men/32.jpg',
+                  width: 40,
+                  height: 40,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      width: 40,
+                      height: 40,
+                      color: const Color(0xFFE2E8F0),
+                      child: const Icon(Icons.person, color: Color(0xFF64748B), size: 20),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    "Admin",
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF1E293B),
+                    ),
+                  ),
+                  Text(
+                    "Super Admin",
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      color: const Color(0xFF64748B),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showNotificationsDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black26,
+      builder: (context) => Stack(
+        children: [
+          Positioned(
+            top: 70,
+            right: 180,
+            child: Material(
+              color: Colors.transparent,
+              child: Container(
+                width: 320,
+                constraints: const BoxConstraints(maxHeight: 400),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: const [
+                    BoxShadow(blurRadius: 16, color: Colors.black12, offset: Offset(0, 8)),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            "Notifications",
+                            style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 15, color: const Color(0xFF1E293B)),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              "New",
+                              style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: const Color(0xFF475569)),
+                            ),
+                          )
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                    if (notifications.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.all(24.0),
+                        child: Text("No new notifications", style: GoogleFonts.inter(color: const Color(0xFF64748B))),
+                      )
+                    else
+                      Flexible(
+                        child: ListView(
+                          shrinkWrap: true,
+                          padding: EdgeInsets.zero,
+                          children: notifications.map((note) => ListTile(
+                            leading: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: note.color.withValues(alpha: 0.1),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(note.icon, color: note.color, size: 16),
+                            ),
+                            title: Text(note.message, style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF1E293B))),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                            onTap: () {
+                              Navigator.pop(context);
+                              note.onTap();
+                            },
+                          )).toList(),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showLogoutDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text("Logout", style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+        content: Text("Are you sure you want to logout?", style: GoogleFonts.inter()),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text("Cancel", style: GoogleFonts.inter(color: const Color(0xFF64748B))),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              // Perform actual logout logic or redirect
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEF4444),
+              foregroundColor: Colors.white,
+            ),
+            child: Text("Logout", style: GoogleFonts.inter()),
+          ),
+        ],
       ),
     );
   }
 }
 
+class SidebarTile extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  final bool isSelected;
+  final VoidCallback onTap;
+  final Widget? trailing;
 
+  const SidebarTile({
+    super.key,
+    required this.title,
+    required this.icon,
+    required this.isSelected,
+    required this.onTap,
+    this.trailing,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: isSelected ? const Color(0xFF1E3A2F) : Colors.transparent, // Green capsule style tint
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                icon,
+                color: isSelected ? const Color(0xFF10B981) : const Color(0xFF94A3B8), // Emerald Selected, Slate unselected
+                size: 20,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  title,
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                    color: isSelected ? Colors.white : const Color(0xFF94A3B8),
+                  ),
+                ),
+              ),
+              if (trailing != null) trailing!,
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class SidebarExpansionTile extends StatefulWidget {
+  final String title;
+  final IconData icon;
+  final List<Widget> children;
+  final bool isInitiallyExpanded;
+  final VoidCallback? onTap;
+
+  const SidebarExpansionTile({
+    super.key,
+    required this.title,
+    required this.icon,
+    required this.children,
+    this.isInitiallyExpanded = false,
+    this.onTap,
+  });
+
+  @override
+  State<SidebarExpansionTile> createState() => _SidebarExpansionTileState();
+}
+
+class _SidebarExpansionTileState extends State<SidebarExpansionTile> {
+  late bool _isExpanded;
+
+  @override
+  void initState() {
+    super.initState();
+    _isExpanded = widget.isInitiallyExpanded;
+  }
+
+  @override
+  void didUpdateWidget(covariant SidebarExpansionTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.isInitiallyExpanded != widget.isInitiallyExpanded) {
+      _isExpanded = widget.isInitiallyExpanded;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 2.0),
+      child: Column(
+        children: [
+          InkWell(
+            onTap: () {
+              setState(() {
+                _isExpanded = !_isExpanded;
+              });
+              if (widget.onTap != null) {
+                widget.onTap!();
+              }
+            },
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                children: [
+                  Icon(
+                    widget.icon,
+                    color: const Color(0xFF94A3B8),
+                    size: 20,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      widget.title,
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: const Color(0xFF94A3B8),
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    _isExpanded ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
+                    color: const Color(0xFF94A3B8),
+                    size: 18,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (_isExpanded)
+            Padding(
+              padding: const EdgeInsets.only(left: 12.0),
+              child: Column(
+                children: widget.children,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class SidebarLogoutTile extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const SidebarLogoutTile({
+    super.key,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.logout_rounded,
+                color: Color(0xFFEF4444),
+                size: 20,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  "Logout",
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFFEF4444),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class TopBarBadgeIcon extends StatelessWidget {
+  final IconData icon;
+  final int count;
+  final VoidCallback onTap;
+
+  const TopBarBadgeIcon({
+    super.key,
+    required this.icon,
+    required this.count,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Icon(icon, color: const Color(0xFF475569), size: 24),
+            if (count > 0)
+              Positioned(
+                top: -4,
+                right: -4,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFEF4444),
+                    shape: BoxShape.circle,
+                  ),
+                  constraints: const BoxConstraints(
+                    minWidth: 16,
+                    minHeight: 16,
+                  ),
+                  child: Text(
+                    count.toString(),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 8,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
