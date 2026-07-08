@@ -641,12 +641,14 @@ class _AdspromotionState extends State<Adspromotion> {
                   )
                   : LayoutBuilder(
                     builder: (context, gridConstraints) {
-                      int columns = 1;
-                      if (gridConstraints.maxWidth > 1200) {
-                        columns = 4;
-                      } else if (gridConstraints.maxWidth > 800) {
-                        columns = 2;
-                      }
+                      int columns = (gridConstraints.maxWidth / 500).floor();
+                      if (columns < 1) columns = 1;
+
+                      const double spacing = 16.0;
+                      final double cardWidth =
+                          (gridConstraints.maxWidth - (columns - 1) * spacing) /
+                          columns;
+                      final double childAspectRatio = cardWidth / 170.0;
 
                       return GridView.builder(
                         shrinkWrap: true,
@@ -654,9 +656,9 @@ class _AdspromotionState extends State<Adspromotion> {
                         itemCount: filteredBanners.length,
                         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: columns,
-                          crossAxisSpacing: 16,
-                          mainAxisSpacing: 16,
-                          childAspectRatio: 0.76,
+                          crossAxisSpacing: spacing,
+                          mainAxisSpacing: spacing,
+                          childAspectRatio: childAspectRatio,
                         ),
                         itemBuilder: (context, index) {
                           return _buildBannerCard(filteredBanners[index], now);
@@ -820,12 +822,13 @@ class _AdspromotionState extends State<Adspromotion> {
         ],
       ),
       clipBehavior: Clip.antiAlias,
-      child: Column(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Banner Image & Badge Overlay
-          AspectRatio(
-            aspectRatio: 12 / 5,
+          // Banner Image & Badge Overlay - Left side horizontal layout
+          SizedBox(
+            width: 140,
+            height: 170,
             child: Stack(
               children: [
                 Positioned.fill(
@@ -853,14 +856,14 @@ class _AdspromotionState extends State<Adspromotion> {
                             ),
                           ),
                 ),
-                // Position tag overlay
+                // Position tag overlay - Top Left
                 Positioned(
-                  top: 10,
-                  left: 10,
+                  top: 8,
+                  left: 8,
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
+                      horizontal: 8,
+                      vertical: 3,
                     ),
                     decoration: BoxDecoration(
                       color: primaryNavy,
@@ -869,21 +872,21 @@ class _AdspromotionState extends State<Adspromotion> {
                     child: Text(
                       banner.bannerPosition,
                       style: GoogleFonts.plusJakartaSans(
-                        fontSize: 9,
+                        fontSize: 8,
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                   ),
                 ),
-                // Priority Tag Right
+                // Priority Tag Overlay - Bottom Left
                 Positioned(
-                  top: 10,
-                  right: 10,
+                  bottom: 8,
+                  left: 8,
                   child: Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 8,
-                      vertical: 4,
+                      vertical: 3,
                     ),
                     decoration: BoxDecoration(
                       color: secondaryYellow,
@@ -892,7 +895,7 @@ class _AdspromotionState extends State<Adspromotion> {
                     child: Text(
                       "Prio: ${banner.priority}",
                       style: GoogleFonts.plusJakartaSans(
-                        fontSize: 9,
+                        fontSize: 8,
                         color: textDark,
                         fontWeight: FontWeight.bold,
                       ),
@@ -903,200 +906,204 @@ class _AdspromotionState extends State<Adspromotion> {
             ),
           ),
 
-          // Details Section — compact, no Expanded so it doesn't over-stretch
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Category + Status row
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: primaryNavy.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        banner.category,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 10,
-                          color: primaryNavy,
-                          fontWeight: FontWeight.bold,
+          // Details Section — Right side horizontal layout
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Category + Status row
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
                         ),
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: statusColor.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        status,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 10,
-                          color: statusColor,
-                          fontWeight: FontWeight.bold,
+                        decoration: BoxDecoration(
+                          color: primaryNavy.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(6),
                         ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-
-                // Title
-                Text(
-                  banner.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: textDark,
-                  ),
-                ),
-                const SizedBox(height: 3),
-
-                // Description
-                Text(
-                  banner.description,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 11,
-                    color: textGrey,
-                    height: 1.4,
-                  ),
-                ),
-                const SizedBox(height: 10),
-
-                // Advertiser info
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.business_rounded,
-                      size: 12,
-                      color: textGrey,
-                    ),
-                    const SizedBox(width: 5),
-                    Expanded(
-                      child: Text(
-                        banner.advertiserName.isNotEmpty
-                            ? banner.advertiserName
-                            : 'Direct Booking',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 11,
-                          color: textDark,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 3),
-
-                // Date range
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.date_range_rounded,
-                      size: 12,
-                      color: textGrey,
-                    ),
-                    const SizedBox(width: 5),
-                    Text(
-                      '${_formatDate(banner.startDate)} – ${_formatDate(banner.endDate)}',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 11,
-                        color: textGrey,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-                const Divider(height: 16),
-
-                // Analytics + action buttons
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '${banner.totalViews} Views | ${banner.totalClicks} Clicks',
+                        child: Text(
+                          banner.category,
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 10,
-                            color: textGrey,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'CTR: ${ctr.toStringAsFixed(1)}%',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 11,
                             color: primaryNavy,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                      ],
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: statusColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          status,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 10,
+                            color: statusColor,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+
+                  // Title
+                  Text(
+                    banner.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: textDark,
                     ),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Transform.scale(
-                          scale: 0.7,
-                          child: Switch(
-                            value: banner.isActive,
-                            activeThumbColor: Colors.green,
-                            inactiveTrackColor: Colors.grey[200],
-                            onChanged: (bool newVal) {
-                              _firestore
-                                  .collection('advertisements')
-                                  .doc(banner.id)
-                                  .update({'isActive': newVal});
-                            },
-                          ),
-                        ),
-                        IconButton(
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                          icon: const Icon(
-                            Icons.edit_outlined,
-                            size: 18,
-                            color: textGrey,
-                          ),
-                          onPressed: () => _openBannerFormDialog(banner),
-                        ),
-                        const SizedBox(width: 8),
-                        IconButton(
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                          icon: const Icon(
-                            Icons.delete_outline_rounded,
-                            size: 18,
-                            color: Colors.redAccent,
-                          ),
-                          onPressed: () => _confirmDeleteBanner(banner),
-                        ),
-                      ],
+                  ),
+                  const SizedBox(height: 2),
+
+                  // Description
+                  Text(
+                    banner.description,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11,
+                      color: textGrey,
+                      height: 1.4,
                     ),
-                  ],
-                ),
-              ],
+                  ),
+
+                  const Spacer(),
+
+                  // Advertiser info
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.business_rounded,
+                        size: 12,
+                        color: textGrey,
+                      ),
+                      const SizedBox(width: 5),
+                      Expanded(
+                        child: Text(
+                          banner.advertiserName.isNotEmpty
+                              ? banner.advertiserName
+                              : 'Direct Booking',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 11,
+                            color: textDark,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+
+                  // Date range
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.date_range_rounded,
+                        size: 12,
+                        color: textGrey,
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        '${_formatDate(banner.startDate)} – ${_formatDate(banner.endDate)}',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11,
+                          color: textGrey,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  const Divider(height: 1, thickness: 1, color: borderLight),
+                  const SizedBox(height: 4),
+
+                  // Analytics + action buttons
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '${banner.totalViews} Views | ${banner.totalClicks} Clicks',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 10,
+                              color: textGrey,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            'CTR: ${ctr.toStringAsFixed(1)}%',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11,
+                              color: primaryNavy,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Transform.scale(
+                            scale: 0.7,
+                            child: Switch(
+                              value: banner.isActive,
+                              activeThumbColor: Colors.green,
+                              inactiveTrackColor: Colors.grey[200],
+                              onChanged: (bool newVal) {
+                                _firestore
+                                    .collection('advertisements')
+                                    .doc(banner.id)
+                                    .update({'isActive': newVal});
+                              },
+                            ),
+                          ),
+                          IconButton(
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            icon: const Icon(
+                              Icons.edit_outlined,
+                              size: 18,
+                              color: textGrey,
+                            ),
+                            onPressed: () => _openBannerFormDialog(banner),
+                          ),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            icon: const Icon(
+                              Icons.delete_outline_rounded,
+                              size: 18,
+                              color: Colors.redAccent,
+                            ),
+                            onPressed: () => _confirmDeleteBanner(banner),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         ],
@@ -1242,6 +1249,7 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
   String _localOfferType = 'Product Offer';
 
   bool _noTextButton = false;
+  bool _noBannerAction = false;
 
   DateTime _startDate = DateTime.now();
   TimeOfDay _startTime = const TimeOfDay(hour: 0, minute: 0);
@@ -1315,6 +1323,13 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
     if (b != null) {
       _selectedCategory = b.category;
       _selectedBannerAction = b.bannerAction;
+      _noBannerAction =
+          b.bannerAction == 'None' ||
+          b.bannerAction == '' ||
+          b.bannerAction == 'none';
+      if (_noBannerAction) {
+        _selectedBannerAction = 'Open URL';
+      }
       _selectedPosition = b.bannerPosition;
       _currentImageUrl = b.imageUrl;
       _isActive = b.isActive;
@@ -1530,7 +1545,9 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
           _imageName ?? 'banner.png',
           'banner',
         );
-        debugPrint('DEBUG: ImageKit target filename: $filename, folder: banners');
+        debugPrint(
+          'DEBUG: ImageKit target filename: $filename, folder: banners',
+        );
 
         finalImageUrl = await ImageKitService.uploadImage(
           imageBytes: _imageBytes!,
@@ -1574,7 +1591,7 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
 
       // Compile CTA button display text
       final String resolvedButtonText =
-          _noTextButton
+          (_noTextButton || _noBannerAction)
               ? 'No Text'
               : (_selectedButtonText == 'Custom'
                   ? _customButtonTextController.text.trim()
@@ -1622,9 +1639,13 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
         'category': _selectedCategory,
         'imageUrl': finalImageUrl,
         'buttonText': resolvedButtonText,
-        'bannerAction': _selectedBannerAction,
-        'buttonAction': _selectedBannerAction, // backward compatibility
-        'actionValue': _actionValueController.text.trim(),
+        'bannerAction': _noBannerAction ? 'None' : _selectedBannerAction,
+        'buttonAction':
+            _noBannerAction
+                ? 'None'
+                : _selectedBannerAction, // backward compatibility
+        'actionValue':
+            _noBannerAction ? '' : _actionValueController.text.trim(),
         'advertiserName': _advertiserController.text.trim(),
         'phone': _phoneController.text.trim(),
         'email': _emailController.text.trim(),
@@ -1959,17 +1980,6 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
                       : null,
         ),
         const SizedBox(height: 16),
-        _buildTextField(
-          controller: _descController,
-          label: "Short Description *",
-          maxLines: 3,
-          validator:
-              (value) =>
-                  value == null || value.trim().isEmpty
-                      ? "Description is required"
-                      : null,
-        ),
-        const SizedBox(height: 16),
         _buildDropdownField(
           label: "Advertisement Category *",
           value: _selectedCategory,
@@ -2229,69 +2239,103 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
         ),
         const SizedBox(height: 12),
 
-        Row(
-          children: [
-            // Conditionally show Button Text dropdown only if No Text Button is unchecked
-            if (!_noTextButton)
+        // No Banner Action Checkbox
+        CheckboxListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text(
+            "No Banner Action",
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: _AdspromotionState.textDark,
+            ),
+          ),
+          subtitle: Text(
+            "Disables any clicks or CTA actions on this banner.",
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 11,
+              color: _AdspromotionState.textGrey,
+            ),
+          ),
+          value: _noBannerAction,
+          activeColor: _AdspromotionState.primaryNavy,
+          onChanged: (val) {
+            setState(() {
+              _noBannerAction = val ?? false;
+              if (_noBannerAction) {
+                _actionValueController.clear();
+              }
+            });
+          },
+          controlAffinity: ListTileControlAffinity.leading,
+        ),
+
+        if (!_noBannerAction) ...[
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              // Conditionally show Button Text dropdown only if No Text Button is unchecked
+              if (!_noTextButton)
+                Expanded(
+                  child: _buildDropdownField(
+                    label: "Button Display Text",
+                    value: _selectedButtonText,
+                    items: [
+                      'Contact Us',
+                      'Learn More',
+                      'Book Now',
+                      'Shop Now',
+                      'View Details',
+                      'Call Now',
+                      'Custom',
+                    ],
+                    onChanged:
+                        (val) => setState(() => _selectedButtonText = val!),
+                  ),
+                ),
+              if (!_noTextButton) const SizedBox(width: 16),
               Expanded(
                 child: _buildDropdownField(
-                  label: "Button Display Text",
-                  value: _selectedButtonText,
+                  label: "Banner Action Type",
+                  value: _selectedBannerAction,
                   items: [
-                    'Contact Us',
-                    'Learn More',
-                    'Book Now',
-                    'Shop Now',
-                    'View Details',
-                    'Call Now',
-                    'Custom',
+                    'Open URL',
+                    'Open WhatsApp',
+                    'Call Phone',
+                    'Open In-App Page',
+                    'Open Product',
+                    'Open Service',
+                    'Open Category',
                   ],
                   onChanged:
-                      (val) => setState(() => _selectedButtonText = val!),
+                      (val) => setState(() => _selectedBannerAction = val!),
                 ),
               ),
-            if (!_noTextButton) const SizedBox(width: 16),
-            Expanded(
-              child: _buildDropdownField(
-                label: "Banner Action Type",
-                value: _selectedBannerAction,
-                items: [
-                  'Open URL',
-                  'Open WhatsApp',
-                  'Call Phone',
-                  'Open In-App Page',
-                  'Open Product',
-                  'Open Service',
-                  'Open Category',
-                ],
-                onChanged:
-                    (val) => setState(() => _selectedBannerAction = val!),
-              ),
+            ],
+          ),
+          if (!_noTextButton && _selectedButtonText == 'Custom') ...[
+            const SizedBox(height: 16),
+            _buildTextField(
+              controller: _customButtonTextController,
+              label: "Custom Button Label Text *",
+              validator:
+                  (value) =>
+                      !_noTextButton &&
+                              _selectedButtonText == 'Custom' &&
+                              (value == null || value.trim().isEmpty)
+                          ? "Custom label required"
+                          : null,
             ),
           ],
-        ),
-        if (!_noTextButton && _selectedButtonText == 'Custom') ...[
           const SizedBox(height: 16),
           _buildTextField(
-            controller: _customButtonTextController,
-            label: "Custom Button Label Text *",
-            validator:
-                (value) =>
-                    !_noTextButton &&
-                            _selectedButtonText == 'Custom' &&
-                            (value == null || value.trim().isEmpty)
-                        ? "Custom label required"
-                        : null,
+            controller: _actionValueController,
+            label: actionLabel,
+            hintText: hintText,
+            keyboardType: inputType,
+            validator: validator,
           ),
         ],
-        const SizedBox(height: 16),
-        _buildTextField(
-          controller: _actionValueController,
-          label: actionLabel,
-          hintText: hintText,
-          keyboardType: inputType,
-          validator: validator,
-        ),
       ],
     );
   }
