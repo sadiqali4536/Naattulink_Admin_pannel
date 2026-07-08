@@ -31,7 +31,7 @@ class Service {
   factory Service.fromFirestore(DocumentSnapshot doc, int index) {
     final data = doc.data() as Map<String, dynamic>;
     double original = double.tryParse(data['original_price']?.toString() ?? '') ?? 0;
-    double discount = double.tryParse(data['discount']?.toString()?.replaceAll('%', '') ?? '') ?? 0;
+    double discount = double.tryParse(data['discount']?.toString().replaceAll('%', '') ?? '') ?? 0;
     double finalPrice = original - (original * discount / 100);
 
     return Service(
@@ -190,9 +190,11 @@ class _ServicesState extends State<Services> {
                           'rating': 1.0,
                         });
 
-                        Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text("New service added successfully!")));
+                        if (context.mounted) {
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text("New service added successfully!")));
+                        }
                       },
                       child: const Text("Save", style: TextStyle(color: Colors.white)),
                     ),
@@ -231,7 +233,7 @@ class _ServicesState extends State<Services> {
         Text(label),
         const SizedBox(height: 6),
         DropdownButtonFormField<String>(
-          value: value,
+          initialValue: value,
           hint: Text(label),
           decoration: InputDecoration(border: OutlineInputBorder(borderRadius: BorderRadius.circular(10))),
           items: categories.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
@@ -281,6 +283,7 @@ class _ServicesState extends State<Services> {
     if (newServiceName.isEmpty) return;
     final service = _servicesList[index];
     await FirebaseFirestore.instance.collection('services').doc(service.docId).update({'service_name': newServiceName});
+    if (!mounted) return;
     setState(() {
       _servicesList[index].services = newServiceName;
       editingIndex = null;
@@ -290,6 +293,7 @@ class _ServicesState extends State<Services> {
 
   Future<void> _deleteService(Service service) async {
     await FirebaseFirestore.instance.collection('services').doc(service.docId).delete();
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Service deleted")));
   }
 
@@ -341,9 +345,9 @@ class _ServicesState extends State<Services> {
                     width: 120,
                     height: 40,
                     onPressed: _openFilterDialog,
-                    child: Row(
+                    child: const Row(
                       mainAxisAlignment: MainAxisAlignment.center,
-                      children: const [
+                      children: [
                         Icon(Icons.filter_alt, color: AppColors.black),
                         SizedBox(width: 6),
                         Text("Filter", style: TextStyle(color: Colors.black)),

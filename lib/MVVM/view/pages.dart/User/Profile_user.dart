@@ -43,11 +43,11 @@ class _ProfileUserState extends State<ProfileUser> {
 
   Widget _actionButton(String label, Color color, VoidCallback onPressed) {
     return CustomButton(
-      child: Text(label, style: const TextStyle(color: Colors.white, fontSize: 15)),
       color: color,
       width: 100,
       height: 40,
       onPressed: onPressed,
+      child: Text(label, style: const TextStyle(color: Colors.white, fontSize: 15)),
     );
   }
 
@@ -201,7 +201,6 @@ class _ProfileUserState extends State<ProfileUser> {
                         }),
                         const SizedBox(width: 8),
                         CustomButton(
-                          child: const Icon(Icons.arrow_forward, size: 25, color: Colors.white),
                           color: AppColors.gradient1,
                           width: 100,
                           height: 40,
@@ -210,6 +209,7 @@ class _ProfileUserState extends State<ProfileUser> {
                               selectedUser = user;
                             });
                           },
+                          child: const Icon(Icons.arrow_forward, size: 25, color: Colors.white),
                         ),
                       ],
                     ),

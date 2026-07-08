@@ -1,4 +1,3 @@
-import 'dart:developer';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:swiftclean_admin/MVVM/utils/constants.dart';
@@ -37,7 +36,6 @@ class DesktopScaffold extends StatefulWidget {
 }
 
 class _DesktopScaffoldState extends State<DesktopScaffold> {
-  bool _isObscureCurrent = true;
   String selectedTile = "Dashboard";
   String? expandedTile;
   final List<String> _suggestion = ["1", "2", "3"];
@@ -83,9 +81,9 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
       case "Payments":
         return  PaymentPage();
       case "Bookings":
-        return  Bookings();
+        return  const Bookings();
       case "Loyalty Points":
-        return Loyaltypoints();
+        return const Loyaltypoints();
       case "Notifications":
         return const Notifications();
       case "Ads Promotion":
@@ -250,7 +248,7 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
                                 hintStyle: const TextStyle(color: AppColors.textcolor1),
                                 suffixIcon: const Icon(CupertinoIcons.search, color: AppColors.textcolor1),
                                 border: OutlineInputBorder(
-                                  borderSide: BorderSide(color: AppColors.border),
+                                  borderSide: const BorderSide(color: AppColors.border),
                                   borderRadius: BorderRadius.circular(10),
                                 ),
                               ),
@@ -287,7 +285,7 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
                                       decoration: BoxDecoration(
                                         color: Colors.white,
                                         borderRadius: BorderRadius.circular(10),
-                                        boxShadow: [
+                                        boxShadow: const [
                                           BoxShadow(blurRadius: 10, color: Colors.black26, offset: Offset(0, 4)),
                                         ],
                                       ),
@@ -334,10 +332,10 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
                         width: 220,
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(25),
-                          gradient: LinearGradient(colors: [AppColors.gradient1, AppColors.gradient2]),
+                          gradient: const LinearGradient(colors: [AppColors.gradient1, AppColors.gradient2]),
                         ),
-                        child: Row(
-                          children: const [
+                        child: const Row(
+                          children: [
                             SizedBox(width: 12),
                             Text("Hi", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                             SizedBox(width: 7),

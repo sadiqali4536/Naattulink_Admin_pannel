@@ -26,10 +26,10 @@ class _TabletScaffoldState extends State<TabletScaffold> {
             width: double.infinity,
             child: GridView.builder(
               itemCount: 4,
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 4), 
               itemBuilder: (context, index){
-                return MyBox();
+                return const MyBox();
               }
               ),
           ),
@@ -40,7 +40,7 @@ class _TabletScaffoldState extends State<TabletScaffold> {
           child: ListView.builder(
             itemCount: 5,
             itemBuilder: (context, index){
-              return MyTitle();
+              return const MyTitle();
             }) )
         ],
       ),

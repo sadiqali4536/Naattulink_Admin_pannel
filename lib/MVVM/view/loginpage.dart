@@ -4,7 +4,6 @@ import 'package:swiftclean_admin/MVVM/Responsive/responsive_layput.dart';
 import 'package:swiftclean_admin/MVVM/view/Dashboard/desktop_scaffold.dart';
 import 'package:swiftclean_admin/MVVM/view/Dashboard/mobile_scaffold.dart';
 import 'package:swiftclean_admin/MVVM/view/Dashboard/tablet_scaffold.dart';
-import 'package:swiftclean_admin/MVVM/view/pages.dart/Dashboard/Dashboard.dart';
 
 class Loginpage extends StatefulWidget {
   const Loginpage({super.key});
@@ -77,11 +76,11 @@ class _LoginpageState extends State<Loginpage> {
                                 Align(
                                   alignment: Alignment.topCenter,
                                   child: Image.asset("assets/icon/logo.png")),
-                                Positioned(
+                                const Positioned(
                                   bottom: 12,
                                   left: 60,
                                   child: Row(
-                                    children: const [
+                                    children: [
                                       Text(
                                         "SWIFT",
                                         style: TextStyle(
@@ -123,10 +122,10 @@ class _LoginpageState extends State<Loginpage> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 60),
                   height: screenHeight,
-                  decoration: BoxDecoration(
-                    boxShadow: const [BoxShadow(blurRadius: 1.5, color: Colors.grey)],
+                  decoration: const BoxDecoration(
+                    boxShadow: [BoxShadow(blurRadius: 1.5, color: Colors.grey)],
                     color: Colors.white,
-                    borderRadius: const BorderRadius.only(
+                    borderRadius: BorderRadius.only(
                       topRight: Radius.circular(20),
                       bottomRight: Radius.circular(20),
                     ),
@@ -324,7 +323,7 @@ class _LoginpageState extends State<Loginpage> {
                       ),
                     ),
                     child: isLoading == true
-                                  ? Center(child: CircularProgressIndicator(color: Colors.white))
+                                  ? const Center(child: CircularProgressIndicator(color: Colors.white))
                                   : const Text(
                       "Login",
                       style: TextStyle(fontWeight: FontWeight.bold),
@@ -351,6 +350,7 @@ class _LoginpageState extends State<Loginpage> {
       );
 
       if (currentUser.user != null) {
+        if (!mounted) return;
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(

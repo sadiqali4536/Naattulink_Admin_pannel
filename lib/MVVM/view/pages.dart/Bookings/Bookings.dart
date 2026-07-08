@@ -87,7 +87,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 class Bookings extends StatelessWidget {
-  Bookings({super.key});
+  const Bookings({super.key});
 
   @override
   Widget build(BuildContext context) {

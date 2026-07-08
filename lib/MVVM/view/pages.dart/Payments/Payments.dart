@@ -12,6 +12,8 @@ class PaymentPage extends StatelessWidget {
     },
   );
 
+  PaymentPage({super.key});
+
   @override
   Widget build(BuildContext context) {
     return  Padding(
@@ -30,27 +32,27 @@ class PaymentPage extends StatelessWidget {
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                icon: Icon(Icons.filter_list),
-                label: Text('Filter'),
+                icon: const Icon(Icons.filter_list),
+                label: const Text('Filter'),
                 onPressed: () {},
               ),
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
 
             // Transaction Table
             Container(
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
-                boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 6)],
+                boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 6)],
               ),
               child: Column(
                 children: [
                   // Header
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                     child: Row(
-                      children: const [
+                      children: [
                         Expanded(child: Text('Transaction ID', style: TextStyle(fontWeight: FontWeight.bold))),
                         Expanded(child: Text('Amount', style: TextStyle(fontWeight: FontWeight.bold))),
                         Expanded(child: Text('Booking ID', style: TextStyle(fontWeight: FontWeight.bold))),
@@ -59,7 +61,7 @@ class PaymentPage extends StatelessWidget {
                       ],
                     ),
                   ),
-                  Divider(height: 0),
+                  const Divider(height: 0),
 
                   // Rows
                   ...transactions.map(
@@ -83,7 +85,7 @@ class PaymentPage extends StatelessWidget {
                                   ),
                                   child: Text(
                                     tx['status']!,
-                                    style: TextStyle(color: Colors.white),
+                                    style: const TextStyle(color: Colors.white),
                                     textAlign: TextAlign.center,
                                   ),
                                 ),
@@ -92,7 +94,7 @@ class PaymentPage extends StatelessWidget {
                             ],
                           ),
                         ),
-                        Divider(height: 0),
+                        const Divider(height: 0),
                       ],
                     ),
                   )

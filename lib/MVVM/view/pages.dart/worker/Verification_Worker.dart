@@ -84,11 +84,11 @@ class _VerificationWorkerState extends State<VerificationWorker> {
 
   Widget _actionButton(String label, Color color, VoidCallback onPressed) {
     return CustomButton(
-      child: Text(label, style: const TextStyle(color: Colors.white, fontSize: 15)),
       color: color,
       width: 100,
       height: 40,
       onPressed: onPressed,
+      child: Text(label, style: const TextStyle(color: Colors.white, fontSize: 15)),
     );
   }
 

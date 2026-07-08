@@ -26,10 +26,10 @@ class _MobileScaffoldState extends State<MobileScaffold> {
             width: double.infinity,
             child: GridView.builder(
               itemCount: 4,
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2), 
               itemBuilder: (context, index){
-                return MyBox();
+                return const MyBox();
               }
               ),
           ),
@@ -40,7 +40,7 @@ class _MobileScaffoldState extends State<MobileScaffold> {
           child: ListView.builder(
             itemCount: 5,
             itemBuilder: (context, index){
-              return MyTitle();
+              return const MyTitle();
             }) )
         ],
       ),

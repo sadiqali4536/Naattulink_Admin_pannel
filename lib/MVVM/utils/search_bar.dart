@@ -23,10 +23,10 @@ class _custsearchBarState extends State<custsearchBar> {
           return TextFormField(
             controller: texteditingcontroller,
             focusNode: focusnode,
-            style: TextStyle(
+            style: const TextStyle(
               color: Colors.amber),
               onFieldSubmitted: (value) => onfieldsubmitted,
-              decoration: InputDecoration(
+              decoration: const InputDecoration(
                 hintText: "Search and see suggestion",
                 border: OutlineInputBorder(
                   borderSide: BorderSide(color: Colors.blue),
@@ -37,7 +37,7 @@ class _custsearchBarState extends State<custsearchBar> {
       ),
       optionsBuilder: (TextEditingValue textEditingValue) async{
         if(textEditingValue.text == ''){
-          return Iterable<String>.empty();
+          return const Iterable<String>.empty();
         }
         final List<String>result = [];
         for (var e in _suggestion){

@@ -1,4 +1,3 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 class Notifications extends StatefulWidget {
@@ -32,7 +31,7 @@ class _NotificationsState extends State<Notifications>
         height: 50,
         width: double.infinity,
         color: Colors.white,
-        child: Row(
+        child: const Row(
           children: [
             Expanded(child: Text("data"))
           ],

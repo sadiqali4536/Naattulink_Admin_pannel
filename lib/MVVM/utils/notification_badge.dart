@@ -8,11 +8,11 @@ class NotificationBadge extends StatelessWidget {
   final int count;
 
   const NotificationBadge({
-    Key? key,
+    super.key,
     required this.icon,
     required this.onTap,
     required this.count,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -27,19 +27,19 @@ class NotificationBadge extends StatelessWidget {
             bottom: 19,
             right: 5,
             child: Container(
-              padding: EdgeInsets.all(4),
-              decoration: BoxDecoration(
+              padding: const EdgeInsets.all(4),
+              decoration: const BoxDecoration(
                 color: Colors.red,
                 shape: BoxShape.circle,
               ),
-              constraints: BoxConstraints(
+              constraints: const BoxConstraints(
                 minWidth: 15,
                 minHeight: 15,
               ),
               child: Center(
                 child: Text(
                   '$count',
-                  style: TextStyle(
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 12,
                   ),

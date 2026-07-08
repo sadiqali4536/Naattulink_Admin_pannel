@@ -154,7 +154,7 @@ class DashboardCard extends StatelessWidget {
                   left: 110,
                   child: Text(
                     value,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 28,
                       fontWeight: FontWeight.bold,
                       color: AppColors.black,

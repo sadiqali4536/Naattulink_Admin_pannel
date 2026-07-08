@@ -116,7 +116,7 @@ class CustomExpansionTile extends StatelessWidget {
                 ),
               ),
             );
-          }).toList(),
+          }),
       ],
     );
   }
