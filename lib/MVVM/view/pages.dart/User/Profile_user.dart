@@ -36,7 +36,20 @@ class UserModel {
       "Active",
       "Inactive",
     ];
-    final String status = map['status'] ?? statuses[index % statuses.length];
+    final String rawStatus = map['status'] ?? statuses[index % statuses.length];
+    String status = "Active";
+    if (rawStatus.toLowerCase() == "active") {
+      status = "Active";
+    } else if (rawStatus.toLowerCase() == "suspended") {
+      status = "Suspended";
+    } else if (rawStatus.toLowerCase() == "inactive") {
+      status = "Inactive";
+    } else {
+      if (rawStatus.isNotEmpty) {
+        status =
+            rawStatus[0].toUpperCase() + rawStatus.substring(1).toLowerCase();
+      }
+    }
 
     final List<int> pointValues = [
       1250,
@@ -52,7 +65,20 @@ class UserModel {
     ];
     final int points = map['points'] ?? pointValues[index % pointValues.length];
 
-    final String userType = map['userType'] ?? "Customer";
+    final String rawUserType = map['userType'] ?? "Customer";
+    String userType = "Customer";
+    if (rawUserType.toLowerCase() == "customer") {
+      userType = "Customer";
+    } else if (rawUserType.toLowerCase() == "admin") {
+      userType = "Admin";
+    } else {
+      if (rawUserType.isNotEmpty) {
+        userType =
+            rawUserType[0].toUpperCase() +
+            rawUserType.substring(1).toLowerCase();
+      }
+    }
+
     final String joinedDate = map['joinedDate'] ?? "May 18, 2024";
     final String userId = map['userId'] ?? "#USR12${58 - index}";
 
@@ -256,6 +282,731 @@ class _ProfileUserState extends State<ProfileUser> {
     );
   }
 
+  void _showAddUserDialog() {
+    final formKey = GlobalKey<FormState>();
+    String name = "";
+    String email = "";
+    String phone = "";
+    String address = "";
+    String userType = "Customer";
+    String status = "Active";
+    int points = 0;
+
+    showDialog(
+      context: context,
+      builder:
+          (dialogContext) => Dialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            elevation: 0,
+            backgroundColor: Colors.transparent,
+            child: Container(
+              width: 480,
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.rectangle,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x14000000),
+                    blurRadius: 20,
+                    offset: Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Form(
+                key: formKey,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            "Add New User",
+                            style: GoogleFonts.inter(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: const Color(0xFF0F172A),
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: () => Navigator.pop(dialogContext),
+                            icon: const Icon(
+                              Icons.close_rounded,
+                              color: Color(0xFF64748B),
+                              size: 20,
+                            ),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            splashRadius: 18,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Container(height: 1, color: const Color(0xFFE2E8F0)),
+                      const SizedBox(height: 20),
+                      Text(
+                        "Full Name",
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF475569),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      TextFormField(
+                        decoration: _inputDecoration(
+                          "Enter full name",
+                          Icons.person_outline_rounded,
+                        ),
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          color: const Color(0xFF1E293B),
+                        ),
+                        validator:
+                            (v) =>
+                                v == null || v.isEmpty
+                                    ? "Name is required"
+                                    : null,
+                        onSaved: (v) => name = v!,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        "Email Address",
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF475569),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      TextFormField(
+                        decoration: _inputDecoration(
+                          "Enter email address",
+                          Icons.mail_outline_rounded,
+                        ),
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          color: const Color(0xFF1E293B),
+                        ),
+                        validator: (v) {
+                          if (v == null || v.isEmpty)
+                            return "Email is required";
+                          if (!RegExp(
+                            r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
+                          ).hasMatch(v)) {
+                            return "Enter a valid email address";
+                          }
+                          return null;
+                        },
+                        onSaved: (v) => email = v!,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        "Phone Number",
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF475569),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      TextFormField(
+                        decoration: _inputDecoration(
+                          "+91 XXXXX XXXXX",
+                          Icons.phone_outlined,
+                        ),
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          color: const Color(0xFF1E293B),
+                        ),
+                        validator:
+                            (v) =>
+                                v == null || v.isEmpty
+                                    ? "Phone number is required"
+                                    : null,
+                        onSaved: (v) => phone = v!,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        "Address",
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF475569),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      TextFormField(
+                        decoration: _inputDecoration(
+                          "Enter address",
+                          Icons.location_on_outlined,
+                        ),
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          color: const Color(0xFF1E293B),
+                        ),
+                        validator:
+                            (v) =>
+                                v == null || v.isEmpty
+                                    ? "Address is required"
+                                    : null,
+                        onSaved: (v) => address = v!,
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  "User Type",
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: const Color(0xFF475569),
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                DropdownButtonFormField<String>(
+                                  initialValue: userType,
+                                  decoration: _inputDecoration("", null),
+                                  items:
+                                      ["Customer", "Admin"]
+                                          .map(
+                                            (type) => DropdownMenuItem(
+                                              value: type,
+                                              child: Text(type),
+                                            ),
+                                          )
+                                          .toList(),
+                                  onChanged: (v) => userType = v!,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  "Status",
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: const Color(0xFF475569),
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                DropdownButtonFormField<String>(
+                                  initialValue: status,
+                                  decoration: _inputDecoration("", null),
+                                  items:
+                                      ["Active", "Suspended", "Inactive"]
+                                          .map(
+                                            (st) => DropdownMenuItem(
+                                              value: st,
+                                              child: Text(st),
+                                            ),
+                                          )
+                                          .toList(),
+                                  onChanged: (v) => status = v!,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        "Initial Loyalty Points",
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF475569),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      TextFormField(
+                        decoration: _inputDecoration(
+                          "e.g. 100",
+                          Icons.star_border_rounded,
+                        ),
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          color: const Color(0xFF1E293B),
+                        ),
+                        keyboardType: TextInputType.number,
+                        onSaved: (v) => points = int.tryParse(v ?? "0") ?? 0,
+                      ),
+                      const SizedBox(height: 24),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          OutlinedButton(
+                            onPressed: () => Navigator.pop(dialogContext),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 14,
+                              ),
+                              side: const BorderSide(color: Color(0xFFE2E8F0)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            child: Text(
+                              "Cancel",
+                              style: GoogleFonts.inter(
+                                color: const Color(0xFF475569),
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          ElevatedButton(
+                            onPressed: () async {
+                              if (formKey.currentState!.validate()) {
+                                formKey.currentState!.save();
+                                Navigator.pop(dialogContext);
+                                try {
+                                  final newUser = {
+                                    'username': name,
+                                    'email': email,
+                                    'phone': phone,
+                                    'address': address,
+                                    'role': 'user',
+                                    'status': status,
+                                    'userType': userType,
+                                    'points': points,
+                                    'joinedDate': _formatDate(DateTime.now()),
+                                    'createdAt': FieldValue.serverTimestamp(),
+                                    'userId':
+                                        '#USR12' +
+                                        DateTime.now().millisecond
+                                            .toString()
+                                            .padLeft(2, '0'),
+                                  };
+                                  await FirebaseFirestore.instance
+                                      .collection("users")
+                                      .add(newUser);
+                                  if (!mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text("User added successfully."),
+                                    ),
+                                  );
+                                } catch (e) {
+                                  if (!mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text("Error adding user: $e"),
+                                    ),
+                                  );
+                                }
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF10B981),
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 14,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            child: Text(
+                              "Add User",
+                              style: GoogleFonts.inter(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+    );
+  }
+
+  void _showEditUserDialog(UserModel user) {
+    final formKey = GlobalKey<FormState>();
+    String name = user.name;
+    String email = user.email;
+    String phone = user.phone;
+    String address = user.address;
+    String userType = user.userType;
+    String status = user.status;
+    int points = user.points;
+
+    showDialog(
+      context: context,
+      builder:
+          (dialogContext) => Dialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            elevation: 0,
+            backgroundColor: Colors.transparent,
+            child: Container(
+              width: 480,
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.rectangle,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x14000000),
+                    blurRadius: 20,
+                    offset: Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Form(
+                key: formKey,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            "Edit User",
+                            style: GoogleFonts.inter(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: const Color(0xFF0F172A),
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: () => Navigator.pop(dialogContext),
+                            icon: const Icon(
+                              Icons.close_rounded,
+                              color: Color(0xFF64748B),
+                              size: 20,
+                            ),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            splashRadius: 18,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Container(height: 1, color: const Color(0xFFE2E8F0)),
+                      const SizedBox(height: 20),
+                      Text(
+                        "Full Name",
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF475569),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      TextFormField(
+                        initialValue: name,
+                        decoration: _inputDecoration(
+                          "Enter full name",
+                          Icons.person_outline_rounded,
+                        ),
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          color: const Color(0xFF1E293B),
+                        ),
+                        validator:
+                            (v) =>
+                                v == null || v.isEmpty
+                                    ? "Name is required"
+                                    : null,
+                        onSaved: (v) => name = v!,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        "Email Address",
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF475569),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      TextFormField(
+                        initialValue: email,
+                        decoration: _inputDecoration(
+                          "Enter email address",
+                          Icons.mail_outline_rounded,
+                        ),
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          color: const Color(0xFF1E293B),
+                        ),
+                        validator: (v) {
+                          if (v == null || v.isEmpty)
+                            return "Email is required";
+                          if (!RegExp(
+                            r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
+                          ).hasMatch(v)) {
+                            return "Enter a valid email address";
+                          }
+                          return null;
+                        },
+                        onSaved: (v) => email = v!,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        "Phone Number",
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF475569),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      TextFormField(
+                        initialValue: phone,
+                        decoration: _inputDecoration(
+                          "+91 XXXXX XXXXX",
+                          Icons.phone_outlined,
+                        ),
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          color: const Color(0xFF1E293B),
+                        ),
+                        validator:
+                            (v) =>
+                                v == null || v.isEmpty
+                                    ? "Phone number is required"
+                                    : null,
+                        onSaved: (v) => phone = v!,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        "Address",
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF475569),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      TextFormField(
+                        initialValue: address,
+                        decoration: _inputDecoration(
+                          "Enter address",
+                          Icons.location_on_outlined,
+                        ),
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          color: const Color(0xFF1E293B),
+                        ),
+                        validator:
+                            (v) =>
+                                v == null || v.isEmpty
+                                    ? "Address is required"
+                                    : null,
+                        onSaved: (v) => address = v!,
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  "User Type",
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: const Color(0xFF475569),
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                DropdownButtonFormField<String>(
+                                  initialValue: userType,
+                                  decoration: _inputDecoration("", null),
+                                  items:
+                                      ["Customer", "Admin"]
+                                          .map(
+                                            (type) => DropdownMenuItem(
+                                              value: type,
+                                              child: Text(type),
+                                            ),
+                                          )
+                                          .toList(),
+                                  onChanged: (v) => userType = v!,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  "Status",
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: const Color(0xFF475569),
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                DropdownButtonFormField<String>(
+                                  initialValue: status,
+                                  decoration: _inputDecoration("", null),
+                                  items:
+                                      ["Active", "Suspended", "Inactive"]
+                                          .map(
+                                            (st) => DropdownMenuItem(
+                                              value: st,
+                                              child: Text(st),
+                                            ),
+                                          )
+                                          .toList(),
+                                  onChanged: (v) => status = v!,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        "Loyalty Points",
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF475569),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      TextFormField(
+                        initialValue: points.toString(),
+                        decoration: _inputDecoration(
+                          "Loyalty Points",
+                          Icons.star_border_rounded,
+                        ),
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          color: const Color(0xFF1E293B),
+                        ),
+                        keyboardType: TextInputType.number,
+                        onSaved: (v) => points = int.tryParse(v ?? "0") ?? 0,
+                      ),
+                      const SizedBox(height: 24),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          OutlinedButton(
+                            onPressed: () => Navigator.pop(dialogContext),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 14,
+                              ),
+                              side: const BorderSide(color: Color(0xFFE2E8F0)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            child: Text(
+                              "Cancel",
+                              style: GoogleFonts.inter(
+                                color: const Color(0xFF475569),
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          ElevatedButton(
+                            onPressed: () async {
+                              if (formKey.currentState!.validate()) {
+                                formKey.currentState!.save();
+                                Navigator.pop(dialogContext);
+                                try {
+                                  await FirebaseFirestore.instance
+                                      .collection("users")
+                                      .doc(user.no)
+                                      .update({
+                                        'username': name,
+                                        'email': email,
+                                        'phone': phone,
+                                        'address': address,
+                                        'status': status,
+                                        'userType': userType,
+                                        'points': points,
+                                      });
+                                  if (!mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        "User updated successfully.",
+                                      ),
+                                    ),
+                                  );
+                                } catch (e) {
+                                  if (!mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text("Error updating user: $e"),
+                                    ),
+                                  );
+                                }
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF10B981),
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 14,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            child: Text(
+                              "Save Changes",
+                              style: GoogleFonts.inter(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+    );
+  }
+
   void _showConfirmationDialog({
     required String title,
     required String content,
@@ -265,7 +1016,7 @@ class _ProfileUserState extends State<ProfileUser> {
     showDialog(
       context: context,
       builder:
-          (_) => AlertDialog(
+          (dialogContext) => AlertDialog(
             title: Text(
               title,
               style: GoogleFonts.inter(fontWeight: FontWeight.bold),
@@ -273,24 +1024,357 @@ class _ProfileUserState extends State<ProfileUser> {
             content: Text(content, style: GoogleFonts.inter()),
             actions: [
               TextButton(
-                onPressed: () => Navigator.pop(context),
+                onPressed: () => Navigator.pop(dialogContext),
                 child: Text(
                   "Cancel",
-                  style: GoogleFonts.inter(color: Colors.grey),
+                  style: GoogleFonts.inter(color: const Color(0xFF64748B)),
                 ),
               ),
-              TextButton(
+              ElevatedButton(
                 onPressed: () {
-                  Navigator.pop(context);
+                  Navigator.pop(dialogContext);
                   onConfirm();
                 },
-                child: Text(
-                  confirmText,
-                  style: GoogleFonts.inter(color: Colors.red),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor:
+                      confirmText == "Delete"
+                          ? const Color(0xFFEF4444)
+                          : const Color(0xFFF97316),
+                  foregroundColor: Colors.white,
                 ),
+                child: Text(confirmText, style: GoogleFonts.inter()),
               ),
             ],
           ),
+    );
+  }
+
+  void _showUserDetailsDialog(UserModel user) {
+    // Status color helpers
+    Color statusBg;
+    Color statusFg;
+    switch (user.status) {
+      case "Active":
+        statusBg = const Color(0xFFDCFCE7);
+        statusFg = const Color(0xFF16A34A);
+        break;
+      case "Suspended":
+        statusBg = const Color(0xFFFFEDD5);
+        statusFg = const Color(0xFFEA580C);
+        break;
+      default:
+        statusBg = const Color(0xFFF1F5F9);
+        statusFg = const Color(0xFF64748B);
+    }
+
+    showDialog(
+      context: context,
+      builder:
+          (dialogContext) => Dialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            elevation: 0,
+            backgroundColor: Colors.transparent,
+            child: Container(
+              width: 440,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.12),
+                    blurRadius: 32,
+                    offset: const Offset(0, 12),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // ── Gradient header with avatar ──────────────────────────────
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Color(0xFF0F172A), Color(0xFF1E3A5F)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.only(
+                        topLeft: Radius.circular(20),
+                        topRight: Radius.circular(20),
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        // close button top-right
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: GestureDetector(
+                            onTap: () => Navigator.pop(dialogContext),
+                            child: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.12),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.close_rounded,
+                                color: Colors.white70,
+                                size: 16,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        // Avatar
+                        Container(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white30, width: 3),
+                          ),
+                          child: ClipOval(
+                            child: Image.network(
+                              'https://randomuser.me/api/portraits/men/32.jpg',
+                              width: 80,
+                              height: 80,
+                              fit: BoxFit.cover,
+                              errorBuilder:
+                                  (_, __, ___) => Container(
+                                    width: 80,
+                                    height: 80,
+                                    color: const Color(0xFF334155),
+                                    child: const Icon(
+                                      Icons.person,
+                                      color: Colors.white54,
+                                      size: 40,
+                                    ),
+                                  ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        // Name
+                        Text(
+                          user.name,
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.inter(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        // User ID
+                        Text(
+                          user.userId,
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            color: Colors.white54,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        // Status badge
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: statusBg,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 7,
+                                height: 7,
+                                decoration: BoxDecoration(
+                                  color: statusFg,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                user.status,
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: statusFg,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // ── Info rows ─────────────────────────────────────────────────
+                  Flexible(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 20,
+                      ),
+                      child: Column(
+                        children: [
+                          _buildDialogInfoRow(
+                            Icons.email_outlined,
+                            "Email",
+                            user.email,
+                          ),
+                          _buildDialogDivider(),
+                          _buildDialogInfoRow(
+                            Icons.phone_outlined,
+                            "Phone",
+                            user.phone,
+                          ),
+                          _buildDialogDivider(),
+                          _buildDialogInfoRow(
+                            Icons.badge_outlined,
+                            "User Type",
+                            user.userType,
+                          ),
+                          _buildDialogDivider(),
+                          _buildDialogInfoRow(
+                            Icons.star_outline_rounded,
+                            "Points",
+                            "${user.points} pts",
+                          ),
+                          _buildDialogDivider(),
+                          _buildDialogInfoRow(
+                            Icons.calendar_today_outlined,
+                            "Joined",
+                            user.joinedDate,
+                          ),
+                          _buildDialogDivider(),
+                          _buildDialogInfoRow(
+                            Icons.location_on_outlined,
+                            "Address",
+                            user.address,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // ── Footer close button ────────────────────────────────────
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.pop(dialogContext),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF0F172A),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          elevation: 0,
+                        ),
+                        child: Text(
+                          "Close",
+                          style: GoogleFonts.inter(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+    );
+  }
+
+  Widget _buildDialogInfoRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, size: 16, color: const Color(0xFF475569)),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF94A3B8),
+                    letterSpacing: 0.4,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  value,
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: const Color(0xFF1E293B),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDialogDivider() {
+    return Container(height: 1, color: const Color(0xFFF1F5F9));
+  }
+
+  InputDecoration _inputDecoration(String hint, IconData? prefixIcon) {
+    return InputDecoration(
+      isDense: true,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      hintText: hint.isNotEmpty ? hint : null,
+      hintStyle: GoogleFonts.inter(
+        color: const Color(0xFF94A3B8),
+        fontSize: 13,
+      ),
+      prefixIcon:
+          prefixIcon != null
+              ? Icon(prefixIcon, color: const Color(0xFF94A3B8), size: 18)
+              : null,
+      filled: true,
+      fillColor: const Color(0xFFF8FAFC),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: const BorderSide(color: Color(0xFF10B981), width: 1.5),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: const BorderSide(color: Colors.red),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: const BorderSide(color: Colors.red, width: 1.5),
+      ),
     );
   }
 
@@ -379,6 +1463,11 @@ class _ProfileUserState extends State<ProfileUser> {
                     ),
                     const SizedBox(height: 24),
 
+                    // Bulk Action Bar (only visible when users are selected)
+                    if (_selectedUserIds.isNotEmpty) _buildBulkActionBar(users),
+
+                    if (_selectedUserIds.isNotEmpty) const SizedBox(height: 16),
+
                     // Stats Cards Grid
                     _buildStatsCardsGrid(width),
                     const SizedBox(height: 24),
@@ -400,6 +1489,187 @@ class _ProfileUserState extends State<ProfileUser> {
           },
         );
       },
+    );
+  }
+
+  Widget _buildBulkActionBar(List<UserModel> allUsers) {
+    final int count = _selectedUserIds.length;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeInOut,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF0F172A), Color(0xFF1E3A5F)],
+        ),
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.18),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // Checkbox icon
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(
+              Icons.check_box_rounded,
+              color: Colors.white,
+              size: 18,
+            ),
+          ),
+          const SizedBox(width: 12),
+          // Count label
+          RichText(
+            text: TextSpan(
+              children: [
+                TextSpan(
+                  text: "$count ",
+                  style: GoogleFonts.inter(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                TextSpan(
+                  text: count == 1 ? "user selected" : "users selected",
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    color: Colors.white.withValues(alpha: 0.7),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Spacer(),
+          // Suspend All button
+          _buildBulkButton(
+            icon: Icons.lock_outline_rounded,
+            label: "Suspend All",
+            color: const Color(0xFFF97316),
+            onTap: () {
+              _showConfirmationDialog(
+                title: "Suspend $count User${count > 1 ? 's' : ''}",
+                content:
+                    "Are you sure you want to suspend the $count selected user${count > 1 ? 's' : ''}?",
+                confirmText: "Suspend",
+                onConfirm: () async {
+                  final batch = FirebaseFirestore.instance.batch();
+                  for (final id in _selectedUserIds) {
+                    batch.update(
+                      FirebaseFirestore.instance.collection("users").doc(id),
+                      {"status": "Suspended"},
+                    );
+                  }
+                  await batch.commit();
+                  if (!mounted) return;
+                  setState(() => _selectedUserIds.clear());
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        "$count user${count > 1 ? 's' : ''} suspended successfully.",
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+          const SizedBox(width: 10),
+          // Delete All button
+          _buildBulkButton(
+            icon: Icons.delete_outline_rounded,
+            label: "Delete All",
+            color: const Color(0xFFEF4444),
+            onTap: () {
+              _showConfirmationDialog(
+                title: "Delete $count User${count > 1 ? 's' : ''}",
+                content:
+                    "Are you sure you want to permanently delete the $count selected user${count > 1 ? 's' : ''}? This cannot be undone.",
+                confirmText: "Delete",
+                onConfirm: () async {
+                  final batch = FirebaseFirestore.instance.batch();
+                  for (final id in _selectedUserIds) {
+                    batch.delete(
+                      FirebaseFirestore.instance.collection("users").doc(id),
+                    );
+                  }
+                  await batch.commit();
+                  if (!mounted) return;
+                  setState(() => _selectedUserIds.clear());
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        "$count user${count > 1 ? 's' : ''} deleted.",
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+          const SizedBox(width: 10),
+          // Clear Selection button
+          TextButton.icon(
+            onPressed: () => setState(() => _selectedUserIds.clear()),
+            icon: const Icon(
+              Icons.close_rounded,
+              size: 16,
+              color: Colors.white54,
+            ),
+            label: Text(
+              "Clear",
+              style: GoogleFonts.inter(fontSize: 13, color: Colors.white54),
+            ),
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBulkButton({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: color.withValues(alpha: 0.4)),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: color, size: 15),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -650,9 +1920,7 @@ class _ProfileUserState extends State<ProfileUser> {
     );
 
     final addUserButton = ElevatedButton.icon(
-      onPressed: () {
-        // Trigger dialog to create/add user
-      },
+      onPressed: () => _showAddUserDialog(),
       icon: const Icon(Icons.add, size: 14),
       label: Text(
         "Add User",
@@ -742,7 +2010,7 @@ class _ProfileUserState extends State<ProfileUser> {
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: SizedBox(
-              width: 1100,
+              width: 1300,
               child: Table(
                 columnWidths: const {
                   0: FixedColumnWidth(50), // Checkbox
@@ -753,7 +2021,7 @@ class _ProfileUserState extends State<ProfileUser> {
                   5: FlexColumnWidth(1.2), // Status dot
                   6: FlexColumnWidth(1.6), // Joined Date
                   7: FlexColumnWidth(1.2), // Points
-                  8: FlexColumnWidth(2.2), // Actions
+                  8: FixedColumnWidth(380), // Actions
                 },
                 defaultVerticalAlignment: TableCellVerticalAlignment.middle,
                 children: [
@@ -923,46 +2191,112 @@ class _ProfileUserState extends State<ProfileUser> {
                             _buildActionButton(
                               Icons.visibility_outlined,
                               Colors.blue,
+                              "View",
                               () {
-                                setState(() {
-                                  selectedUser = user;
-                                });
+                                _showUserDetailsDialog(user);
                               },
                             ),
                             const SizedBox(width: 6),
                             _buildActionButton(
                               Icons.edit_outlined,
                               Colors.blue,
+                              "Edit",
                               () {
-                                // Action for edit
+                                _showEditUserDialog(user);
                               },
                             ),
                             const SizedBox(width: 6),
-                            _buildActionButton(
-                              Icons.lock_outline_rounded,
-                              Colors.orange,
-                              () {
-                                _showConfirmationDialog(
-                                  title: "Confirm Suspension",
-                                  content:
-                                      "Are you sure you want to suspend ${user.name}?",
-                                  confirmText: "Suspend",
-                                  onConfirm: () {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          "${user.name} suspended successfully.",
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                );
-                              },
-                            ),
+                            if (user.status == "Suspended")
+                              _buildActionButton(
+                                Icons.lock_open_rounded,
+                                Colors.green,
+                                "Activate",
+                                () {
+                                  _showConfirmationDialog(
+                                    title: "Confirm Activation",
+                                    content:
+                                        "Are you sure you want to activate ${user.name}?",
+                                    confirmText: "Activate",
+                                    onConfirm: () async {
+                                      try {
+                                        await FirebaseFirestore.instance
+                                            .collection("users")
+                                            .doc(user.no)
+                                            .update({"status": "Active"});
+                                        if (!mounted) return;
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              "${user.name} activated successfully.",
+                                            ),
+                                          ),
+                                        );
+                                      } catch (e) {
+                                        if (!mounted) return;
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              "Error activating user: $e",
+                                            ),
+                                          ),
+                                        );
+                                      }
+                                    },
+                                  );
+                                },
+                              )
+                            else
+                              _buildActionButton(
+                                Icons.lock_outline_rounded,
+                                Colors.orange,
+                                "Suspend",
+                                () {
+                                  _showConfirmationDialog(
+                                    title: "Confirm Suspension",
+                                    content:
+                                        "Are you sure you want to suspend ${user.name}?",
+                                    confirmText: "Suspend",
+                                    onConfirm: () async {
+                                      try {
+                                        await FirebaseFirestore.instance
+                                            .collection("users")
+                                            .doc(user.no)
+                                            .update({"status": "Suspended"});
+                                        if (!mounted) return;
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              "${user.name} suspended successfully.",
+                                            ),
+                                          ),
+                                        );
+                                      } catch (e) {
+                                        if (!mounted) return;
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              "Error suspending user: $e",
+                                            ),
+                                          ),
+                                        );
+                                      }
+                                    },
+                                  );
+                                },
+                              ),
                             const SizedBox(width: 6),
                             _buildActionButton(
                               Icons.delete_outline_rounded,
                               Colors.red,
+                              "Delete",
                               () {
                                 _showConfirmationDialog(
                                   title: "Confirm Delete",
@@ -989,6 +2323,7 @@ class _ProfileUserState extends State<ProfileUser> {
                             _buildActionButton(
                               Icons.list_rounded,
                               Colors.grey,
+                              "Options",
                               () {
                                 // Extra options
                               },
@@ -1082,17 +2417,39 @@ class _ProfileUserState extends State<ProfileUser> {
     );
   }
 
-  Widget _buildActionButton(IconData icon, Color color, VoidCallback onTap) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(6),
-      child: Container(
-        padding: const EdgeInsets.all(6),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(6),
+  Widget _buildActionButton(
+    IconData icon,
+    Color color,
+    String label,
+    VoidCallback onTap,
+  ) {
+    return Tooltip(
+      message: label,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(6),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: color, size: 14),
+              const SizedBox(width: 4),
+              Text(
+                label,
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
         ),
-        child: Icon(icon, color: color, size: 14),
       ),
     );
   }

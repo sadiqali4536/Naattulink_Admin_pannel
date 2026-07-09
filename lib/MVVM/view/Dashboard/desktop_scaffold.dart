@@ -1,5 +1,5 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/Ads%20Promotion/Ads%20Promotion.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/Bookings/Bookings.dart';
@@ -111,7 +111,10 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
       case "Categories":
         return const ServiceCategoriesPage();
       case "Service Reviews":
-        return _buildPlaceholderPage("Service Reviews", Icons.rate_review_rounded);
+        return _buildPlaceholderPage(
+          "Service Reviews",
+          Icons.rate_review_rounded,
+        );
       case "Payments":
         return PaymentPage();
       case "All Bookings":
@@ -146,22 +149,37 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
       case "Ads Promotion":
         return const Adspromotion();
       case "Products":
-        return _buildPlaceholderPage("Products Catalog", Icons.shopping_bag_rounded);
+        return _buildPlaceholderPage(
+          "Products Catalog",
+          Icons.shopping_bag_rounded,
+        );
       case "Orders":
-        return _buildPlaceholderPage("Orders Management", Icons.shopping_cart_rounded);
+        return _buildPlaceholderPage(
+          "Orders Management",
+          Icons.shopping_cart_rounded,
+        );
       case "Bus Routes":
-        return _buildPlaceholderPage("Bus Routes", Icons.directions_bus_rounded);
+        return _buildPlaceholderPage(
+          "Bus Routes",
+          Icons.directions_bus_rounded,
+        );
       case "Taxi Drivers":
         return _buildPlaceholderPage("Taxi Drivers", Icons.local_taxi_rounded);
       case "Coupons":
-        return _buildPlaceholderPage("Coupons & Offers", Icons.local_offer_rounded);
+        return _buildPlaceholderPage(
+          "Coupons & Offers",
+          Icons.local_offer_rounded,
+        );
       case "Profile":
         return _buildPlaceholderPage("Admin Profile", Icons.person_rounded);
       default:
         return Center(
           child: Text(
             "Selected: $selectedTile",
-            style: GoogleFonts.inter(fontSize: 18, color: const Color(0xFF64748B)),
+            style: GoogleFonts.inter(
+              fontSize: 18,
+              color: const Color(0xFF64748B),
+            ),
           ),
         );
     }
@@ -223,106 +241,179 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
                             title: "Dashboard",
                             icon: Icons.dashboard_rounded,
                             isSelected: selectedTile == "Dashboard",
-                            onTap: () => setState(() => selectedTile = "Dashboard"),
+                            onTap:
+                                () =>
+                                    setState(() => selectedTile = "Dashboard"),
                           ),
-                           SidebarExpansionTile(
+                          SidebarExpansionTile(
                             title: "User Management",
                             icon: Icons.people_alt_rounded,
-                            isInitiallyExpanded: selectedTile == "User Profile" || selectedTile == "User Roles" || selectedTile == "Banned Users",
-                            onTap: () => setState(() => selectedTile = "User Profile"),
+                            isInitiallyExpanded:
+                                selectedTile == "User Profile" ||
+                                selectedTile == "User Roles" ||
+                                selectedTile == "Banned Users",
+                            onTap:
+                                () => setState(
+                                  () => selectedTile = "User Profile",
+                                ),
                             children: [
                               SidebarTile(
                                 title: "Users",
                                 icon: Icons.person_outline_rounded,
                                 isSelected: selectedTile == "User Profile",
-                                onTap: () => setState(() => selectedTile = "User Profile"),
+                                onTap:
+                                    () => setState(
+                                      () => selectedTile = "User Profile",
+                                    ),
                               ),
                               SidebarTile(
                                 title: "User Roles",
                                 icon: Icons.shield_outlined,
                                 isSelected: selectedTile == "User Roles",
-                                onTap: () => setState(() => selectedTile = "User Roles"),
+                                onTap:
+                                    () => setState(
+                                      () => selectedTile = "User Roles",
+                                    ),
                               ),
                               SidebarTile(
                                 title: "Banned Users",
                                 icon: Icons.block_flipped,
                                 isSelected: selectedTile == "Banned Users",
-                                onTap: () => setState(() => selectedTile = "Banned Users"),
+                                onTap:
+                                    () => setState(
+                                      () => selectedTile = "Banned Users",
+                                    ),
                               ),
                             ],
                           ),
                           SidebarExpansionTile(
                             title: "Worker Management",
                             icon: Icons.engineering_rounded,
-                            isInitiallyExpanded: selectedTile == "All Workers" || selectedTile == "Pending Approvals" || selectedTile == "Approved Workers" || selectedTile == "Rejected Workers" || selectedTile == "Suspended Workers",
-                            onTap: () => setState(() => selectedTile = "All Workers"),
+                            isInitiallyExpanded:
+                                selectedTile == "All Workers" ||
+                                selectedTile == "Pending Approvals" ||
+                                selectedTile == "Approved Workers" ||
+                                selectedTile == "Rejected Workers" ||
+                                selectedTile == "Suspended Workers",
+                            onTap:
+                                () => setState(
+                                  () => selectedTile = "All Workers",
+                                ),
                             children: [
                               SidebarTile(
                                 title: "All Workers",
                                 icon: Icons.group_outlined,
                                 isSelected: selectedTile == "All Workers",
-                                onTap: () => setState(() => selectedTile = "All Workers"),
+                                onTap:
+                                    () => setState(
+                                      () => selectedTile = "All Workers",
+                                    ),
                               ),
                               SidebarTile(
                                 title: "Pending Approvals",
                                 icon: Icons.hourglass_empty_rounded,
                                 isSelected: selectedTile == "Pending Approvals",
-                                onTap: () => setState(() => selectedTile = "Pending Approvals"),
-                                trailing: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFF59E0B),
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: Text(
-                                    "24",
-                                    style: GoogleFonts.inter(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
+                                onTap:
+                                    () => setState(
+                                      () => selectedTile = "Pending Approvals",
                                     ),
-                                  ),
+                                trailing: StreamBuilder<QuerySnapshot>(
+                                  stream:
+                                      FirebaseFirestore.instance
+                                          .collection("workers")
+                                          .where("isVerified", isEqualTo: 0)
+                                          .snapshots(),
+                                  builder: (context, snapshot) {
+                                    int count = 0;
+                                    if (snapshot.hasData) {
+                                      count = snapshot.data!.docs.length;
+                                    }
+                                    return Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFF59E0B),
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: Text(
+                                        count.toString(),
+                                        style: GoogleFonts.inter(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    );
+                                  },
                                 ),
                               ),
                               SidebarTile(
                                 title: "Approved Workers",
                                 icon: Icons.check_circle_outline_rounded,
                                 isSelected: selectedTile == "Approved Workers",
-                                onTap: () => setState(() => selectedTile = "Approved Workers"),
+                                onTap:
+                                    () => setState(
+                                      () => selectedTile = "Approved Workers",
+                                    ),
                               ),
                               SidebarTile(
                                 title: "Rejected Workers",
                                 icon: Icons.cancel_outlined,
                                 isSelected: selectedTile == "Rejected Workers",
-                                onTap: () => setState(() => selectedTile = "Rejected Workers"),
+                                onTap:
+                                    () => setState(
+                                      () => selectedTile = "Rejected Workers",
+                                    ),
                               ),
                               SidebarTile(
                                 title: "Suspended Workers",
                                 icon: Icons.pause_circle_outline_rounded,
                                 isSelected: selectedTile == "Suspended Workers",
-                                onTap: () => setState(() => selectedTile = "Suspended Workers"),
+                                onTap:
+                                    () => setState(
+                                      () => selectedTile = "Suspended Workers",
+                                    ),
                               ),
                             ],
                           ),
                           SidebarExpansionTile(
                             title: "Bookings",
                             icon: Icons.book_online_rounded,
-                            isInitiallyExpanded: selectedTile == "All Bookings" || selectedTile == "Pending Bookings" || selectedTile == "Confirmed Bookings" || selectedTile == "Completed Bookings" || selectedTile == "Cancelled Bookings",
-                            onTap: () => setState(() => selectedTile = "All Bookings"),
+                            isInitiallyExpanded:
+                                selectedTile == "All Bookings" ||
+                                selectedTile == "Pending Bookings" ||
+                                selectedTile == "Confirmed Bookings" ||
+                                selectedTile == "Completed Bookings" ||
+                                selectedTile == "Cancelled Bookings",
+                            onTap:
+                                () => setState(
+                                  () => selectedTile = "All Bookings",
+                                ),
                             children: [
                               SidebarTile(
                                 title: "All Bookings",
                                 icon: Icons.list_alt_rounded,
                                 isSelected: selectedTile == "All Bookings",
-                                onTap: () => setState(() => selectedTile = "All Bookings"),
+                                onTap:
+                                    () => setState(
+                                      () => selectedTile = "All Bookings",
+                                    ),
                               ),
                               SidebarTile(
                                 title: "Pending Bookings",
                                 icon: Icons.hourglass_empty_rounded,
                                 isSelected: selectedTile == "Pending Bookings",
-                                onTap: () => setState(() => selectedTile = "Pending Bookings"),
+                                onTap:
+                                    () => setState(
+                                      () => selectedTile = "Pending Bookings",
+                                    ),
                                 trailing: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
                                   decoration: BoxDecoration(
                                     color: const Color(0xFFF59E0B),
                                     borderRadius: BorderRadius.circular(10),
@@ -340,46 +431,73 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
                               SidebarTile(
                                 title: "Confirmed Bookings",
                                 icon: Icons.check_circle_outline_rounded,
-                                isSelected: selectedTile == "Confirmed Bookings",
-                                onTap: () => setState(() => selectedTile = "Confirmed Bookings"),
+                                isSelected:
+                                    selectedTile == "Confirmed Bookings",
+                                onTap:
+                                    () => setState(
+                                      () => selectedTile = "Confirmed Bookings",
+                                    ),
                               ),
                               SidebarTile(
                                 title: "Completed Bookings",
                                 icon: Icons.assignment_turned_in_outlined,
-                                isSelected: selectedTile == "Completed Bookings",
-                                onTap: () => setState(() => selectedTile = "Completed Bookings"),
+                                isSelected:
+                                    selectedTile == "Completed Bookings",
+                                onTap:
+                                    () => setState(
+                                      () => selectedTile = "Completed Bookings",
+                                    ),
                               ),
                               SidebarTile(
                                 title: "Cancelled Bookings",
                                 icon: Icons.cancel_outlined,
-                                isSelected: selectedTile == "Cancelled Bookings",
-                                onTap: () => setState(() => selectedTile = "Cancelled Bookings"),
+                                isSelected:
+                                    selectedTile == "Cancelled Bookings",
+                                onTap:
+                                    () => setState(
+                                      () => selectedTile = "Cancelled Bookings",
+                                    ),
                               ),
                             ],
                           ),
                           SidebarExpansionTile(
                             title: "Services",
                             icon: Icons.home_repair_service_rounded,
-                            isInitiallyExpanded: selectedTile == "All Services" || selectedTile == "Categories" || selectedTile == "Service Reviews",
-                            onTap: () => setState(() => selectedTile = "All Services"),
+                            isInitiallyExpanded:
+                                selectedTile == "All Services" ||
+                                selectedTile == "Categories" ||
+                                selectedTile == "Service Reviews",
+                            onTap:
+                                () => setState(
+                                  () => selectedTile = "All Services",
+                                ),
                             children: [
                               SidebarTile(
                                 title: "All Services",
                                 icon: Icons.list_alt_rounded,
                                 isSelected: selectedTile == "All Services",
-                                onTap: () => setState(() => selectedTile = "All Services"),
+                                onTap:
+                                    () => setState(
+                                      () => selectedTile = "All Services",
+                                    ),
                               ),
                               SidebarTile(
                                 title: "Categories",
                                 icon: Icons.category_rounded,
                                 isSelected: selectedTile == "Categories",
-                                onTap: () => setState(() => selectedTile = "Categories"),
+                                onTap:
+                                    () => setState(
+                                      () => selectedTile = "Categories",
+                                    ),
                               ),
                               SidebarTile(
                                 title: "Service Reviews",
                                 icon: Icons.rate_review_rounded,
                                 isSelected: selectedTile == "Service Reviews",
-                                onTap: () => setState(() => selectedTile = "Service Reviews"),
+                                onTap:
+                                    () => setState(
+                                      () => selectedTile = "Service Reviews",
+                                    ),
                               ),
                             ],
                           ),
@@ -392,7 +510,10 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
                                 title: "Products List",
                                 icon: Icons.list_alt_rounded,
                                 isSelected: selectedTile == "Products",
-                                onTap: () => setState(() => selectedTile = "Products"),
+                                onTap:
+                                    () => setState(
+                                      () => selectedTile = "Products",
+                                    ),
                               ),
                             ],
                           ),
@@ -400,13 +521,17 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
                             title: "Orders",
                             icon: Icons.shopping_cart_rounded,
                             isSelected: selectedTile == "Orders",
-                            onTap: () => setState(() => selectedTile = "Orders"),
+                            onTap:
+                                () => setState(() => selectedTile = "Orders"),
                           ),
                           SidebarTile(
                             title: "Advertisements",
                             icon: Icons.campaign_rounded,
                             isSelected: selectedTile == "Ads Promotion",
-                            onTap: () => setState(() => selectedTile = "Ads Promotion"),
+                            onTap:
+                                () => setState(
+                                  () => selectedTile = "Ads Promotion",
+                                ),
                           ),
                           SidebarExpansionTile(
                             title: "Transport",
@@ -415,8 +540,12 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
                               SidebarTile(
                                 title: "Overview",
                                 icon: Icons.map_outlined,
-                                isSelected: selectedTile == "Transport Overview",
-                                onTap: () => setState(() => selectedTile = "Transport Overview"),
+                                isSelected:
+                                    selectedTile == "Transport Overview",
+                                onTap:
+                                    () => setState(
+                                      () => selectedTile = "Transport Overview",
+                                    ),
                               ),
                             ],
                           ),
@@ -424,25 +553,34 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
                             title: "Bus Routes",
                             icon: Icons.directions_bus_rounded,
                             isSelected: selectedTile == "Bus Routes",
-                            onTap: () => setState(() => selectedTile = "Bus Routes"),
+                            onTap:
+                                () =>
+                                    setState(() => selectedTile = "Bus Routes"),
                           ),
                           SidebarTile(
                             title: "Taxi Drivers",
                             icon: Icons.local_taxi_rounded,
                             isSelected: selectedTile == "Taxi Drivers",
-                            onTap: () => setState(() => selectedTile = "Taxi Drivers"),
+                            onTap:
+                                () => setState(
+                                  () => selectedTile = "Taxi Drivers",
+                                ),
                           ),
                           SidebarTile(
                             title: "Coupons",
                             icon: Icons.local_offer_rounded,
                             isSelected: selectedTile == "Coupons",
-                            onTap: () => setState(() => selectedTile = "Coupons"),
+                            onTap:
+                                () => setState(() => selectedTile = "Coupons"),
                           ),
                           SidebarTile(
                             title: "Notifications",
                             icon: Icons.notifications_rounded,
                             isSelected: selectedTile == "Notifications",
-                            onTap: () => setState(() => selectedTile = "Notifications"),
+                            onTap:
+                                () => setState(
+                                  () => selectedTile = "Notifications",
+                                ),
                           ),
                           SidebarExpansionTile(
                             title: "Reports",
@@ -452,7 +590,10 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
                                 title: "Overview",
                                 icon: Icons.trending_up_rounded,
                                 isSelected: selectedTile == "Reports Overview",
-                                onTap: () => setState(() => selectedTile = "Reports Overview"),
+                                onTap:
+                                    () => setState(
+                                      () => selectedTile = "Reports Overview",
+                                    ),
                               ),
                             ],
                           ),
@@ -464,7 +605,10 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
                                 title: "Preferences",
                                 icon: Icons.tune_rounded,
                                 isSelected: selectedTile == "Preferences",
-                                onTap: () => setState(() => selectedTile = "Preferences"),
+                                onTap:
+                                    () => setState(
+                                      () => selectedTile = "Preferences",
+                                    ),
                               ),
                             ],
                           ),
@@ -472,7 +616,8 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
                             title: "Profile",
                             icon: Icons.person_rounded,
                             isSelected: selectedTile == "Profile",
-                            onTap: () => setState(() => selectedTile = "Profile"),
+                            onTap:
+                                () => setState(() => selectedTile = "Profile"),
                           ),
                         ],
                       ),
@@ -483,9 +628,7 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
                   const Divider(color: Colors.white10, height: 1),
 
                   // Logout
-                  SidebarLogoutTile(
-                    onTap: () => _showLogoutDialog(context),
-                  ),
+                  SidebarLogoutTile(onTap: () => _showLogoutDialog(context)),
                 ],
               ),
             ),
@@ -500,9 +643,7 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
                 const Divider(color: Color(0xFFE2E8F0), height: 1),
 
                 // Main Page Body
-                Expanded(
-                  child: getSelectedPage(),
-                ),
+                Expanded(child: getSelectedPage()),
               ],
             ),
           ),
@@ -563,7 +704,7 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       child: Row(
         children: [
-          // Hamburger Icon & Search Bar
+          // Hamburger Icon
           InkWell(
             onTap: () {},
             borderRadius: BorderRadius.circular(8),
@@ -574,34 +715,6 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: const Icon(Icons.menu, color: Color(0xFF475569), size: 20),
-            ),
-          ),
-          const SizedBox(width: 16),
-          SizedBox(
-            width: 320,
-            child: TextFormField(
-              decoration: InputDecoration(
-                isDense: true,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                fillColor: Colors.white,
-                filled: true,
-                hintText: "Search anything...",
-                hintStyle: GoogleFonts.inter(color: const Color(0xFF94A3B8), fontSize: 13),
-                prefixIcon: const Icon(CupertinoIcons.search, color: Color(0xFF94A3B8), size: 18),
-                border: OutlineInputBorder(
-                  borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderSide: const BorderSide(color: Color(0xFF10B981)),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              style: GoogleFonts.inter(color: const Color(0xFF1E293B), fontSize: 13),
             ),
           ),
 
@@ -624,11 +737,7 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
           const SizedBox(width: 24),
 
           // Vertical Divider
-          Container(
-            height: 32,
-            width: 1,
-            color: const Color(0xFFE2E8F0),
-          ),
+          Container(height: 32, width: 1, color: const Color(0xFFE2E8F0)),
           const SizedBox(width: 24),
 
           // User Profile Info
@@ -646,7 +755,11 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
                       width: 40,
                       height: 40,
                       color: const Color(0xFFE2E8F0),
-                      child: const Icon(Icons.person, color: Color(0xFF64748B), size: 20),
+                      child: const Icon(
+                        Icons.person,
+                        color: Color(0xFF64748B),
+                        size: 20,
+                      ),
                     );
                   },
                 ),
@@ -684,112 +797,164 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
     showDialog(
       context: context,
       barrierColor: Colors.black26,
-      builder: (context) => Stack(
-        children: [
-          Positioned(
-            top: 70,
-            right: 180,
-            child: Material(
-              color: Colors.transparent,
-              child: Container(
-                width: 320,
-                constraints: const BoxConstraints(maxHeight: 400),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: const [
-                    BoxShadow(blurRadius: 16, color: Colors.black12, offset: Offset(0, 8)),
-                  ],
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            "Notifications",
-                            style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 15, color: const Color(0xFF1E293B)),
+      builder:
+          (context) => Stack(
+            children: [
+              Positioned(
+                top: 70,
+                right: 180,
+                child: Material(
+                  color: Colors.transparent,
+                  child: Container(
+                    width: 320,
+                    constraints: const BoxConstraints(maxHeight: 400),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: const [
+                        BoxShadow(
+                          blurRadius: 16,
+                          color: Colors.black12,
+                          offset: Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                "Notifications",
+                                style: GoogleFonts.inter(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                  color: const Color(0xFF1E293B),
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF1F5F9),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(
+                                  "New",
+                                  style: GoogleFonts.inter(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: const Color(0xFF475569),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF1F5F9),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
+                        ),
+                        const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                        if (notifications.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.all(24.0),
                             child: Text(
-                              "New",
-                              style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: const Color(0xFF475569)),
+                              "No new notifications",
+                              style: GoogleFonts.inter(
+                                color: const Color(0xFF64748B),
+                              ),
                             ),
                           )
-                        ],
-                      ),
-                    ),
-                    const Divider(height: 1, color: Color(0xFFF1F5F9)),
-                    if (notifications.isEmpty)
-                      Padding(
-                        padding: const EdgeInsets.all(24.0),
-                        child: Text("No new notifications", style: GoogleFonts.inter(color: const Color(0xFF64748B))),
-                      )
-                    else
-                      Flexible(
-                        child: ListView(
-                          shrinkWrap: true,
-                          padding: EdgeInsets.zero,
-                          children: notifications.map((note) => ListTile(
-                            leading: Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: note.color.withValues(alpha: 0.1),
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(note.icon, color: note.color, size: 16),
+                        else
+                          Flexible(
+                            child: ListView(
+                              shrinkWrap: true,
+                              padding: EdgeInsets.zero,
+                              children:
+                                  notifications
+                                      .map(
+                                        (note) => ListTile(
+                                          leading: Container(
+                                            padding: const EdgeInsets.all(8),
+                                            decoration: BoxDecoration(
+                                              color: note.color.withValues(
+                                                alpha: 0.1,
+                                              ),
+                                              shape: BoxShape.circle,
+                                            ),
+                                            child: Icon(
+                                              note.icon,
+                                              color: note.color,
+                                              size: 16,
+                                            ),
+                                          ),
+                                          title: Text(
+                                            note.message,
+                                            style: GoogleFonts.inter(
+                                              fontSize: 12,
+                                              color: const Color(0xFF1E293B),
+                                            ),
+                                          ),
+                                          contentPadding:
+                                              const EdgeInsets.symmetric(
+                                                horizontal: 16,
+                                                vertical: 4,
+                                              ),
+                                          onTap: () {
+                                            Navigator.pop(context);
+                                            note.onTap();
+                                          },
+                                        ),
+                                      )
+                                      .toList(),
                             ),
-                            title: Text(note.message, style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF1E293B))),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                            onTap: () {
-                              Navigator.pop(context);
-                              note.onTap();
-                            },
-                          )).toList(),
-                        ),
-                      ),
-                  ],
+                          ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
-            ),
+            ],
           ),
-        ],
-      ),
     );
   }
 
   void _showLogoutDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text("Logout", style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
-        content: Text("Are you sure you want to logout?", style: GoogleFonts.inter()),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text("Cancel", style: GoogleFonts.inter(color: const Color(0xFF64748B))),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              // Perform actual logout logic or redirect
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFEF4444),
-              foregroundColor: Colors.white,
+      builder:
+          (context) => AlertDialog(
+            title: Text(
+              "Logout",
+              style: GoogleFonts.inter(fontWeight: FontWeight.bold),
             ),
-            child: Text("Logout", style: GoogleFonts.inter()),
+            content: Text(
+              "Are you sure you want to logout?",
+              style: GoogleFonts.inter(),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(
+                  "Cancel",
+                  style: GoogleFonts.inter(color: const Color(0xFF64748B)),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  // Perform actual logout logic or redirect
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFEF4444),
+                  foregroundColor: Colors.white,
+                ),
+                child: Text("Logout", style: GoogleFonts.inter()),
+              ),
+            ],
           ),
-        ],
-      ),
     );
   }
 }
@@ -820,14 +985,22 @@ class SidebarTile extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
-            color: isSelected ? const Color(0xFF1E3A2F) : Colors.transparent, // Green capsule style tint
+            color:
+                isSelected
+                    ? const Color(0xFF1E3A2F)
+                    : Colors.transparent, // Green capsule style tint
             borderRadius: BorderRadius.circular(8),
           ),
           child: Row(
             children: [
               Icon(
                 icon,
-                color: isSelected ? const Color(0xFF10B981) : const Color(0xFF94A3B8), // Emerald Selected, Slate unselected
+                color:
+                    isSelected
+                        ? const Color(0xFF10B981)
+                        : const Color(
+                          0xFF94A3B8,
+                        ), // Emerald Selected, Slate unselected
                 size: 20,
               ),
               const SizedBox(width: 12),
@@ -907,11 +1080,7 @@ class _SidebarExpansionTileState extends State<SidebarExpansionTile> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Row(
                 children: [
-                  Icon(
-                    widget.icon,
-                    color: const Color(0xFF94A3B8),
-                    size: 20,
-                  ),
+                  Icon(widget.icon, color: const Color(0xFF94A3B8), size: 20),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
@@ -924,7 +1093,9 @@ class _SidebarExpansionTileState extends State<SidebarExpansionTile> {
                     ),
                   ),
                   Icon(
-                    _isExpanded ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
+                    _isExpanded
+                        ? Icons.keyboard_arrow_up_rounded
+                        : Icons.keyboard_arrow_down_rounded,
                     color: const Color(0xFF94A3B8),
                     size: 18,
                   ),
@@ -935,9 +1106,7 @@ class _SidebarExpansionTileState extends State<SidebarExpansionTile> {
           if (_isExpanded)
             Padding(
               padding: const EdgeInsets.only(left: 12.0),
-              child: Column(
-                children: widget.children,
-              ),
+              child: Column(children: widget.children),
             ),
         ],
       ),
@@ -948,10 +1117,7 @@ class _SidebarExpansionTileState extends State<SidebarExpansionTile> {
 class SidebarLogoutTile extends StatelessWidget {
   final VoidCallback onTap;
 
-  const SidebarLogoutTile({
-    super.key,
-    required this.onTap,
-  });
+  const SidebarLogoutTile({super.key, required this.onTap});
 
   @override
   Widget build(BuildContext context) {

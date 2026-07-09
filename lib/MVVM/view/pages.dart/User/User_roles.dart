@@ -95,17 +95,37 @@ class _UserRolesPageState extends State<UserRolesPage> {
       children: [
         Text(
           "Dashboard",
-          style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF64748B), fontWeight: FontWeight.w500),
+          style: GoogleFonts.inter(
+            fontSize: 12,
+            color: const Color(0xFF64748B),
+            fontWeight: FontWeight.w500,
+          ),
         ),
-        const Icon(Icons.chevron_right_rounded, size: 14, color: Color(0xFF94A3B8)),
+        const Icon(
+          Icons.chevron_right_rounded,
+          size: 14,
+          color: Color(0xFF94A3B8),
+        ),
         Text(
           "User Management",
-          style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF64748B), fontWeight: FontWeight.w500),
+          style: GoogleFonts.inter(
+            fontSize: 12,
+            color: const Color(0xFF64748B),
+            fontWeight: FontWeight.w500,
+          ),
         ),
-        const Icon(Icons.chevron_right_rounded, size: 14, color: Color(0xFF94A3B8)),
+        const Icon(
+          Icons.chevron_right_rounded,
+          size: 14,
+          color: Color(0xFF94A3B8),
+        ),
         Text(
           "User Roles",
-          style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF0F172A), fontWeight: FontWeight.w600),
+          style: GoogleFonts.inter(
+            fontSize: 12,
+            color: const Color(0xFF0F172A),
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ],
     );
@@ -118,12 +138,20 @@ class _UserRolesPageState extends State<UserRolesPage> {
         final double width = constraints.maxWidth;
 
         // Filter logic
-        final filteredRoles = _roles.where((role) {
-          final matchesSearch = role.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-              role.description.toLowerCase().contains(_searchQuery.toLowerCase());
-          final matchesStatus = _selectedStatus == "All Status" || role.status == _selectedStatus;
-          return matchesSearch && matchesStatus;
-        }).toList();
+        final filteredRoles =
+            _roles.where((role) {
+              final matchesSearch =
+                  role.name.toLowerCase().contains(
+                    _searchQuery.toLowerCase(),
+                  ) ||
+                  role.description.toLowerCase().contains(
+                    _searchQuery.toLowerCase(),
+                  );
+              final matchesStatus =
+                  _selectedStatus == "All Status" ||
+                  role.status == _selectedStatus;
+              return matchesSearch && matchesStatus;
+            }).toList();
 
         return SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -149,13 +177,24 @@ class _UserRolesPageState extends State<UserRolesPage> {
                   ElevatedButton.icon(
                     onPressed: () => _showAddRoleDialog(context),
                     icon: const Icon(Icons.add, size: 14),
-                    label: Text("Add New Role", style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 12)),
+                    label: Text(
+                      "Add New Role",
+                      style: GoogleFonts.inter(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF10B981),
                       foregroundColor: Colors.white,
                       elevation: 0,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
                   ),
                 ],
@@ -191,7 +230,8 @@ class _UserRolesPageState extends State<UserRolesPage> {
       crossAxisCount = 2;
     }
 
-    final double itemWidth = (width - (crossAxisCount - 1) * 16) / crossAxisCount;
+    final double itemWidth =
+        (width - (crossAxisCount - 1) * 16) / crossAxisCount;
     const double itemHeight = 115;
     final double aspectRatio = itemWidth / itemHeight;
 
@@ -246,17 +286,28 @@ class _UserRolesPageState extends State<UserRolesPage> {
       width: isSmall ? double.infinity : 300,
       height: 38,
       child: TextFormField(
-        onChanged: (val) => setState(() {
-          _searchQuery = val;
-        }),
+        onChanged:
+            (val) => setState(() {
+              _searchQuery = val;
+            }),
         decoration: InputDecoration(
           isDense: true,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 8,
+          ),
           fillColor: Colors.white,
           filled: true,
           hintText: "Search roles by name or description...",
-          hintStyle: GoogleFonts.inter(color: const Color(0xFF94A3B8), fontSize: 12),
-          prefixIcon: const Icon(CupertinoIcons.search, color: Color(0xFF94A3B8), size: 16),
+          hintStyle: GoogleFonts.inter(
+            color: const Color(0xFF94A3B8),
+            fontSize: 12,
+          ),
+          prefixIcon: const Icon(
+            CupertinoIcons.search,
+            color: Color(0xFF94A3B8),
+            size: 16,
+          ),
           border: OutlineInputBorder(
             borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
             borderRadius: BorderRadius.circular(8),
@@ -277,7 +328,10 @@ class _UserRolesPageState extends State<UserRolesPage> {
         initialValue: _selectedStatus,
         decoration: InputDecoration(
           isDense: true,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 8,
+          ),
           fillColor: Colors.white,
           filled: true,
           border: OutlineInputBorder(
@@ -290,19 +344,27 @@ class _UserRolesPageState extends State<UserRolesPage> {
           ),
         ),
         style: GoogleFonts.inter(color: const Color(0xFF1E293B), fontSize: 12),
-        items: ["All Status", "Active", "Inactive"]
-            .map((status) => DropdownMenuItem(value: status, child: Text(status)))
-            .toList(),
-        onChanged: (val) => setState(() {
-          _selectedStatus = val!;
-        }),
+        items:
+            ["All Status", "Active", "Inactive"]
+                .map(
+                  (status) =>
+                      DropdownMenuItem(value: status, child: Text(status)),
+                )
+                .toList(),
+        onChanged:
+            (val) => setState(() {
+              _selectedStatus = val!;
+            }),
       ),
     );
 
     final exportButton = ElevatedButton.icon(
       onPressed: () {},
       icon: const Icon(Icons.download_rounded, size: 14),
-      label: Text("Export", style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 12)),
+      label: Text(
+        "Export",
+        style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 12),
+      ),
       style: ElevatedButton.styleFrom(
         backgroundColor: Colors.white,
         foregroundColor: const Color(0xFF475569),
@@ -365,7 +427,9 @@ class _UserRolesPageState extends State<UserRolesPage> {
                   TableRow(
                     decoration: const BoxDecoration(
                       color: Color(0xFFF8FAFC),
-                      border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1)),
+                      border: Border(
+                        bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                      ),
                     ),
                     children: [
                       _buildHeaderCell("Role Name"),
@@ -379,12 +443,20 @@ class _UserRolesPageState extends State<UserRolesPage> {
                   ...roles.map((role) {
                     return TableRow(
                       decoration: const BoxDecoration(
-                        border: Border(bottom: BorderSide(color: Color(0xFFF1F5F9), width: 1)),
+                        border: Border(
+                          bottom: BorderSide(
+                            color: Color(0xFFF1F5F9),
+                            width: 1,
+                          ),
+                        ),
                       ),
                       children: [
                         // Role Name + Initials
                         Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 12.0,
+                            horizontal: 16.0,
+                          ),
                           child: Row(
                             children: [
                               CircleAvatar(
@@ -418,36 +490,63 @@ class _UserRolesPageState extends State<UserRolesPage> {
                           padding: const EdgeInsets.symmetric(horizontal: 8.0),
                           child: Text(
                             role.description,
-                            style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF475569)),
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              color: const Color(0xFF475569),
+                            ),
                           ),
                         ),
                         // Users count with icon
                         Row(
                           children: [
-                            const Icon(Icons.people_outline_rounded, size: 16, color: Color(0xFF64748B)),
+                            const Icon(
+                              Icons.people_outline_rounded,
+                              size: 16,
+                              color: Color(0xFF64748B),
+                            ),
                             const SizedBox(width: 6),
                             Text(
                               role.usersCount.toString(),
-                              style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF1E293B), fontWeight: FontWeight.w500),
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                color: const Color(0xFF1E293B),
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
                           ],
                         ),
                         _buildStatusIndicator(role.status),
                         Text(
                           role.createdAt,
-                          style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF64748B)),
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            color: const Color(0xFF64748B),
+                          ),
                         ),
                         // Actions
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            _buildActionButton(Icons.edit_outlined, Colors.blue, () {}),
+                            _buildActionButton(
+                              Icons.edit_outlined,
+                              Colors.blue,
+                              "Edit",
+                              () => _showEditRoleDialog(context, role),
+                            ),
                             const SizedBox(width: 8),
-                            _buildActionButton(Icons.visibility_outlined, Colors.blue, () {}),
+                            _buildActionButton(
+                              Icons.visibility_outlined,
+                              const Color(0xFF10B981),
+                              "View",
+                              () => _showViewRoleDialog(context, role),
+                            ),
                             const SizedBox(width: 8),
-                            _buildActionButton(Icons.delete_outline_rounded, Colors.red, () {
-                              _showDeleteConfirmation(context, role.name);
-                            }),
+                            _buildActionButton(
+                              Icons.delete_outline_rounded,
+                              Colors.red,
+                              "Delete",
+                              () => _showDeleteConfirmation(context, role.name),
+                            ),
                           ],
                         ),
                       ],
@@ -477,8 +576,10 @@ class _UserRolesPageState extends State<UserRolesPage> {
   }
 
   Widget _buildStatusIndicator(String status) {
-    Color dotColor = status == "Active" ? const Color(0xFF10B981) : const Color(0xFFEF4444);
-    Color textColor = status == "Active" ? const Color(0xFF047857) : const Color(0xFFB91C1C);
+    Color dotColor =
+        status == "Active" ? const Color(0xFF10B981) : const Color(0xFFEF4444);
+    Color textColor =
+        status == "Active" ? const Color(0xFF047857) : const Color(0xFFB91C1C);
 
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -501,17 +602,37 @@ class _UserRolesPageState extends State<UserRolesPage> {
     );
   }
 
-  Widget _buildActionButton(IconData icon, Color color, VoidCallback onTap) {
+  Widget _buildActionButton(
+    IconData icon,
+    Color color,
+    String label,
+    VoidCallback onTap,
+  ) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(6),
       child: Container(
-        padding: const EdgeInsets.all(6),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
+          color: color.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: color.withValues(alpha: 0.25)),
         ),
-        child: Icon(icon, color: color, size: 14),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: color, size: 13),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: color,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -521,7 +642,10 @@ class _UserRolesPageState extends State<UserRolesPage> {
       children: [
         Text(
           "Showing 1 to $totalFiltered of $totalFiltered roles",
-          style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF64748B)),
+          style: GoogleFonts.inter(
+            fontSize: 12,
+            color: const Color(0xFF64748B),
+          ),
         ),
         const Spacer(),
         // Simple page navigators
@@ -535,7 +659,11 @@ class _UserRolesPageState extends State<UserRolesPage> {
           child: Center(
             child: Text(
               "1",
-              style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
             ),
           ),
         ),
@@ -547,7 +675,10 @@ class _UserRolesPageState extends State<UserRolesPage> {
             initialValue: 10,
             decoration: InputDecoration(
               isDense: true,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 8,
+                vertical: 4,
+              ),
               fillColor: Colors.white,
               filled: true,
               border: OutlineInputBorder(
@@ -559,7 +690,10 @@ class _UserRolesPageState extends State<UserRolesPage> {
                 borderRadius: BorderRadius.circular(6),
               ),
             ),
-            style: GoogleFonts.inter(color: const Color(0xFF1E293B), fontSize: 11),
+            style: GoogleFonts.inter(
+              color: const Color(0xFF1E293B),
+              fontSize: 11,
+            ),
             items: const [
               DropdownMenuItem(value: 10, child: Text("10 / page")),
             ],
@@ -573,75 +707,94 @@ class _UserRolesPageState extends State<UserRolesPage> {
   void _showDeleteConfirmation(BuildContext context, String roleName) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text("Delete Role", style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
-        content: Text("Are you sure you want to delete the '$roleName' role? This action cannot be undone.", style: GoogleFonts.inter()),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text("Cancel", style: GoogleFonts.inter(color: const Color(0xFF64748B))),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text("Role '$roleName' deleted successfully.")),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFEF4444),
-              foregroundColor: Colors.white,
+      builder:
+          (context) => AlertDialog(
+            title: Text(
+              "Delete Role",
+              style: GoogleFonts.inter(fontWeight: FontWeight.bold),
             ),
-            child: Text("Delete", style: GoogleFonts.inter()),
+            content: Text(
+              "Are you sure you want to delete the '$roleName' role? This action cannot be undone.",
+              style: GoogleFonts.inter(),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(
+                  "Cancel",
+                  style: GoogleFonts.inter(color: const Color(0xFF64748B)),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text("Role '$roleName' deleted successfully."),
+                    ),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFEF4444),
+                  foregroundColor: Colors.white,
+                ),
+                child: Text("Delete", style: GoogleFonts.inter()),
+              ),
+            ],
           ),
-        ],
-      ),
     );
   }
 
   void _showAddRoleDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text("Add New Role", style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextFormField(
-              decoration: InputDecoration(
-                labelText: "Role Name",
-                labelStyle: GoogleFonts.inter(fontSize: 13),
+      builder:
+          (context) => AlertDialog(
+            title: Text(
+              "Add New Role",
+              style: GoogleFonts.inter(fontWeight: FontWeight.bold),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  decoration: InputDecoration(
+                    labelText: "Role Name",
+                    labelStyle: GoogleFonts.inter(fontSize: 13),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  decoration: InputDecoration(
+                    labelText: "Description",
+                    labelStyle: GoogleFonts.inter(fontSize: 13),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(
+                  "Cancel",
+                  style: GoogleFonts.inter(color: const Color(0xFF64748B)),
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              decoration: InputDecoration(
-                labelText: "Description",
-                labelStyle: GoogleFonts.inter(fontSize: 13),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Role added successfully.")),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF10B981),
+                  foregroundColor: Colors.white,
+                ),
+                child: Text("Save", style: GoogleFonts.inter()),
               ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text("Cancel", style: GoogleFonts.inter(color: const Color(0xFF64748B))),
+            ],
           ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("Role added successfully.")),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF10B981),
-              foregroundColor: Colors.white,
-            ),
-            child: Text("Save", style: GoogleFonts.inter()),
-          ),
-        ],
-      ),
     );
   }
 }

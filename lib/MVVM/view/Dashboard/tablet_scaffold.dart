@@ -1,5 +1,5 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/Ads%20Promotion/Ads%20Promotion.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/Bookings/Bookings.dart';
@@ -206,47 +206,13 @@ class _TabletScaffoldState extends State<TabletScaffold> {
         elevation: 0,
         scrolledUnderElevation: 0,
         iconTheme: const IconThemeData(color: Color(0xFF475569)),
-        title: Row(
-          children: [
-            Text(
-              "NaattuLink",
-              style: GoogleFonts.inter(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: const Color(0xFF1E293B),
-              ),
-            ),
-            const SizedBox(width: 24),
-            Expanded(
-              child: SizedBox(
-                height: 38,
-                child: TextFormField(
-                  decoration: InputDecoration(
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    fillColor: const Color(0xFFF8FAFC),
-                    filled: true,
-                    hintText: "Search anything...",
-                    hintStyle: GoogleFonts.inter(color: const Color(0xFF94A3B8), fontSize: 13),
-                    prefixIcon: const Icon(CupertinoIcons.search, color: Color(0xFF94A3B8), size: 16),
-                    border: OutlineInputBorder(
-                      borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderSide: const BorderSide(color: Color(0xFF10B981)),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  style: GoogleFonts.inter(color: const Color(0xFF1E293B), fontSize: 13),
-                ),
-              ),
-            ),
-          ],
+        title: Text(
+          "NaattuLink",
+          style: GoogleFonts.inter(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: const Color(0xFF1E293B),
+          ),
         ),
         actions: [
           TopBarBadgeIcon(
@@ -363,20 +329,32 @@ class _TabletScaffoldState extends State<TabletScaffold> {
                             setState(() => selectedTile = "Pending Approvals");
                             _scaffoldKey.currentState?.closeDrawer();
                           },
-                          trailing: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF59E0B),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Text(
-                              "24",
-                              style: GoogleFonts.inter(
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                            ),
+                          trailing: StreamBuilder<QuerySnapshot>(
+                            stream: FirebaseFirestore.instance
+                                .collection("workers")
+                                .where("isVerified", isEqualTo: 0)
+                                .snapshots(),
+                            builder: (context, snapshot) {
+                              int count = 0;
+                              if (snapshot.hasData) {
+                                count = snapshot.data!.docs.length;
+                              }
+                              return Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF59E0B),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(
+                                  count.toString(),
+                                  style: GoogleFonts.inter(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              );
+                            },
                           ),
                         ),
                         SidebarTile(
