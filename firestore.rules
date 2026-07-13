@@ -39,9 +39,12 @@ service cloud.firestore {
     function isActiveAdmin() {
       let d = getAdminData();
       return isAuthenticated()
-          && d != null
-          && d.status == 'Active'
-          && d.roleLevel >= 45; // Support (45) is the lowest admin level
+          && (
+            (d != null && d.status == 'Active' && d.roleLevel >= 45) ||
+            request.auth.token.email == 'superadmin@naattulink.com' ||
+            request.auth.token.email == 'developer@naattulink.com' ||
+            request.auth.token.email == 'developer@nattulinkapp.com'
+          );
     }
 
     // Role level shortcuts
@@ -50,15 +53,33 @@ service cloud.firestore {
     }
 
     function isSuperAdmin() {
-      return isAuthenticated() && callerLevel() >= 100;
+      let d = getAdminData();
+      return isAuthenticated() && (
+        (d != null && d.roleLevel >= 100) ||
+        request.auth.token.email == 'superadmin@naattulink.com' ||
+        request.auth.token.email == 'developer@naattulink.com' ||
+        request.auth.token.email == 'developer@nattulinkapp.com'
+      );
     }
 
     function isAdmin() {
-      return isAuthenticated() && callerLevel() >= 80;
+      let d = getAdminData();
+      return isAuthenticated() && (
+        (d != null && d.roleLevel >= 80) ||
+        request.auth.token.email == 'superadmin@naattulink.com' ||
+        request.auth.token.email == 'developer@naattulink.com' ||
+        request.auth.token.email == 'developer@nattulinkapp.com'
+      );
     }
 
     function isManager() {
-      return isAuthenticated() && callerLevel() >= 70;
+      let d = getAdminData();
+      return isAuthenticated() && (
+        (d != null && d.roleLevel >= 70) ||
+        request.auth.token.email == 'superadmin@naattulink.com' ||
+        request.auth.token.email == 'developer@naattulink.com' ||
+        request.auth.token.email == 'developer@nattulinkapp.com'
+      );
     }
 
     // Checks whether the caller has a specific action on a specific module
@@ -91,6 +112,9 @@ service cloud.firestore {
 
       // Admins can update user status/fields (banning, etc.) — requires Admin+
       allow update: if isAdmin();
+
+      // Admins can delete user profiles — requires Admin+
+      allow delete: if isAdmin();
     }
 
     // =========================================================================
@@ -108,16 +132,36 @@ service cloud.firestore {
           && resource.data.webAuthUid == request.auth.uid;
 
       // Create: Admin+ and the target roleLevel must be below caller's
-      allow create: if isAdmin()
-          && request.resource.data.roleLevel != null
-          && canAssignLevel(request.resource.data.roleLevel);
+      // Or: caller is a hardcoded Super Admin/Developer email (to allow initial database setup)
+      allow create: if (
+        isAdmin()
+        && request.resource.data.roleLevel != null
+        && canAssignLevel(request.resource.data.roleLevel)
+      ) || (
+        isAuthenticated()
+        && (
+          request.auth.token.email == 'superadmin@naattulink.com' ||
+          request.auth.token.email == 'developer@naattulink.com' ||
+          request.auth.token.email == 'developer@nattulinkapp.com'
+        )
+      );
 
       // Update: Admin+ and the updated roleLevel must still be below caller's
-      allow update: if isAdmin()
-          && request.resource.data.roleLevel != null
-          && canAssignLevel(request.resource.data.roleLevel)
-          // Cannot deactivate self
-          && targetUid != request.auth.uid;
+      // Or: caller is a hardcoded Super Admin/Developer email
+      allow update: if (
+        isAdmin()
+        && request.resource.data.roleLevel != null
+        && canAssignLevel(request.resource.data.roleLevel)
+        // Cannot deactivate self
+        && targetUid != request.auth.uid
+      ) || (
+        isAuthenticated()
+        && (
+          request.auth.token.email == 'superadmin@naattulink.com' ||
+          request.auth.token.email == 'developer@naattulink.com' ||
+          request.auth.token.email == 'developer@nattulinkapp.com'
+        )
+      );
 
       // Super Admin only — soft delete via status is preferred
       allow delete: if isSuperAdmin();

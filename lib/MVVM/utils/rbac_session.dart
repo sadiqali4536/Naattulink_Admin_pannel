@@ -51,6 +51,20 @@ class RbacSession {
   StreamSubscription<DocumentSnapshot>? _sessionListener;
 
   void _startSessionListener(String uid) {
+    // Hardcoded dev/superadmin accounts bypass the Firestore document listener
+    // because their role, status, and permissions are hardcoded and cannot be
+    // modified in Firestore. Skipping this prevents auto-signout if their
+    // admin_users/{uid} document is missing.
+    final currentUser = FirebaseAuth.instance.currentUser;
+    const devEmails = [
+      'developer@naattulink.com',
+      'developer@nattulinkapp.com',
+      'superadmin@naattulink.com',
+    ];
+    if (currentUser != null && devEmails.contains(currentUser.email)) {
+      return;
+    }
+
     _sessionListener?.cancel();
     _sessionListener = FirebaseFirestore.instance
         .collection('admin_users')
@@ -125,7 +139,11 @@ class RbacSession {
       fullName = 'Super Admin';
       username = 'superadmin';
       effectivePermissions = _allPermissions();
-      if (!fromListener) _startSessionListener(uid!);
+
+      // Ensure the Firestore documents exist for this Super Admin/Developer
+      // so they are listed in the admin users list.
+      _ensureFirestoreAdminDocExists(uid!, user.email!);
+
       return;
     }
 
@@ -176,10 +194,7 @@ class RbacSession {
     try {
       for (final rId in adminUser.roleIds) {
         final roleDoc =
-            await FirebaseFirestore.instance
-                .collection('roles')
-                .doc(rId)
-                .get();
+            await FirebaseFirestore.instance.collection('roles').doc(rId).get();
         if (roleDoc.exists) {
           final role = RoleDefinition.fromFirestore(roleDoc);
           if (role.isActive) {
@@ -350,5 +365,37 @@ class RbacSession {
       }
     } catch (_) {}
     return null;
+  }
+
+  Future<void> _ensureFirestoreAdminDocExists(String uid, String email) async {
+    try {
+      final db = FirebaseFirestore.instance;
+      final doc = await db.collection('admin_users').doc(uid).get();
+      if (!doc.exists) {
+        final username = email.split('@').first;
+        // 1. Create/update the users/{uid} document
+        await db.collection('users').doc(uid).set({
+          'email': email,
+          'username': username,
+          'fullName': 'Super Admin',
+          'createdAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+
+        // 2. Create/update the admin_users/{uid} document
+        await db.collection('admin_users').doc(uid).set({
+          'roleId': 'super_admin',
+          'roleDisplayName': 'Super Admin',
+          'roleLevel': 100,
+          'roleIds': ['super_admin'],
+          'status': 'Active',
+          'createdAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+        print(
+          'RBAC SESSION: Automatically recreated missing Super Admin Firestore documents.',
+        );
+      }
+    } catch (e) {
+      print('RBAC SESSION: Error ensuring Super Admin document exists: $e');
+    }
   }
 }

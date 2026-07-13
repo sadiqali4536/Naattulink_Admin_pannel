@@ -77,60 +77,143 @@ class _DashboardState extends State<Dashboard> {
         ),
         InkWell(
           onTap: () async {
-            final DateTimeRange? picked = await showDateRangePicker(
-              context: context,
-              firstDate: DateTime(2020),
-              lastDate: DateTime(2030),
-              initialDateRange: _selectedDateRange,
-              builder: (context, child) {
-                return Theme(
-                  data: Theme.of(context).copyWith(
-                    colorScheme: const ColorScheme.light(
-                      primary: Color(0xFF10B981),
-                      onPrimary: Colors.white,
-                      onSurface: Color(0xFF1E293B),
-                    ),
-                  ),
-                  child: child!,
+            final DateTimeRange? picked =
+                await showGeneralDialog<DateTimeRange>(
+                  context: context,
+                  barrierDismissible: true,
+                  barrierLabel: "Dismiss",
+                  barrierColor: Colors.black.withValues(alpha: 0.4),
+                  transitionDuration: const Duration(milliseconds: 220),
+                  pageBuilder: (context, anim1, anim2) {
+                    return PremiumDateRangePickerDialog(
+                      initialDateRange: _selectedDateRange,
+                    );
+                  },
+                  transitionBuilder: (context, anim1, anim2, child) {
+                    return FadeTransition(
+                      opacity: anim1,
+                      child: ScaleTransition(
+                        scale: Tween<double>(begin: 0.95, end: 1.0).animate(
+                          CurvedAnimation(
+                            parent: anim1,
+                            curve: Curves.easeOutCubic,
+                          ),
+                        ),
+                        child: child,
+                      ),
+                    );
+                  },
                 );
-              },
-            );
             if (picked != null) {
               setState(() {
                 _selectedDateRange = picked;
               });
             }
           },
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          borderRadius: BorderRadius.circular(18),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 250),
+            height: 56,
+            width: 250,
+            padding: const EdgeInsets.symmetric(horizontal: 18),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color:
+                    _selectedDateRange != null
+                        ? const Color(0xFF10B981)
+                        : const Color(0xFFE5E7EB),
+                width: 1.5,
+              ),
+              gradient:
+                  _selectedDateRange != null
+                      ? const LinearGradient(
+                        colors: [Color(0xFFECFDF5), Color(0xFFF0FDF4)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      )
+                      : null,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.02),
-                  blurRadius: 4,
-                  offset: const Offset(0, 2),
+                  color: const Color(0xFFCBD5E1).withValues(alpha: 0.15),
+                  blurRadius: 18,
+                  spreadRadius: 0,
+                  offset: const Offset(0, 4),
                 ),
               ],
             ),
             child: Row(
               children: [
-                const Icon(Icons.calendar_today_outlined, size: 16, color: Color(0xFF64748B)),
-                const SizedBox(width: 8),
-                Text(
-                  _selectedDateRange != null
-                      ? "${_formatDate(_selectedDateRange!.start)} - ${_formatDate(_selectedDateRange!.end)}"
-                      : "Select Date Range",
-                  style: GoogleFonts.inter(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: const Color(0xFF475569),
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color:
+                        _selectedDateRange != null
+                            ? const Color(0xFF10B981)
+                            : const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.calendar_month_rounded,
+                    color:
+                        _selectedDateRange != null
+                            ? Colors.white
+                            : const Color(0xFF64748B),
+                    size: 20,
                   ),
                 ),
-                const SizedBox(width: 8),
-                const Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: Color(0xFF64748B)),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Date Range",
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: const Color(0xFF64748B),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _selectedDateRange == null
+                            ? "Select Date Range"
+                            : "${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][_selectedDateRange!.start.month - 1]} ${_selectedDateRange!.start.day.toString().padLeft(2, '0')} • ${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][_selectedDateRange!.end.month - 1]} ${_selectedDateRange!.end.day.toString().padLeft(2, '0')}",
+                        style: GoogleFonts.inter(
+                          fontSize: 15,
+                          fontWeight:
+                              _selectedDateRange == null
+                                  ? FontWeight.w500
+                                  : FontWeight.bold,
+                          color:
+                              _selectedDateRange == null
+                                  ? const Color(0xFF475569)
+                                  : const Color(0xFF0F172A),
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 200),
+                  child: Icon(
+                    _selectedDateRange != null
+                        ? Icons.check_circle_rounded
+                        : Icons.arrow_drop_down_rounded,
+                    key: ValueKey(_selectedDateRange != null),
+                    color:
+                        _selectedDateRange != null
+                            ? const Color(0xFF10B981)
+                            : const Color(0xFF64748B),
+                    size: 24,
+                  ),
+                ),
               ],
             ),
           ),
@@ -140,7 +223,20 @@ class _DashboardState extends State<Dashboard> {
   }
 
   String _formatDate(DateTime date) {
-    final months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    final months = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
+    ];
     return "${months[date.month - 1]} ${date.day}, ${date.year}";
   }
 
@@ -154,7 +250,8 @@ class _DashboardState extends State<Dashboard> {
       crossAxisCount = 4;
     }
 
-    final double itemWidth = (width - (crossAxisCount - 1) * 16) / crossAxisCount;
+    final double itemWidth =
+        (width - (crossAxisCount - 1) * 16) / crossAxisCount;
     const double itemHeight = 115;
     final double aspectRatio = itemWidth / itemHeight;
 
@@ -318,20 +415,11 @@ class _DashboardState extends State<Dashboard> {
       return const Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            flex: 4,
-            child: BookingTrendsChart(),
-          ),
+          Expanded(flex: 4, child: BookingTrendsChart()),
           SizedBox(width: 24),
-          Expanded(
-            flex: 3,
-            child: ServiceCategoryChart(),
-          ),
+          Expanded(flex: 3, child: ServiceCategoryChart()),
           SizedBox(width: 24),
-          Expanded(
-            flex: 3,
-            child: RecentActivitiesList(),
-          ),
+          Expanded(flex: 3, child: RecentActivitiesList()),
         ],
       );
     } else {
@@ -343,20 +431,16 @@ class _DashboardState extends State<Dashboard> {
             const Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: ServiceCategoryChart(),
-                ),
+                Expanded(child: ServiceCategoryChart()),
                 SizedBox(width: 24),
-                Expanded(
-                  child: RecentActivitiesList(),
-                ),
+                Expanded(child: RecentActivitiesList()),
               ],
             )
           else ...[
             const ServiceCategoryChart(),
             const SizedBox(height: 24),
             const RecentActivitiesList(),
-          ]
+          ],
         ],
       );
     }
@@ -367,15 +451,9 @@ class _DashboardState extends State<Dashboard> {
       return const Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            flex: 13,
-            child: LatestBookingsTable(),
-          ),
+          Expanded(flex: 13, child: LatestBookingsTable()),
           SizedBox(width: 24),
-          Expanded(
-            flex: 7,
-            child: TopSellingProducts(),
-          ),
+          Expanded(flex: 7, child: TopSellingProducts()),
         ],
       );
     } else {
@@ -480,7 +558,10 @@ class StatsCard extends StatelessWidget {
               Icon(
                 isPositiveTrend ? Icons.arrow_upward : Icons.arrow_downward,
                 size: 12,
-                color: isPositiveTrend ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                color:
+                    isPositiveTrend
+                        ? const Color(0xFF10B981)
+                        : const Color(0xFFEF4444),
               ),
               const SizedBox(width: 4),
               Text(
@@ -488,7 +569,10 @@ class StatsCard extends StatelessWidget {
                 style: GoogleFonts.inter(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
-                  color: isPositiveTrend ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                  color:
+                      isPositiveTrend
+                          ? const Color(0xFF10B981)
+                          : const Color(0xFFEF4444),
                 ),
               ),
               const SizedBox(width: 4),
@@ -539,7 +623,10 @@ class BookingTrendsChart extends StatelessWidget {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: const Color(0xFFE2E8F0)),
@@ -555,7 +642,11 @@ class BookingTrendsChart extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 4),
-                    const Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: Color(0xFF64748B)),
+                    const Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      size: 16,
+                      color: Color(0xFF64748B),
+                    ),
                   ],
                 ),
               ),
@@ -579,8 +670,12 @@ class BookingTrendsChart extends StatelessWidget {
                 ),
                 titlesData: FlTitlesData(
                   show: true,
-                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
                   leftTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
@@ -728,56 +823,58 @@ class ServiceCategoryChart extends StatelessWidget {
                 sectionsSpace: 2,
                 centerSpaceRadius: 45,
                 startDegreeOffset: -90,
-                sections: data.map((d) {
-                  return PieChartSectionData(
-                    showTitle: false,
-                    color: d.color,
-                    value: d.percentage.toDouble(),
-                    radius: 25,
-                  );
-                }).toList(),
+                sections:
+                    data.map((d) {
+                      return PieChartSectionData(
+                        showTitle: false,
+                        color: d.color,
+                        value: d.percentage.toDouble(),
+                        radius: 25,
+                      );
+                    }).toList(),
               ),
             ),
           ),
           const SizedBox(height: 16),
           Column(
-            children: data.map((d) {
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: d.color,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        d.name,
-                        style: GoogleFonts.inter(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                          color: const Color(0xFF475569),
+            children:
+                data.map((d) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: d.color,
+                            shape: BoxShape.circle,
+                          ),
                         ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            d.name,
+                            style: GoogleFonts.inter(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: const Color(0xFF475569),
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        Text(
+                          "${d.percentage}%",
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: const Color(0xFF1E293B),
+                          ),
+                        ),
+                      ],
                     ),
-                    Text(
-                      "${d.percentage}%",
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: const Color(0xFF1E293B),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }).toList(),
+                  );
+                }).toList(),
           ),
         ],
       ),
@@ -980,11 +1077,46 @@ class LatestBookingsTable extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bookings = [
-      _BookingRow("#BK12345", "Arun Kumar", "Home Cleaning", "May 18, 2024 10:00 AM", "Pending", "₹1,250"),
-      _BookingRow("#BK12344", "Fathima Ali", "Vehicle Cleaning", "May 18, 2024 11:00 AM", "Assigned", "₹850"),
-      _BookingRow("#BK12343", "Ramesh Babu", "Garden Services", "May 18, 2024 02:30 PM", "In Progress", "₹1,500"),
-      _BookingRow("#BK12342", "Neha Nair", "Pet Grooming", "May 18, 2024 03:00 PM", "Completed", "₹700"),
-      _BookingRow("#BK12341", "Sujith K", "Interior Cleaning", "May 17, 2024 09:30 AM", "Cancelled", "₹1,100"),
+      _BookingRow(
+        "#BK12345",
+        "Arun Kumar",
+        "Home Cleaning",
+        "May 18, 2024 10:00 AM",
+        "Pending",
+        "₹1,250",
+      ),
+      _BookingRow(
+        "#BK12344",
+        "Fathima Ali",
+        "Vehicle Cleaning",
+        "May 18, 2024 11:00 AM",
+        "Assigned",
+        "₹850",
+      ),
+      _BookingRow(
+        "#BK12343",
+        "Ramesh Babu",
+        "Garden Services",
+        "May 18, 2024 02:30 PM",
+        "In Progress",
+        "₹1,500",
+      ),
+      _BookingRow(
+        "#BK12342",
+        "Neha Nair",
+        "Pet Grooming",
+        "May 18, 2024 03:00 PM",
+        "Completed",
+        "₹700",
+      ),
+      _BookingRow(
+        "#BK12341",
+        "Sujith K",
+        "Interior Cleaning",
+        "May 17, 2024 09:30 AM",
+        "Cancelled",
+        "₹1,100",
+      ),
     ];
 
     return Container(
@@ -1045,7 +1177,9 @@ class LatestBookingsTable extends StatelessWidget {
                 children: [
                   TableRow(
                     decoration: const BoxDecoration(
-                      border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1)),
+                      border: Border(
+                        bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                      ),
                     ),
                     children: [
                       _buildHeaderCell("Booking ID"),
@@ -1060,7 +1194,12 @@ class LatestBookingsTable extends StatelessWidget {
                   ...bookings.map((booking) {
                     return TableRow(
                       decoration: const BoxDecoration(
-                        border: Border(bottom: BorderSide(color: Color(0xFFF1F5F9), width: 1)),
+                        border: Border(
+                          bottom: BorderSide(
+                            color: Color(0xFFF1F5F9),
+                            width: 1,
+                          ),
+                        ),
                       ),
                       children: [
                         Padding(
@@ -1076,23 +1215,40 @@ class LatestBookingsTable extends StatelessWidget {
                         ),
                         Text(
                           booking.customer,
-                          style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF1E293B)),
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            color: const Color(0xFF1E293B),
+                          ),
                         ),
                         Text(
                           booking.service,
-                          style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF475569)),
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            color: const Color(0xFF475569),
+                          ),
                         ),
                         Text(
                           booking.dateTime,
-                          style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF64748B)),
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            color: const Color(0xFF64748B),
+                          ),
                         ),
                         _buildStatusBadge(booking.status),
                         Text(
                           booking.amount,
-                          style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B)),
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF1E293B),
+                          ),
                         ),
                         IconButton(
-                          icon: const Icon(Icons.visibility_outlined, size: 18, color: Color(0xFF64748B)),
+                          icon: const Icon(
+                            Icons.visibility_outlined,
+                            size: 18,
+                            color: Color(0xFF64748B),
+                          ),
                           onPressed: () {},
                           padding: EdgeInsets.zero,
                           constraints: const BoxConstraints(),
@@ -1180,7 +1336,14 @@ class _BookingRow {
   final String status;
   final String amount;
 
-  _BookingRow(this.id, this.customer, this.service, this.dateTime, this.status, this.amount);
+  _BookingRow(
+    this.id,
+    this.customer,
+    this.service,
+    this.dateTime,
+    this.status,
+    this.amount,
+  );
 }
 
 class TopSellingProducts extends StatelessWidget {
@@ -1246,28 +1409,42 @@ class TopSellingProducts extends StatelessWidget {
             children: [
               TableRow(
                 decoration: const BoxDecoration(
-                  border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1)),
+                  border: Border(
+                    bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                  ),
                 ),
                 children: [
                   Padding(
                     padding: const EdgeInsets.only(bottom: 12.0),
                     child: Text(
                       "Product",
-                      style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: const Color(0xFF94A3B8)),
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF94A3B8),
+                      ),
                     ),
                   ),
                   Padding(
                     padding: const EdgeInsets.only(bottom: 12.0),
                     child: Text(
                       "Orders",
-                      style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: const Color(0xFF94A3B8)),
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF94A3B8),
+                      ),
                     ),
                   ),
                   Padding(
                     padding: const EdgeInsets.only(bottom: 12.0),
                     child: Text(
                       "Revenue",
-                      style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: const Color(0xFF94A3B8)),
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF94A3B8),
+                      ),
                     ),
                   ),
                 ],
@@ -1275,7 +1452,9 @@ class TopSellingProducts extends StatelessWidget {
               ...products.map((product) {
                 return TableRow(
                   decoration: const BoxDecoration(
-                    border: Border(bottom: BorderSide(color: Color(0xFFF1F5F9), width: 1)),
+                    border: Border(
+                      bottom: BorderSide(color: Color(0xFFF1F5F9), width: 1),
+                    ),
                   ),
                   children: [
                     Padding(
@@ -1290,7 +1469,11 @@ class TopSellingProducts extends StatelessWidget {
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: const Center(
-                              child: Icon(Icons.shopping_bag_outlined, size: 16, color: Colors.black54),
+                              child: Icon(
+                                Icons.shopping_bag_outlined,
+                                size: 16,
+                                color: Colors.black54,
+                              ),
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -1310,11 +1493,18 @@ class TopSellingProducts extends StatelessWidget {
                     ),
                     Text(
                       product.orders.toString(),
-                      style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF475569)),
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        color: const Color(0xFF475569),
+                      ),
                     ),
                     Text(
                       product.revenue,
-                      style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B)),
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF1E293B),
+                      ),
                     ),
                   ],
                 );
@@ -1334,4 +1524,675 @@ class _ProductItem {
   final Color imgBgColor;
 
   _ProductItem(this.name, this.orders, this.revenue, this.imgBgColor);
+}
+
+class PremiumDateRangePickerDialog extends StatefulWidget {
+  final DateTimeRange? initialDateRange;
+
+  const PremiumDateRangePickerDialog({super.key, this.initialDateRange});
+
+  @override
+  State<PremiumDateRangePickerDialog> createState() =>
+      _PremiumDateRangePickerDialogState();
+}
+
+class _PremiumDateRangePickerDialogState
+    extends State<PremiumDateRangePickerDialog> {
+  late DateTime _currentMonth;
+  DateTime? _startDate;
+  DateTime? _endDate;
+
+  @override
+  void initState() {
+    super.initState();
+    _startDate = widget.initialDateRange?.start;
+    _endDate = widget.initialDateRange?.end;
+    _currentMonth = _startDate ?? DateTime.now();
+  }
+
+  String _formatDateString(DateTime? date) {
+    if (date == null) return "";
+    final months = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
+    ];
+    return "${months[date.month - 1]} ${date.day.toString().padLeft(2, '0')}, ${date.year}";
+  }
+
+  String _formatHeaderDate(DateTimeRange? range) {
+    if (range == null) return "No date selected";
+    final months = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
+    ];
+    return "${months[range.start.month - 1]} ${range.start.day} – ${months[range.end.month - 1]} ${range.end.day}";
+  }
+
+  int _daysInMonth(DateTime date) {
+    return DateTime(date.year, date.month + 1, 0).day;
+  }
+
+  String _getMonthName(int month) {
+    final months = [
+      "January",
+      "February",
+      "March",
+      "April",
+      "May",
+      "June",
+      "July",
+      "August",
+      "September",
+      "October",
+      "November",
+      "December",
+    ];
+    return months[month - 1];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final firstDayInstance = DateTime(
+      _currentMonth.year,
+      _currentMonth.month,
+      1,
+    );
+    final int firstDayOffset = firstDayInstance.weekday % 7;
+    final int totalDays = _daysInMonth(_currentMonth);
+
+    final bool hasSelection = _startDate != null && _endDate != null;
+    final int daysCount =
+        hasSelection ? _endDate!.difference(_startDate!).inDays + 1 : 0;
+
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      elevation: 18,
+      backgroundColor: const Color(0xFFFCFCFD),
+      clipBehavior: Clip.antiAlias,
+      child: Container(
+        width: 440,
+        decoration: BoxDecoration(
+          color: const Color(0xFFFCFCFD),
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.07),
+              blurRadius: 40,
+              offset: const Offset(0, 15),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // ── Header (Gradient) ──────────────────────────────────────────
+            Container(
+              height: 90,
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children: [
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(
+                      Icons.arrow_back_rounded,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "SELECT DATE RANGE",
+                          style: GoogleFonts.inter(
+                            color: Colors.white.withValues(alpha: 0.7),
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1.2,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          hasSelection
+                              ? _formatHeaderDate(
+                                DateTimeRange(
+                                  start: _startDate!,
+                                  end: _endDate!,
+                                ),
+                              )
+                              : "Choose Date Range",
+                          style: GoogleFonts.inter(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // ── Body ───────────────────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // ── Selected Range Summary or Empty State ────────────────────
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 200),
+                    child:
+                        hasSelection
+                            ? Container(
+                              key: const ValueKey('summary_selected'),
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFECFDF5),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: const Color(0xFFA7F3D0),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: const BoxDecoration(
+                                      color: Color(0xFF10B981),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.calendar_today_rounded,
+                                      color: Colors.white,
+                                      size: 16,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          "Selected Range",
+                                          style: GoogleFonts.inter(
+                                            color: const Color(0xFF065F46),
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Row(
+                                          children: [
+                                            Text(
+                                              _formatDateString(_startDate),
+                                              style: GoogleFonts.inter(
+                                                color: const Color(0xFF047857),
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 6),
+                                            const Icon(
+                                              Icons.arrow_right_alt_rounded,
+                                              color: Color(0xFF059669),
+                                              size: 16,
+                                            ),
+                                            const SizedBox(width: 6),
+                                            Text(
+                                              _formatDateString(_endDate),
+                                              style: GoogleFonts.inter(
+                                                color: const Color(0xFF047857),
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 6,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFD1FAE5),
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child: Text(
+                                      "$daysCount Days",
+                                      style: GoogleFonts.inter(
+                                        color: const Color(0xFF065F46),
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                            : Container(
+                              key: const ValueKey('summary_empty'),
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF8FAFC),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: const Color(0xFFE2E8F0),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: const BoxDecoration(
+                                      color: Color(0xFFE2E8F0),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.calendar_month_rounded,
+                                      color: Color(0xFF64748B),
+                                      size: 16,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          "Choose a date range",
+                                          style: GoogleFonts.inter(
+                                            color: const Color(0xFF1E293B),
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 1),
+                                        Text(
+                                          "Filter reports between any two dates.",
+                                          style: GoogleFonts.inter(
+                                            color: const Color(0xFF64748B),
+                                            fontSize: 11,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // ── Month Selector Row ───────────────────────────────────────
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        "${_getMonthName(_currentMonth.month)} ${_currentMonth.year}",
+                        style: GoogleFonts.inter(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: const Color(0xFF1E293B),
+                        ),
+                      ),
+                      Row(
+                        children: [
+                          _buildNavButton(
+                            icon: Icons.chevron_left_rounded,
+                            onTap: () {
+                              setState(() {
+                                _currentMonth = DateTime(
+                                  _currentMonth.year,
+                                  _currentMonth.month - 1,
+                                  1,
+                                );
+                              });
+                            },
+                          ),
+                          const SizedBox(width: 8),
+                          _buildNavButton(
+                            icon: Icons.chevron_right_rounded,
+                            onTap: () {
+                              setState(() {
+                                _currentMonth = DateTime(
+                                  _currentMonth.year,
+                                  _currentMonth.month + 1,
+                                  1,
+                                );
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+
+                  // ── Calendar Month Card ──────────────────────────────────────
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(18),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.04),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceAround,
+                          children:
+                              ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((
+                                day,
+                              ) {
+                                return Expanded(
+                                  child: Center(
+                                    child: Text(
+                                      day,
+                                      style: GoogleFonts.inter(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                        color: const Color(0xFF94A3B8),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              }).toList(),
+                        ),
+                        const SizedBox(height: 8),
+                        GridView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 7,
+                                childAspectRatio: 1.1,
+                              ),
+                          itemCount: totalDays + firstDayOffset,
+                          itemBuilder: (context, index) {
+                            if (index < firstDayOffset) {
+                              return const SizedBox.shrink();
+                            }
+                            final int dayNum = index - firstDayOffset + 1;
+                            final DateTime cellDate = DateTime(
+                              _currentMonth.year,
+                              _currentMonth.month,
+                              dayNum,
+                            );
+
+                            return _buildDayCell(cellDate, dayNum, now);
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // ── Action Buttons ───────────────────────────────────────────
+                  Row(
+                    children: [
+                      if (_startDate != null || _endDate != null)
+                        TextButton.icon(
+                          onPressed: () {
+                            setState(() {
+                              _startDate = null;
+                              _endDate = null;
+                            });
+                          },
+                          icon: const Icon(
+                            Icons.clear_rounded,
+                            size: 14,
+                            color: Color(0xFF64748B),
+                          ),
+                          label: Text(
+                            "Clear",
+                            style: GoogleFonts.inter(
+                              color: const Color(0xFF64748B),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      const Spacer(),
+                      SizedBox(
+                        height: 46,
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(context),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Color(0xFFE2E8F0)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
+                          ),
+                          child: Text(
+                            "Cancel",
+                            style: GoogleFonts.inter(
+                              color: const Color(0xFF64748B),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Container(
+                        height: 46,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(14),
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF10B981), Color(0xFF059669)],
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(
+                                0xFF10B981,
+                              ).withValues(alpha: 0.25),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: ElevatedButton(
+                          onPressed:
+                              hasSelection
+                                  ? () {
+                                    Navigator.pop(
+                                      context,
+                                      DateTimeRange(
+                                        start: _startDate!,
+                                        end: _endDate!,
+                                      ),
+                                    );
+                                  }
+                                  : null,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.transparent,
+                            shadowColor: Colors.transparent,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 24),
+                          ),
+                          child: Text(
+                            "Apply",
+                            style: GoogleFonts.inter(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNavButton({
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        width: 36,
+        height: 36,
+        decoration: const BoxDecoration(
+          color: Color(0xFFF8FAFC),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, size: 18, color: const Color(0xFF64748B)),
+      ),
+    );
+  }
+
+  Widget _buildDayCell(DateTime date, int dayNum, DateTime today) {
+    final bool isStart =
+        _startDate != null &&
+        date.year == _startDate!.year &&
+        date.month == _startDate!.month &&
+        date.day == _startDate!.day;
+    final bool isEnd =
+        _endDate != null &&
+        date.year == _endDate!.year &&
+        date.month == _endDate!.month &&
+        date.day == _endDate!.day;
+    final bool isSelected = isStart || isEnd;
+
+    final bool inRange =
+        _startDate != null &&
+        _endDate != null &&
+        date.isAfter(_startDate!) &&
+        date.isBefore(_endDate!);
+
+    final bool isToday =
+        date.year == today.year &&
+        date.month == today.month &&
+        date.day == today.day;
+
+    BoxDecoration? cellDecoration;
+    TextStyle textStyle = GoogleFonts.inter(
+      fontSize: 12,
+      color: const Color(0xFF1E293B),
+      fontWeight: FontWeight.w500,
+    );
+
+    if (isSelected) {
+      cellDecoration = const BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          colors: [Color(0xFF34D399), Color(0xFF10B981)],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x4010B981),
+            blurRadius: 8,
+            offset: Offset(0, 3),
+          ),
+        ],
+      );
+      textStyle = GoogleFonts.inter(
+        fontSize: 12,
+        color: Colors.white,
+        fontWeight: FontWeight.bold,
+      );
+    } else if (inRange) {
+      cellDecoration = const BoxDecoration(
+        color: Color(0x33DCFCE7),
+        shape: BoxShape.circle,
+      );
+      textStyle = GoogleFonts.inter(
+        fontSize: 12,
+        color: const Color(0xFF047857),
+        fontWeight: FontWeight.w600,
+      );
+    } else if (isToday) {
+      cellDecoration = BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: const Color(0xFF10B981), width: 2),
+      );
+      textStyle = GoogleFonts.inter(
+        fontSize: 12,
+        color: const Color(0xFF10B981),
+        fontWeight: FontWeight.bold,
+      );
+    }
+
+    return InkWell(
+      onTap: () {
+        setState(() {
+          if (_startDate == null || (_startDate != null && _endDate != null)) {
+            _startDate = date;
+            _endDate = null;
+          } else if (date.isBefore(_startDate!)) {
+            _startDate = date;
+          } else {
+            _endDate = date;
+          }
+        });
+      },
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        margin: const EdgeInsets.all(2),
+        alignment: Alignment.center,
+        decoration: cellDecoration,
+        child: Text(dayNum.toString(), style: textStyle),
+      ),
+    );
+  }
 }

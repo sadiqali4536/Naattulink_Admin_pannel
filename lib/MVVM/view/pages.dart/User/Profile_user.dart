@@ -240,36 +240,17 @@ class _ProfileUserState extends State<ProfileUser> {
     try {
       Query query = FirebaseFirestore.instance.collection("users");
 
+      // Only apply status filter server-side (safe single-field filter, no composite index needed).
+      // All other filters (type, date range, search) are applied client-side in paginatedUsers.
       if (_selectedStatus != "All Status") {
         query = query.where(
           "status",
           whereIn: [_selectedStatus, _selectedStatus.toLowerCase()],
         );
       }
-      if (_selectedType != "All Types") {
-        query = query.where("userType", isEqualTo: _selectedType);
-      }
-      if (_selectedDateRange != null) {
-        query = query
-            .where(
-              "createdAt",
-              isGreaterThanOrEqualTo: Timestamp.fromDate(
-                _selectedDateRange!.start,
-              ),
-            )
-            .where(
-              "createdAt",
-              isLessThanOrEqualTo: Timestamp.fromDate(
-                _selectedDateRange!.end.add(const Duration(days: 1)),
-              ),
-            );
-      }
 
-      if (_searchQuery.isNotEmpty) {
-        query = query
-            .where("username", isGreaterThanOrEqualTo: _searchQuery)
-            .where("username", isLessThanOrEqualTo: _searchQuery + '\uf8ff');
-      } else {
+      // Use orderBy only when no server-side filter is active (avoids composite index requirement).
+      if (_selectedStatus == "All Status") {
         query = query.orderBy(FieldPath.documentId);
       }
 
@@ -277,10 +258,11 @@ class _ProfileUserState extends State<ProfileUser> {
         query = query.startAfterDocument(_allFetchedDocs.last);
       }
 
-      query = query.limit(_pageSize);
+      // Fetch a large batch so client-side filters still leave enough visible rows.
+      query = query.limit(200);
 
       final snapshot = await query.get();
-      if (snapshot.docs.length < _pageSize) {
+      if (snapshot.docs.length < 200) {
         _hasMore = false;
       }
       setState(() {
@@ -357,6 +339,12 @@ class _ProfileUserState extends State<ProfileUser> {
               .where("status", whereIn: ["Suspended", "suspended"])
               .count()
               .get();
+      final bannedSnap =
+          await db
+              .collection("users")
+              .where("status", whereIn: ["Banned", "banned"])
+              .count()
+              .get();
 
       final now = DateTime.now();
       final weekStart = now.subtract(Duration(days: now.weekday - 1));
@@ -371,9 +359,13 @@ class _ProfileUserState extends State<ProfileUser> {
               .get();
 
       int total = totalSnap.count ?? 0;
+      int banned = bannedSnap.count ?? 0;
       int active = activeSnap.count ?? 0;
       int suspended = suspendedSnap.count ?? 0;
       int newUsers = newUsersSnap.count ?? 0;
+
+      // Adjust total to exclude banned users
+      total = total - banned;
 
       if (total > 0) total--;
       if (active > 0) active--;
@@ -409,25 +401,12 @@ class _ProfileUserState extends State<ProfileUser> {
   }
 
   List<UserModel> get paginatedUsers {
-    final startIndex = (_currentPage - 1) * _pageSize;
-    if (startIndex >= _allFetchedDocs.length) return [];
-    final endIndex =
-        startIndex + _pageSize > _allFetchedDocs.length
-            ? _allFetchedDocs.length
-            : startIndex + _pageSize;
-
-    return _allFetchedDocs
-        .sublist(startIndex, endIndex)
-        .asMap()
-        .entries
-        .map((entry) {
+    // ── Step 1: Map ALL fetched docs to UserModel with resolved role ───────────
+    final allUsers =
+        _allFetchedDocs.asMap().entries.map((entry) {
           final doc = entry.value;
           final data = doc.data() as Map<String, dynamic>;
-          final rawUser = UserModel.fromMap(
-            data,
-            doc.id,
-            startIndex + entry.key,
-          );
+          final rawUser = UserModel.fromMap(data, doc.id, entry.key);
           final role = _userRoles[rawUser.no];
           final finalUserType =
               (role != null && role.isNotEmpty) ? role : "Customer";
@@ -444,11 +423,17 @@ class _ProfileUserState extends State<ProfileUser> {
             userId: rawUser.userId,
             role: rawUser.role,
           );
-        })
-        .where((user) {
-          if (_superAdminUids.contains(user.userId)) {
-            return false;
-          }
+        }).toList();
+
+    // ── Step 2: Apply ALL client-side filters ────────────────────────────────
+    final q = _searchQuery.trim().toLowerCase();
+
+    final filtered =
+        allUsers.where((user) {
+          // Always exclude banned, super-admin, developer, admin accounts
+          if (user.status.toLowerCase() == "banned") return false;
+          if (_superAdminUids.contains(user.userId)) return false;
+
           final email = user.email.toLowerCase();
           final name = user.name.toLowerCase();
           final userType = user.userType.toLowerCase();
@@ -462,10 +447,140 @@ class _ProfileUserState extends State<ProfileUser> {
               name == 'superadmin' ||
               userType == 'superadmin';
           final isAdmin = email == 'admin@naattulink.com' || name == 'admin';
+          if (isDeveloper || isSuperAdmin || isAdmin) return false;
 
-          return !isDeveloper && !isSuperAdmin && !isAdmin;
-        })
-        .toList();
+          // Status filter
+          if (_selectedStatus != "All Status" &&
+              user.status.toLowerCase() != _selectedStatus.toLowerCase()) {
+            return false;
+          }
+
+          // Type filter (uses role-resolved userType)
+          if (_selectedType != "All Types" &&
+              user.userType.toLowerCase() != _selectedType.toLowerCase()) {
+            return false;
+          }
+
+          // Date range filter — compare joinedDate string by parsing it
+          if (_selectedDateRange != null) {
+            try {
+              // joinedDate is stored like "May 18, 2024" — parse it
+              final parts = user.joinedDate.replaceAll(',', '').split(' ');
+              if (parts.length >= 3) {
+                const months = {
+                  'Jan': 1,
+                  'Feb': 2,
+                  'Mar': 3,
+                  'Apr': 4,
+                  'May': 5,
+                  'Jun': 6,
+                  'Jul': 7,
+                  'Aug': 8,
+                  'Sep': 9,
+                  'Oct': 10,
+                  'Nov': 11,
+                  'Dec': 12,
+                };
+                final month = months[parts[0]];
+                final day = int.tryParse(parts[1]);
+                final year = int.tryParse(parts[2]);
+                if (month != null && day != null && year != null) {
+                  final joinedDateTime = DateTime(year, month, day);
+                  final rangeEnd = _selectedDateRange!.end.add(
+                    const Duration(days: 1),
+                  );
+                  if (joinedDateTime.isBefore(_selectedDateRange!.start) ||
+                      joinedDateTime.isAfter(rangeEnd)) {
+                    return false;
+                  }
+                }
+              }
+            } catch (_) {}
+          }
+
+          // Search filter — matches name, email, phone, or userId
+          if (q.isNotEmpty) {
+            final matchesName = user.name.toLowerCase().contains(q);
+            final matchesEmail = user.email.toLowerCase().contains(q);
+            final matchesPhone = user.phone.contains(q);
+            final matchesId = user.userId.toLowerCase().contains(q);
+            if (!matchesName && !matchesEmail && !matchesPhone && !matchesId) {
+              return false;
+            }
+          }
+
+          return true;
+        }).toList();
+
+    // ── Step 3: Paginate from the fully-filtered list ────────────────────────
+    final startIndex = (_currentPage - 1) * _pageSize;
+    if (startIndex >= filtered.length) return [];
+    final endIndex = (startIndex + _pageSize).clamp(0, filtered.length);
+
+    // Re-number the visible rows sequentially
+    return filtered.sublist(startIndex, endIndex).asMap().entries.map((e) {
+      final u = e.value;
+      return UserModel(
+        no: u.no,
+        name: u.name,
+        phone: u.phone,
+        email: u.email,
+        address: u.address,
+        userType: u.userType,
+        status: u.status,
+        joinedDate: u.joinedDate,
+        points: u.points,
+        userId: u.userId,
+        role: u.role,
+      );
+    }).toList();
+  }
+
+  /// Total number of rows after all client-side filters are applied.
+  /// Used by the table footer and pagination controls.
+  int get filteredUserCount {
+    final q = _searchQuery.trim().toLowerCase();
+    return _allFetchedDocs.where((doc) {
+      final data = doc.data() as Map<String, dynamic>;
+      final rawUser = UserModel.fromMap(data, doc.id, 0);
+      final role = _userRoles[rawUser.no];
+      final finalUserType =
+          (role != null && role.isNotEmpty) ? role : "Customer";
+
+      if (rawUser.status.toLowerCase() == "banned") return false;
+      if (_superAdminUids.contains(rawUser.userId)) return false;
+
+      final email = rawUser.email.toLowerCase();
+      final name = rawUser.name.toLowerCase();
+      final userType = finalUserType.toLowerCase();
+      if (email.contains('developer') ||
+          name == 'developer' ||
+          userType == 'developer')
+        return false;
+      if (email.contains('superadmin') ||
+          name == 'superadmin' ||
+          userType == 'superadmin')
+        return false;
+      if (email == 'admin@naattulink.com' || name == 'admin') return false;
+
+      if (_selectedStatus != "All Status" &&
+          rawUser.status.toLowerCase() != _selectedStatus.toLowerCase()) {
+        return false;
+      }
+      if (_selectedType != "All Types" &&
+          finalUserType.toLowerCase() != _selectedType.toLowerCase()) {
+        return false;
+      }
+      if (q.isNotEmpty) {
+        if (!rawUser.name.toLowerCase().contains(q) &&
+            !rawUser.email.toLowerCase().contains(q) &&
+            !rawUser.phone.contains(q) &&
+            !rawUser.userId.toLowerCase().contains(q)) {
+          return false;
+        }
+      }
+      return true;
+    }).length;
   }
 
   // No mock data - all users are loaded live from Firestore
@@ -1011,6 +1126,7 @@ class _ProfileUserState extends State<ProfileUser> {
                                           ),
                                         ),
                                       );
+                                      _refreshData();
                                     } catch (e) {
                                       if (!mounted) return;
                                       ScaffoldMessenger.of(
@@ -1379,6 +1495,7 @@ class _ProfileUserState extends State<ProfileUser> {
                                       ),
                                     ),
                                   );
+                                  _refreshData();
                                 } catch (e) {
                                   if (!mounted) return;
                                   ScaffoldMessenger.of(context).showSnackBar(
@@ -1430,6 +1547,8 @@ class _ProfileUserState extends State<ProfileUser> {
       context: context,
       builder:
           (dialogContext) => AlertDialog(
+            backgroundColor: Colors.white,
+            surfaceTintColor: Colors.white,
             title: Text(
               title,
               style: GoogleFonts.inter(fontWeight: FontWeight.bold),
@@ -1458,6 +1577,268 @@ class _ProfileUserState extends State<ProfileUser> {
                 child: Text(confirmText, style: GoogleFonts.inter()),
               ),
             ],
+          ),
+    );
+  }
+
+  void _showBanUserDialog(UserModel user) {
+    final formKey = GlobalKey<FormState>();
+    String reason = "Violation of community guidelines";
+    String banType = "Permanent";
+    String banDuration = "7 Days";
+
+    showDialog(
+      context: context,
+      builder:
+          (dialogContext) => StatefulBuilder(
+            builder: (context, setDialogState) {
+              return Dialog(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                elevation: 0,
+                backgroundColor: Colors.transparent,
+                child: Container(
+                  width: 460,
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.rectangle,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x14000000),
+                        blurRadius: 20,
+                        offset: Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: Form(
+                    key: formKey,
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                "Ban User: ${user.name}",
+                                style: GoogleFonts.inter(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: const Color(0xFF0F172A),
+                                ),
+                              ),
+                              IconButton(
+                                onPressed: () => Navigator.pop(dialogContext),
+                                icon: const Icon(
+                                  Icons.close_rounded,
+                                  color: Color(0xFF64748B),
+                                  size: 20,
+                                ),
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                                splashRadius: 18,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          _buildDialogDivider(),
+                          const SizedBox(height: 20),
+
+                          // Ban Type
+                          Text(
+                            "Ban Type",
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFF475569),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          DropdownButtonFormField<String>(
+                            value: banType,
+                            decoration: _inputDecoration("", null),
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              color: const Color(0xFF1E293B),
+                            ),
+                            items:
+                                ["Permanent", "Temporary"]
+                                    .map(
+                                      (type) => DropdownMenuItem(
+                                        value: type,
+                                        child: Text(type),
+                                      ),
+                                    )
+                                    .toList(),
+                            onChanged: (val) {
+                              setDialogState(() {
+                                banType = val!;
+                              });
+                            },
+                          ),
+                          if (banType == "Temporary") ...[
+                            const SizedBox(height: 16),
+                            Text(
+                              "Duration",
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: const Color(0xFF475569),
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            DropdownButtonFormField<String>(
+                              value: banDuration,
+                              decoration: _inputDecoration("", null),
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                color: const Color(0xFF1E293B),
+                              ),
+                              items:
+                                  ["1 Day", "7 Days", "30 Days"]
+                                      .map(
+                                        (dur) => DropdownMenuItem(
+                                          value: dur,
+                                          child: Text(dur),
+                                        ),
+                                      )
+                                      .toList(),
+                              onChanged: (val) {
+                                setDialogState(() {
+                                  banDuration = val!;
+                                });
+                              },
+                            ),
+                          ],
+                          const SizedBox(height: 16),
+
+                          // Reason for Ban
+                          Text(
+                            "Reason for Ban",
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFF475569),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          TextFormField(
+                            initialValue: reason,
+                            decoration: _inputDecoration(
+                              "Enter ban reason...",
+                              null,
+                            ),
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              color: const Color(0xFF1E293B),
+                            ),
+                            maxLines: 3,
+                            onSaved: (val) {
+                              reason = val ?? "";
+                            },
+                            validator: (val) {
+                              if (val == null || val.isEmpty) {
+                                return "Please enter a reason";
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 24),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(dialogContext),
+                                child: Text(
+                                  "Cancel",
+                                  style: GoogleFonts.inter(
+                                    color: const Color(0xFF64748B),
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              ElevatedButton(
+                                onPressed: () async {
+                                  if (formKey.currentState!.validate()) {
+                                    formKey.currentState!.save();
+                                    Navigator.pop(dialogContext);
+                                    try {
+                                      await FirebaseFirestore.instance
+                                          .collection("users")
+                                          .doc(user.no)
+                                          .update({
+                                            "status": "Banned",
+                                            "banType": banType,
+                                            "banReason": reason,
+                                            "bannedOn": _formatDate(
+                                              DateTime.now(),
+                                            ),
+                                            "bannedBy": "Admin",
+                                            "banDuration":
+                                                banType == "Temporary"
+                                                    ? banDuration
+                                                    : "-",
+                                          });
+                                      if (!mounted) return;
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            "${user.name} has been banned.",
+                                          ),
+                                        ),
+                                      );
+                                      _refreshData();
+                                    } catch (e) {
+                                      if (!mounted) return;
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            "Error banning user: $e",
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                  }
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFFEF4444),
+                                  foregroundColor: Colors.white,
+                                  elevation: 0,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 20,
+                                    vertical: 14,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                                child: Text(
+                                  "Ban User",
+                                  style: GoogleFonts.inter(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
           ),
     );
   }
@@ -1961,6 +2342,7 @@ class _ProfileUserState extends State<ProfileUser> {
                       ),
                     ),
                   );
+                  _refreshData();
                 },
               );
             },
@@ -1994,6 +2376,7 @@ class _ProfileUserState extends State<ProfileUser> {
                       ),
                     ),
                   );
+                  _refreshData();
                 },
               );
             },
@@ -2089,6 +2472,12 @@ class _ProfileUserState extends State<ProfileUser> {
           icon: Icons.people_alt_rounded,
           iconColor: const Color(0xFF3B82F6),
           iconBgColor: const Color(0xFFEFF6FF),
+          onTap: () {
+            setState(() {
+              _selectedStatus = "All Status";
+            });
+            _onFilterChanged();
+          },
         ),
         StatsCard(
           title: "Active Users",
@@ -2099,6 +2488,12 @@ class _ProfileUserState extends State<ProfileUser> {
           icon: Icons.group_add_rounded,
           iconColor: const Color(0xFF10B981),
           iconBgColor: const Color(0xFFECFDF5),
+          onTap: () {
+            setState(() {
+              _selectedStatus = "Active";
+            });
+            _onFilterChanged();
+          },
         ),
         StatsCard(
           title: "Suspended Users",
@@ -2109,6 +2504,12 @@ class _ProfileUserState extends State<ProfileUser> {
           icon: Icons.block_rounded,
           iconColor: const Color(0xFFF59E0B),
           iconBgColor: const Color(0xFFFEF3C7),
+          onTap: () {
+            setState(() {
+              _selectedStatus = "Suspended";
+            });
+            _onFilterChanged();
+          },
         ),
         StatsCard(
           title: "New Users (This Week)",
@@ -2245,11 +2646,28 @@ class _ProfileUserState extends State<ProfileUser> {
 
     final dateRangeButton = InkWell(
       onTap: () async {
-        final DateTimeRange? picked = await showDateRangePicker(
+        final DateTimeRange? picked = await showGeneralDialog<DateTimeRange>(
           context: context,
-          firstDate: DateTime(2020),
-          lastDate: DateTime(2030),
-          initialDateRange: _selectedDateRange,
+          barrierDismissible: true,
+          barrierLabel: "Dismiss",
+          barrierColor: Colors.black.withValues(alpha: 0.4),
+          transitionDuration: const Duration(milliseconds: 220),
+          pageBuilder: (context, anim1, anim2) {
+            return PremiumDateRangePickerDialog(
+              initialDateRange: _selectedDateRange,
+            );
+          },
+          transitionBuilder: (context, anim1, anim2, child) {
+            return FadeTransition(
+              opacity: anim1,
+              child: ScaleTransition(
+                scale: Tween<double>(begin: 0.95, end: 1.0).animate(
+                  CurvedAnimation(parent: anim1, curve: Curves.easeOutCubic),
+                ),
+                child: child,
+              ),
+            );
+          },
         );
         if (picked != null) {
           setState(() {
@@ -2258,34 +2676,76 @@ class _ProfileUserState extends State<ProfileUser> {
           _onFilterChanged();
         }
       },
-      child: Container(
-        width: isSmall ? double.infinity : 180,
+      borderRadius: BorderRadius.circular(18),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
         height: 38,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        width: isSmall ? double.infinity : 200,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
+          border: Border.all(
+            color:
+                _selectedDateRange != null
+                    ? const Color(0xFF10B981)
+                    : const Color(0xFFE2E8F0),
+            width: 1,
+          ),
+          gradient:
+              _selectedDateRange != null
+                  ? const LinearGradient(
+                    colors: [Color(0xFFECFDF5), Color(0xFFF0FDF4)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  )
+                  : null,
         ),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
+            Icon(
+              _selectedDateRange != null
+                  ? Icons.calendar_month_rounded
+                  : Icons.calendar_today_outlined,
+              color:
+                  _selectedDateRange != null
+                      ? const Color(0xFF10B981)
+                      : const Color(0xFF64748B),
+              size: 14,
+            ),
+            const SizedBox(width: 8),
             Expanded(
               child: Text(
                 _selectedDateRange == null
                     ? "Select Date Range"
-                    : "${_formatDate(_selectedDateRange!.start)} - ${_formatDate(_selectedDateRange!.end)}",
+                    : "${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][_selectedDateRange!.start.month - 1]} ${_selectedDateRange!.start.day.toString().padLeft(2, '0')} • ${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][_selectedDateRange!.end.month - 1]} ${_selectedDateRange!.end.day.toString().padLeft(2, '0')}",
                 style: GoogleFonts.inter(
-                  color: const Color(0xFF475569),
                   fontSize: 12,
+                  fontWeight:
+                      _selectedDateRange == null
+                          ? FontWeight.normal
+                          : FontWeight.w600,
+                  color:
+                      _selectedDateRange == null
+                          ? const Color(0xFF475569)
+                          : const Color(0xFF1E293B),
                 ),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            const Icon(
-              Icons.calendar_today_outlined,
-              size: 14,
-              color: Color(0xFF64748B),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              child: Icon(
+                _selectedDateRange != null
+                    ? Icons.check_circle_rounded
+                    : Icons.arrow_drop_down_rounded,
+                key: ValueKey(_selectedDateRange != null),
+                color:
+                    _selectedDateRange != null
+                        ? const Color(0xFF10B981)
+                        : const Color(0xFF64748B),
+                size: 16,
+              ),
             ),
           ],
         ),
@@ -2294,6 +2754,7 @@ class _ProfileUserState extends State<ProfileUser> {
 
     final exportButton = ElevatedButton.icon(
       onPressed: () {
+        // ignore: argument_type_not_assignable
         printUsersList(filteredUsers);
       },
       icon: const Icon(Icons.download_rounded, size: 14),
@@ -2625,6 +3086,7 @@ class _ProfileUserState extends State<ProfileUser> {
                                             ),
                                           ),
                                         );
+                                        _refreshData();
                                       } catch (e) {
                                         if (!mounted) return;
                                         ScaffoldMessenger.of(
@@ -2668,6 +3130,7 @@ class _ProfileUserState extends State<ProfileUser> {
                                             ),
                                           ),
                                         );
+                                        _refreshData();
                                       } catch (e) {
                                         if (!mounted) return;
                                         ScaffoldMessenger.of(
@@ -2695,29 +3158,46 @@ class _ProfileUserState extends State<ProfileUser> {
                                   content:
                                       "Are you sure you want to delete ${user.name}?",
                                   confirmText: "Delete",
-                                  onConfirm: () {
-                                    FirebaseFirestore.instance
-                                        .collection("users")
-                                        .doc(user.no)
-                                        .delete();
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          "${user.name} has been deleted.",
+                                  onConfirm: () async {
+                                    try {
+                                      await FirebaseFirestore.instance
+                                          .collection("users")
+                                          .doc(user.no)
+                                          .delete();
+                                      if (!mounted) return;
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            "${user.name} has been deleted.",
+                                          ),
                                         ),
-                                      ),
-                                    );
+                                      );
+                                      _refreshData();
+                                    } catch (e) {
+                                      if (!mounted) return;
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            "Error deleting user: $e",
+                                          ),
+                                        ),
+                                      );
+                                    }
                                   },
                                 );
                               },
                             ),
                             const SizedBox(width: 6),
                             _buildActionButton(
-                              Icons.list_rounded,
-                              Colors.grey,
-                              "Options",
+                              Icons.gavel_rounded,
+                              Colors.red,
+                              "Ban",
                               () {
-                                // Extra options
+                                _showBanUserDialog(user);
                               },
                             ),
                           ],
@@ -3124,6 +3604,7 @@ class StatsCard extends StatelessWidget {
   final IconData icon;
   final Color iconColor;
   final Color iconBgColor;
+  final VoidCallback? onTap;
 
   const StatsCard({
     super.key,
@@ -3135,108 +3616,784 @@ class StatsCard extends StatelessWidget {
     required this.icon,
     required this.iconColor,
     required this.iconBgColor,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFF1F3F9)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.015),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: iconBgColor,
-                  shape: BoxShape.circle,
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFF1F3F9)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.015),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: iconBgColor,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, color: iconColor, size: 20),
                 ),
-                child: Icon(icon, color: iconColor, size: 20),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      title,
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: const Color(0xFF64748B),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        title,
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: const Color(0xFF64748B),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      value,
-                      style: GoogleFonts.inter(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: const Color(0xFF1E293B),
+                      const SizedBox(height: 2),
+                      Text(
+                        value,
+                        style: GoogleFonts.inter(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: const Color(0xFF1E293B),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            ],
-          ),
-          Row(
-            children: [
-              Icon(
-                isPositiveTrend ? Icons.arrow_upward : Icons.arrow_downward,
-                size: 12,
-                color:
-                    isPositiveTrend
-                        ? const Color(0xFF10B981)
-                        : const Color(0xFFEF4444),
-              ),
-              const SizedBox(width: 4),
-              Text(
-                trendPercentage,
-                style: GoogleFonts.inter(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
+              ],
+            ),
+            Row(
+              children: [
+                Icon(
+                  isPositiveTrend ? Icons.arrow_upward : Icons.arrow_downward,
+                  size: 12,
                   color:
                       isPositiveTrend
                           ? const Color(0xFF10B981)
                           : const Color(0xFFEF4444),
                 ),
-              ),
-              const SizedBox(width: 4),
-              Expanded(
-                child: Text(
-                  trendPeriod,
+                const SizedBox(width: 4),
+                Text(
+                  trendPercentage,
                   style: GoogleFonts.inter(
                     fontSize: 11,
-                    color: const Color(0xFF94A3B8),
+                    fontWeight: FontWeight.w600,
+                    color:
+                        isPositiveTrend
+                            ? const Color(0xFF10B981)
+                            : const Color(0xFFEF4444),
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    trendPeriod,
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      color: const Color(0xFF94A3B8),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class PremiumDateRangePickerDialog extends StatefulWidget {
+  final DateTimeRange? initialDateRange;
+
+  const PremiumDateRangePickerDialog({super.key, this.initialDateRange});
+
+  @override
+  State<PremiumDateRangePickerDialog> createState() =>
+      _PremiumDateRangePickerDialogState();
+}
+
+class _PremiumDateRangePickerDialogState
+    extends State<PremiumDateRangePickerDialog> {
+  late DateTime _currentMonth;
+  DateTime? _startDate;
+  DateTime? _endDate;
+
+  @override
+  void initState() {
+    super.initState();
+    _startDate = widget.initialDateRange?.start;
+    _endDate = widget.initialDateRange?.end;
+    _currentMonth = _startDate ?? DateTime.now();
+  }
+
+  String _formatDateString(DateTime? date) {
+    if (date == null) return "";
+    final months = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
+    ];
+    return "${months[date.month - 1]} ${date.day.toString().padLeft(2, '0')}, ${date.year}";
+  }
+
+  String _formatHeaderDate(DateTimeRange? range) {
+    if (range == null) return "No date selected";
+    final months = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
+    ];
+    return "${months[range.start.month - 1]} ${range.start.day} – ${months[range.end.month - 1]} ${range.end.day}";
+  }
+
+  int _daysInMonth(DateTime date) {
+    return DateTime(date.year, date.month + 1, 0).day;
+  }
+
+  String _getMonthName(int month) {
+    final months = [
+      "January",
+      "February",
+      "March",
+      "April",
+      "May",
+      "June",
+      "July",
+      "August",
+      "September",
+      "October",
+      "November",
+      "December",
+    ];
+    return months[month - 1];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final firstDayInstance = DateTime(
+      _currentMonth.year,
+      _currentMonth.month,
+      1,
+    );
+    final int firstDayOffset = firstDayInstance.weekday % 7;
+    final int totalDays = _daysInMonth(_currentMonth);
+
+    final bool hasSelection = _startDate != null && _endDate != null;
+    final int daysCount =
+        hasSelection ? _endDate!.difference(_startDate!).inDays + 1 : 0;
+
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      elevation: 18,
+      backgroundColor: const Color(0xFFFCFCFD),
+      clipBehavior: Clip.antiAlias,
+      child: Container(
+        width: 440,
+        decoration: BoxDecoration(
+          color: const Color(0xFFFCFCFD),
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.07),
+              blurRadius: 40,
+              offset: const Offset(0, 15),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // ── Header (Gradient) ──────────────────────────────────────────
+            Container(
+              height: 90,
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
               ),
-            ],
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children: [
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(
+                      Icons.arrow_back_rounded,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "SELECT DATE RANGE",
+                          style: GoogleFonts.inter(
+                            color: Colors.white.withValues(alpha: 0.7),
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1.2,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          hasSelection
+                              ? _formatHeaderDate(
+                                DateTimeRange(
+                                  start: _startDate!,
+                                  end: _endDate!,
+                                ),
+                              )
+                              : "Choose Date Range",
+                          style: GoogleFonts.inter(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // ── Body ───────────────────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // ── Selected Range Summary or Empty State ────────────────────
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 200),
+                    child:
+                        hasSelection
+                            ? Container(
+                              key: const ValueKey('summary_selected'),
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFECFDF5),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: const Color(0xFFA7F3D0),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: const BoxDecoration(
+                                      color: Color(0xFF10B981),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.calendar_today_rounded,
+                                      color: Colors.white,
+                                      size: 16,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          "Selected Range",
+                                          style: GoogleFonts.inter(
+                                            color: const Color(0xFF065F46),
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Row(
+                                          children: [
+                                            Text(
+                                              _formatDateString(_startDate),
+                                              style: GoogleFonts.inter(
+                                                color: const Color(0xFF047857),
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 6),
+                                            const Icon(
+                                              Icons.arrow_right_alt_rounded,
+                                              color: Color(0xFF059669),
+                                              size: 16,
+                                            ),
+                                            const SizedBox(width: 6),
+                                            Text(
+                                              _formatDateString(_endDate),
+                                              style: GoogleFonts.inter(
+                                                color: const Color(0xFF047857),
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 6,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFD1FAE5),
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child: Text(
+                                      "$daysCount Days",
+                                      style: GoogleFonts.inter(
+                                        color: const Color(0xFF065F46),
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                            : Container(
+                              key: const ValueKey('summary_empty'),
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF8FAFC),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: const Color(0xFFE2E8F0),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: const BoxDecoration(
+                                      color: Color(0xFFE2E8F0),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.calendar_month_rounded,
+                                      color: Color(0xFF64748B),
+                                      size: 16,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          "Choose a date range",
+                                          style: GoogleFonts.inter(
+                                            color: const Color(0xFF1E293B),
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 1),
+                                        Text(
+                                          "Filter reports between any two dates.",
+                                          style: GoogleFonts.inter(
+                                            color: const Color(0xFF64748B),
+                                            fontSize: 11,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // ── Month Selector Row ───────────────────────────────────────
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        "${_getMonthName(_currentMonth.month)} ${_currentMonth.year}",
+                        style: GoogleFonts.inter(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: const Color(0xFF1E293B),
+                        ),
+                      ),
+                      Row(
+                        children: [
+                          _buildNavButton(
+                            icon: Icons.chevron_left_rounded,
+                            onTap: () {
+                              setState(() {
+                                _currentMonth = DateTime(
+                                  _currentMonth.year,
+                                  _currentMonth.month - 1,
+                                  1,
+                                );
+                              });
+                            },
+                          ),
+                          const SizedBox(width: 8),
+                          _buildNavButton(
+                            icon: Icons.chevron_right_rounded,
+                            onTap: () {
+                              setState(() {
+                                _currentMonth = DateTime(
+                                  _currentMonth.year,
+                                  _currentMonth.month + 1,
+                                  1,
+                                );
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+
+                  // ── Calendar Month Card ──────────────────────────────────────
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(18),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.04),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceAround,
+                          children:
+                              ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((
+                                day,
+                              ) {
+                                return Expanded(
+                                  child: Center(
+                                    child: Text(
+                                      day,
+                                      style: GoogleFonts.inter(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                        color: const Color(0xFF94A3B8),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              }).toList(),
+                        ),
+                        const SizedBox(height: 8),
+                        GridView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 7,
+                                childAspectRatio: 1.1,
+                              ),
+                          itemCount: totalDays + firstDayOffset,
+                          itemBuilder: (context, index) {
+                            if (index < firstDayOffset) {
+                              return const SizedBox.shrink();
+                            }
+                            final int dayNum = index - firstDayOffset + 1;
+                            final DateTime cellDate = DateTime(
+                              _currentMonth.year,
+                              _currentMonth.month,
+                              dayNum,
+                            );
+
+                            return _buildDayCell(cellDate, dayNum, now);
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // ── Action Buttons ───────────────────────────────────────────
+                  Row(
+                    children: [
+                      if (_startDate != null || _endDate != null)
+                        TextButton.icon(
+                          onPressed: () {
+                            setState(() {
+                              _startDate = null;
+                              _endDate = null;
+                            });
+                          },
+                          icon: const Icon(
+                            Icons.clear_rounded,
+                            size: 14,
+                            color: Color(0xFF64748B),
+                          ),
+                          label: Text(
+                            "Clear",
+                            style: GoogleFonts.inter(
+                              color: const Color(0xFF64748B),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      const Spacer(),
+                      SizedBox(
+                        height: 46,
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(context),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Color(0xFFE2E8F0)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
+                          ),
+                          child: Text(
+                            "Cancel",
+                            style: GoogleFonts.inter(
+                              color: const Color(0xFF64748B),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Container(
+                        height: 46,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(14),
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF10B981), Color(0xFF059669)],
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(
+                                0xFF10B981,
+                              ).withValues(alpha: 0.25),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: ElevatedButton(
+                          onPressed:
+                              hasSelection
+                                  ? () {
+                                    Navigator.pop(
+                                      context,
+                                      DateTimeRange(
+                                        start: _startDate!,
+                                        end: _endDate!,
+                                      ),
+                                    );
+                                  }
+                                  : null,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.transparent,
+                            shadowColor: Colors.transparent,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 24),
+                          ),
+                          child: Text(
+                            "Apply",
+                            style: GoogleFonts.inter(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNavButton({
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        width: 36,
+        height: 36,
+        decoration: const BoxDecoration(
+          color: Color(0xFFF8FAFC),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, size: 18, color: const Color(0xFF64748B)),
+      ),
+    );
+  }
+
+  Widget _buildDayCell(DateTime date, int dayNum, DateTime today) {
+    final bool isStart =
+        _startDate != null &&
+        date.year == _startDate!.year &&
+        date.month == _startDate!.month &&
+        date.day == _startDate!.day;
+    final bool isEnd =
+        _endDate != null &&
+        date.year == _endDate!.year &&
+        date.month == _endDate!.month &&
+        date.day == _endDate!.day;
+    final bool isSelected = isStart || isEnd;
+
+    final bool inRange =
+        _startDate != null &&
+        _endDate != null &&
+        date.isAfter(_startDate!) &&
+        date.isBefore(_endDate!);
+
+    final bool isToday =
+        date.year == today.year &&
+        date.month == today.month &&
+        date.day == today.day;
+
+    BoxDecoration? cellDecoration;
+    TextStyle textStyle = GoogleFonts.inter(
+      fontSize: 12,
+      color: const Color(0xFF1E293B),
+      fontWeight: FontWeight.w500,
+    );
+
+    if (isSelected) {
+      cellDecoration = const BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          colors: [Color(0xFF34D399), Color(0xFF10B981)],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x4010B981),
+            blurRadius: 8,
+            offset: Offset(0, 3),
           ),
         ],
+      );
+      textStyle = GoogleFonts.inter(
+        fontSize: 12,
+        color: Colors.white,
+        fontWeight: FontWeight.bold,
+      );
+    } else if (inRange) {
+      cellDecoration = const BoxDecoration(
+        color: Color(0x33DCFCE7),
+        shape: BoxShape.circle,
+      );
+      textStyle = GoogleFonts.inter(
+        fontSize: 12,
+        color: const Color(0xFF047857),
+        fontWeight: FontWeight.w600,
+      );
+    } else if (isToday) {
+      cellDecoration = BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: const Color(0xFF10B981), width: 2),
+      );
+      textStyle = GoogleFonts.inter(
+        fontSize: 12,
+        color: const Color(0xFF10B981),
+        fontWeight: FontWeight.bold,
+      );
+    }
+
+    return InkWell(
+      onTap: () {
+        setState(() {
+          if (_startDate == null || (_startDate != null && _endDate != null)) {
+            _startDate = date;
+            _endDate = null;
+          } else if (date.isBefore(_startDate!)) {
+            _startDate = date;
+          } else {
+            _endDate = date;
+          }
+        });
+      },
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        margin: const EdgeInsets.all(2),
+        alignment: Alignment.center,
+        decoration: cellDecoration,
+        child: Text(dayNum.toString(), style: textStyle),
       ),
     );
   }

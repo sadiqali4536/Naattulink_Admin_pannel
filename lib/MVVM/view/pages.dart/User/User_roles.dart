@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:swiftclean_admin/MVVM/utils/rbac_session.dart';
 import 'package:swiftclean_admin/MVVM/model/services/firebaseauthservices.dart';
 import 'package:swiftclean_admin/MVVM/model/models/admin_model.dart';
+import 'Grant_access.dart';
 
 class RoleModel {
   final String id;
@@ -272,7 +273,8 @@ class _UserRolesPageState extends State<UserRolesPage> {
                           );
                       final matchesStatus =
                           _selectedStatus == "All Status" ||
-                          role.status.toLowerCase() == _selectedStatus.toLowerCase();
+                          role.status.toLowerCase() ==
+                              _selectedStatus.toLowerCase();
                       return matchesSearch && matchesStatus;
                     }).toList();
 
@@ -1577,18 +1579,93 @@ class _UserRolesPageState extends State<UserRolesPage> {
                 onPressed: () async {
                   final navigator = Navigator.of(context);
                   final scaffoldMessenger = ScaffoldMessenger.of(context);
-                  await FirebaseFirestore.instance
-                      .collection("roles")
-                      .doc(role.id)
-                      .delete();
-                  navigator.pop();
-                  scaffoldMessenger.showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        "Role '${role.name}' deleted successfully.",
+
+                  try {
+                    final canonicalRoleId = role.id;
+                    final batch = FirebaseFirestore.instance.batch();
+
+                    // Query all admin users to clean up their roles
+                    final adminUsersSnap =
+                        await FirebaseFirestore.instance
+                            .collection("admin_users")
+                            .get();
+
+                    for (final doc in adminUsersSnap.docs) {
+                      final d = doc.data();
+                      final rId = (d['roleId'] ?? '').toString();
+                      final rIds =
+                          (d['roleIds'] as List<dynamic>?)
+                              ?.map((e) => e.toString())
+                              .toList() ??
+                          [rId];
+
+                      if (rId == canonicalRoleId ||
+                          rIds.contains(canonicalRoleId)) {
+                        final newRoleIds =
+                            rIds.where((id) => id != canonicalRoleId).toList();
+
+                        if (newRoleIds.isEmpty) {
+                          // No roles left for this user -> delete admin_users record to revoke access
+                          batch.delete(doc.reference);
+
+                          // Also remove their web_auth_index reference
+                          final webAuthUid = d['webAuthUid'] as String?;
+                          if (webAuthUid != null && webAuthUid.isNotEmpty) {
+                            final indexRef = FirebaseFirestore.instance
+                                .collection('web_auth_index')
+                                .doc(webAuthUid);
+                            batch.delete(indexRef);
+                          }
+                        } else {
+                          // Clean up list and assign next available role
+                          final nextRoleId = newRoleIds.first;
+                          final nextLevel = RoleLevels.levelFor(nextRoleId);
+                          final nextDisplayName = nextRoleId
+                              .split('_')
+                              .map(
+                                (w) =>
+                                    w.isNotEmpty
+                                        ? w[0].toUpperCase() + w.substring(1)
+                                        : '',
+                              )
+                              .join(' ');
+
+                          batch.update(doc.reference, {
+                            'roleId': nextRoleId,
+                            'roleDisplayName': nextDisplayName,
+                            'roleLevel': nextLevel,
+                            'roleIds': newRoleIds,
+                          });
+                        }
+                      }
+                    }
+
+                    // Delete the role document itself
+                    batch.delete(
+                      FirebaseFirestore.instance
+                          .collection("roles")
+                          .doc(role.id),
+                    );
+
+                    // Execute all changes atomically
+                    await batch.commit();
+
+                    navigator.pop();
+                    scaffoldMessenger.showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          "Role '${role.name}' and all its user assignments deleted successfully.",
+                        ),
                       ),
-                    ),
-                  );
+                    );
+                  } catch (e) {
+                    scaffoldMessenger.showSnackBar(
+                      SnackBar(
+                        content: Text("Error deleting role: $e"),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFEF4444),
@@ -1604,7 +1681,6 @@ class _UserRolesPageState extends State<UserRolesPage> {
   void _showAddRoleDialog(BuildContext context) {
     final nameController = TextEditingController();
     final descriptionController = TextEditingController();
-    final usernameController = TextEditingController();
     final emailController = TextEditingController();
     final passwordController = TextEditingController();
     bool obscurePassword = true;
@@ -1612,6 +1688,7 @@ class _UserRolesPageState extends State<UserRolesPage> {
     bool useExistingEmail = false;
     String? selectedUserId;
     String? selectedUserEmail;
+    bool isSaving = false;
 
     // permissions structure: Map<String, List<String>>
     final Map<String, List<String>> selectedPermissions = {};
@@ -1619,594 +1696,1150 @@ class _UserRolesPageState extends State<UserRolesPage> {
       selectedPermissions[module] = [];
     }
 
+    // Helper: input decoration
+    InputDecoration inputDecoration({
+      required String labelText,
+      required String hintText,
+      Widget? prefixIcon,
+      Widget? suffixIcon,
+    }) {
+      return InputDecoration(
+        labelText: labelText,
+        hintText: hintText,
+        prefixIcon: prefixIcon,
+        suffixIcon: suffixIcon,
+        labelStyle: GoogleFonts.inter(
+          fontSize: 13,
+          color: const Color(0xFF64748B),
+          fontWeight: FontWeight.w500,
+        ),
+        hintStyle: GoogleFonts.inter(
+          fontSize: 13,
+          color: const Color(0xFF94A3B8),
+        ),
+        filled: true,
+        fillColor: const Color(0xFFF8FAFC),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFFE2E8F0), width: 1),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFF10B981), width: 2),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.redAccent, width: 1),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.redAccent, width: 2),
+        ),
+      );
+    }
+
+    // Helper: Choice Chip
+    Widget buildChoiceChip({
+      required String label,
+      required bool selected,
+      required VoidCallback onSelected,
+    }) {
+      return InkWell(
+        onTap: onSelected,
+        borderRadius: BorderRadius.circular(12),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+          decoration: BoxDecoration(
+            color: selected ? const Color(0xFFECFDF5) : Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color:
+                  selected ? const Color(0xFF10B981) : const Color(0xFFE2E8F0),
+              width: selected ? 1.5 : 1,
+            ),
+          ),
+          child: Center(
+            child: Text(
+              label,
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                fontWeight: selected ? FontWeight.bold : FontWeight.w500,
+                color:
+                    selected
+                        ? const Color(0xFF047857)
+                        : const Color(0xFF475569),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Helper: Permission Chip
+    Widget buildPermissionChip({
+      required String label,
+      required bool isSelected,
+      required VoidCallback onTap,
+    }) {
+      return InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color:
+                isSelected ? const Color(0xFFECFDF5) : const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color:
+                  isSelected
+                      ? const Color(0xFF10B981).withValues(alpha: 0.5)
+                      : const Color(0xFFE2E8F0),
+              width: 1,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                isSelected
+                    ? Icons.check_circle_rounded
+                    : Icons.radio_button_unchecked_rounded,
+                size: 14,
+                color:
+                    isSelected
+                        ? const Color(0xFF10B981)
+                        : const Color(0xFF94A3B8),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                  color:
+                      isSelected
+                          ? const Color(0xFF047857)
+                          : const Color(0xFF64748B),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Helper: Dialog Section Header
+    Widget dialogSectionHeader(String label, IconData icon) {
+      return Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: const Color(0xFFECFDF5),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, size: 16, color: const Color(0xFF10B981)),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            label,
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: const Color(0xFF1E293B),
+            ),
+          ),
+          const SizedBox(width: 10),
+          const Expanded(child: Divider(color: Color(0xFFE2E8F0))),
+        ],
+      );
+    }
+
+    // Helper: Module Card
+    Widget buildModuleCard({
+      required String module,
+      required Map<String, List<String>> selectedPermissions,
+      required VoidCallback onToggleAll,
+      required StateSetter setDialogState,
+    }) {
+      final hasAll = _actions.every(
+        (a) => selectedPermissions[module]!.contains(a),
+      );
+      return Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: const BoxDecoration(
+                color: Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(16),
+                  topRight: Radius.circular(16),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    module,
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF1E293B),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: onToggleAll,
+                    style: TextButton.styleFrom(
+                      minimumSize: Size.zero,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: Text(
+                      hasAll ? "Deselect All" : "Select All",
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF10B981),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children:
+                    _actions.map((action) {
+                      final isChecked = selectedPermissions[module]!.contains(
+                        action,
+                      );
+                      return buildPermissionChip(
+                        label: action,
+                        isSelected: isChecked,
+                        onTap: () {
+                          setDialogState(() {
+                            if (isChecked) {
+                              selectedPermissions[module]!.remove(action);
+                            } else {
+                              selectedPermissions[module]!.add(action);
+                            }
+                          });
+                        },
+                      );
+                    }).toList(),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     showDialog(
       context: context,
+      barrierDismissible: false, // Prevents closing while saving
       builder:
           (context) => StatefulBuilder(
             builder:
-                (context, setDialogState) => AlertDialog(
-                  title: Row(
-                    children: [
-                      const Icon(
-                        Icons.admin_panel_settings_outlined,
-                        color: Color(0xFF10B981),
-                        size: 22,
-                      ),
-                      const SizedBox(width: 10),
-                      Text(
-                        "Add New Role",
-                        style: GoogleFonts.inter(fontWeight: FontWeight.bold),
-                      ),
-                    ],
+                (context, setDialogState) => Dialog(
+                  backgroundColor: Colors.transparent,
+                  insetPadding: const EdgeInsets.symmetric(
+                    horizontal: 40,
+                    vertical: 24,
                   ),
-                  content: SizedBox(
-                    width: 800,
-                    child: SingleChildScrollView(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // ── Role Info ──────────────────────────────────────────
-                          _sectionHeader(
-                            "Role Information",
-                            Icons.badge_outlined,
+                  child: Container(
+                    width: 850,
+                    constraints: BoxConstraints(
+                      maxHeight: MediaQuery.of(context).size.height * 0.9,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.15),
+                          blurRadius: 24,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // Header
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 28,
+                            vertical: 20,
                           ),
-                          const SizedBox(height: 10),
-                          TextFormField(
-                            controller: nameController,
-                            decoration: InputDecoration(
-                              labelText: "Role Name *",
-                              labelStyle: GoogleFonts.inter(fontSize: 13),
-                              hintText: "e.g. Operations Manager",
-                              border: const OutlineInputBorder(),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          TextFormField(
-                            controller: descriptionController,
-                            maxLines: 2,
-                            decoration: InputDecoration(
-                              labelText: "Description",
-                              labelStyle: GoogleFonts.inter(fontSize: 13),
-                              hintText:
-                                  "Brief description of this role's responsibilities",
-                              border: const OutlineInputBorder(),
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-
-                          // ── Account Credentials ────────────────────────────────
-                          _sectionHeader(
-                            "Account Credentials",
-                            Icons.lock_person_outlined,
-                          ),
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              Switch(
-                                value: createAccount,
-                                activeColor: const Color(0xFF10B981),
-                                onChanged:
-                                    (v) =>
-                                        setDialogState(() => createAccount = v),
+                          decoration: const BoxDecoration(
+                            border: Border(
+                              bottom: BorderSide(
+                                color: Color(0xFFE2E8F0),
+                                width: 1,
                               ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  "Create or assign a login account for this role",
-                                  style: GoogleFonts.inter(
-                                    fontSize: 13,
-                                    color: const Color(0xFF475569),
-                                  ),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFECFDF5),
+                                  borderRadius: BorderRadius.circular(12),
                                 ),
+                                child: const Icon(
+                                  Icons.admin_panel_settings_rounded,
+                                  color: Color(0xFF10B981),
+                                  size: 24,
+                                ),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      "Add New Role",
+                                      style: GoogleFonts.inter(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                        color: const Color(0xFF0F172A),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      "Create a custom user role and define access permissions.",
+                                      style: GoogleFonts.inter(
+                                        fontSize: 12,
+                                        color: const Color(0xFF64748B),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              IconButton(
+                                onPressed:
+                                    isSaving
+                                        ? null
+                                        : () => Navigator.pop(context),
+                                icon: const Icon(Icons.close_rounded),
+                                color: const Color(0xFF64748B),
+                                splashRadius: 20,
                               ),
                             ],
                           ),
-                          if (createAccount) ...[
-                            const SizedBox(height: 12),
-                            // Toggle Segment: New Email vs Existing User
-                            Row(
+                        ),
+
+                        // Body (Scrollable content)
+                        Expanded(
+                          child: SingleChildScrollView(
+                            padding: const EdgeInsets.all(28),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Expanded(
-                                  child: ChoiceChip(
-                                    label: const Text("New Email Account"),
-                                    selected: !useExistingEmail,
-                                    selectedColor: const Color(0xFFE0F2FE),
-                                    labelStyle: GoogleFonts.inter(
-                                      fontSize: 12,
-                                      color:
-                                          !useExistingEmail
-                                              ? const Color(0xFF0369A1)
-                                              : const Color(0xFF475569),
-                                      fontWeight: FontWeight.w600,
+                                // Role Info
+                                dialogSectionHeader(
+                                  "Role Information",
+                                  Icons.badge_outlined,
+                                ),
+                                const SizedBox(height: 16),
+                                TextFormField(
+                                  controller: nameController,
+                                  enabled: !isSaving,
+                                  decoration: inputDecoration(
+                                    labelText: "Role Name *",
+                                    hintText: "e.g. Operations Manager",
+                                    prefixIcon: const Icon(
+                                      Icons.badge_outlined,
+                                      size: 18,
                                     ),
-                                    onSelected: (selected) {
-                                      if (selected) {
-                                        setDialogState(() {
-                                          useExistingEmail = false;
-                                          selectedUserId = null;
-                                          selectedUserEmail = null;
-                                        });
-                                      }
-                                    },
                                   ),
                                 ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: ChoiceChip(
-                                    label: const Text(
-                                      "Use Existing User Email",
+                                const SizedBox(height: 16),
+                                TextFormField(
+                                  controller: descriptionController,
+                                  maxLines: 2,
+                                  enabled: !isSaving,
+                                  decoration: inputDecoration(
+                                    labelText: "Description",
+                                    hintText:
+                                        "Brief description of this role's responsibilities",
+                                    prefixIcon: const Icon(
+                                      Icons.description_outlined,
+                                      size: 18,
                                     ),
-                                    selected: useExistingEmail,
-                                    selectedColor: const Color(0xFFE0F2FE),
-                                    labelStyle: GoogleFonts.inter(
-                                      fontSize: 12,
-                                      color:
-                                          useExistingEmail
-                                              ? const Color(0xFF0369A1)
-                                              : const Color(0xFF475569),
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                    onSelected: (selected) {
-                                      if (selected) {
-                                        setDialogState(() {
-                                          useExistingEmail = true;
-                                        });
-                                      }
-                                    },
                                   ),
+                                ),
+                                const SizedBox(height: 28),
+
+                                // Account Credentials
+                                dialogSectionHeader(
+                                  "Account Credentials",
+                                  Icons.lock_person_outlined,
+                                ),
+                                const SizedBox(height: 16),
+                                Container(
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF8FAFC),
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                      color: const Color(0xFFE2E8F0),
+                                    ),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Switch(
+                                            value: createAccount,
+                                            activeColor: const Color(
+                                              0xFF10B981,
+                                            ),
+                                            onChanged:
+                                                isSaving
+                                                    ? null
+                                                    : (v) => setDialogState(
+                                                      () => createAccount = v,
+                                                    ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: Text(
+                                              "Create or assign a login account for this role",
+                                              style: GoogleFonts.inter(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w500,
+                                                color: const Color(0xFF475569),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      if (createAccount) ...[
+                                        const SizedBox(height: 16),
+                                        const Divider(color: Color(0xFFE2E8F0)),
+                                        const SizedBox(height: 16),
+                                        Row(
+                                          children: [
+                                            Expanded(
+                                              child: buildChoiceChip(
+                                                label: "New Email Account",
+                                                selected: !useExistingEmail,
+                                                onSelected:
+                                                    isSaving
+                                                        ? () {}
+                                                        : () => setDialogState(
+                                                          () {
+                                                            useExistingEmail =
+                                                                false;
+                                                            selectedUserId =
+                                                                null;
+                                                            selectedUserEmail =
+                                                                null;
+                                                          },
+                                                        ),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                              child: buildChoiceChip(
+                                                label:
+                                                    "Use Existing User Email",
+                                                selected: useExistingEmail,
+                                                onSelected:
+                                                    isSaving
+                                                        ? () {}
+                                                        : () =>
+                                                            setDialogState(() {
+                                                              useExistingEmail =
+                                                                  true;
+                                                            }),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 16),
+                                        if (useExistingEmail) ...[
+                                          StreamBuilder<QuerySnapshot>(
+                                            stream:
+                                                FirebaseFirestore.instance
+                                                    .collection("users")
+                                                    .snapshots(),
+                                            builder: (context, snapshot) {
+                                              if (snapshot.connectionState ==
+                                                  ConnectionState.waiting) {
+                                                return const Center(
+                                                  child: Padding(
+                                                    padding: EdgeInsets.all(
+                                                      16.0,
+                                                    ),
+                                                    child:
+                                                        CircularProgressIndicator(
+                                                          color: Color(
+                                                            0xFF10B981,
+                                                          ),
+                                                          strokeWidth: 2,
+                                                        ),
+                                                  ),
+                                                );
+                                              }
+                                              final docs =
+                                                  snapshot.data?.docs ?? [];
+                                              return DropdownButtonFormField<
+                                                String
+                                              >(
+                                                value: selectedUserId,
+                                                decoration: inputDecoration(
+                                                  labelText:
+                                                      "Select Existing User *",
+                                                  hintText:
+                                                      "Select user from list",
+                                                  prefixIcon: const Icon(
+                                                    Icons.people_outline,
+                                                    size: 18,
+                                                  ),
+                                                ),
+                                                items:
+                                                    docs
+                                                        .where((doc) {
+                                                          final data =
+                                                              doc.data()
+                                                                  as Map<
+                                                                    String,
+                                                                    dynamic
+                                                                  >;
+                                                          final name =
+                                                              (data['name'] ??
+                                                                      data['username'] ??
+                                                                      '')
+                                                                  .toString()
+                                                                  .toLowerCase();
+                                                          final email =
+                                                              (data['email'] ??
+                                                                      '')
+                                                                  .toString()
+                                                                  .toLowerCase();
+                                                          return email !=
+                                                                  'developer@naattulink.com' &&
+                                                              name !=
+                                                                  'developer';
+                                                        })
+                                                        .map((doc) {
+                                                          final data =
+                                                              doc.data()
+                                                                  as Map<
+                                                                    String,
+                                                                    dynamic
+                                                                  >;
+                                                          final name =
+                                                              data['name'] ??
+                                                              data['username'] ??
+                                                              'No Name';
+                                                          final email =
+                                                              data['email'] ??
+                                                              'No Email';
+                                                          return DropdownMenuItem<
+                                                            String
+                                                          >(
+                                                            value: doc.id,
+                                                            child: Text(
+                                                              "$name ($email)",
+                                                              style:
+                                                                  GoogleFonts.inter(
+                                                                    fontSize:
+                                                                        13,
+                                                                  ),
+                                                              overflow:
+                                                                  TextOverflow
+                                                                      .ellipsis,
+                                                            ),
+                                                          );
+                                                        })
+                                                        .toList(),
+                                                onChanged:
+                                                    isSaving
+                                                        ? null
+                                                        : (val) {
+                                                          if (val != null) {
+                                                            final matchedDoc =
+                                                                docs.firstWhere(
+                                                                  (d) =>
+                                                                      d.id ==
+                                                                      val,
+                                                                );
+                                                            final matchedData =
+                                                                matchedDoc
+                                                                        .data()
+                                                                    as Map<
+                                                                      String,
+                                                                      dynamic
+                                                                    >;
+                                                            setDialogState(() {
+                                                              selectedUserId =
+                                                                  val;
+                                                              selectedUserEmail =
+                                                                  matchedData['email'];
+                                                            });
+                                                          }
+                                                        },
+                                              );
+                                            },
+                                          ),
+                                        ] else ...[
+                                          TextFormField(
+                                            controller: emailController,
+                                            keyboardType:
+                                                TextInputType.emailAddress,
+                                            enabled: !isSaving,
+                                            decoration: inputDecoration(
+                                              labelText: "Email Address *",
+                                              hintText:
+                                                  "e.g. user@naattulink.com",
+                                              prefixIcon: const Icon(
+                                                Icons.mail_outline_rounded,
+                                                size: 18,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                        const SizedBox(height: 16),
+                                        TextFormField(
+                                          controller: passwordController,
+                                          obscureText: obscurePassword,
+                                          enabled: !isSaving,
+                                          decoration: inputDecoration(
+                                            labelText: "Password *",
+                                            hintText: "Enter password",
+                                            prefixIcon: const Icon(
+                                              Icons.lock_outline_rounded,
+                                              size: 18,
+                                            ),
+                                            suffixIcon: IconButton(
+                                              icon: Icon(
+                                                obscurePassword
+                                                    ? Icons
+                                                        .visibility_off_outlined
+                                                    : Icons.visibility_outlined,
+                                                size: 18,
+                                                color: const Color(0xFF94A3B8),
+                                              ),
+                                              onPressed:
+                                                  () => setDialogState(
+                                                    () =>
+                                                        obscurePassword =
+                                                            !obscurePassword,
+                                                  ),
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                            left: 4.0,
+                                          ),
+                                          child: Text(
+                                            "Minimum 6 characters",
+                                            style: GoogleFonts.inter(
+                                              fontSize: 11,
+                                              color: const Color(0xFF94A3B8),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 28),
+
+                                // Module Permissions
+                                dialogSectionHeader(
+                                  "Module Permissions",
+                                  Icons.tune_rounded,
+                                ),
+                                const SizedBox(height: 16),
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        children:
+                                            _modules
+                                                .sublist(
+                                                  0,
+                                                  (_modules.length / 2).round(),
+                                                )
+                                                .map(
+                                                  (module) => buildModuleCard(
+                                                    module: module,
+                                                    selectedPermissions:
+                                                        selectedPermissions,
+                                                    onToggleAll:
+                                                        isSaving
+                                                            ? () {}
+                                                            : () {
+                                                              final hasAll =
+                                                                  _actions.every(
+                                                                    (
+                                                                      a,
+                                                                    ) => selectedPermissions[module]!
+                                                                        .contains(
+                                                                          a,
+                                                                        ),
+                                                                  );
+                                                              setDialogState(() {
+                                                                if (hasAll) {
+                                                                  selectedPermissions[module]!
+                                                                      .clear();
+                                                                } else {
+                                                                  selectedPermissions[module]!
+                                                                    ..clear()
+                                                                    ..addAll(
+                                                                      _actions,
+                                                                    );
+                                                                }
+                                                              });
+                                                            },
+                                                    setDialogState:
+                                                        setDialogState,
+                                                  ),
+                                                )
+                                                .toList(),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                      child: Column(
+                                        children:
+                                            _modules
+                                                .sublist(
+                                                  (_modules.length / 2).round(),
+                                                )
+                                                .map(
+                                                  (module) => buildModuleCard(
+                                                    module: module,
+                                                    selectedPermissions:
+                                                        selectedPermissions,
+                                                    onToggleAll:
+                                                        isSaving
+                                                            ? () {}
+                                                            : () {
+                                                              final hasAll =
+                                                                  _actions.every(
+                                                                    (
+                                                                      a,
+                                                                    ) => selectedPermissions[module]!
+                                                                        .contains(
+                                                                          a,
+                                                                        ),
+                                                                  );
+                                                              setDialogState(() {
+                                                                if (hasAll) {
+                                                                  selectedPermissions[module]!
+                                                                      .clear();
+                                                                } else {
+                                                                  selectedPermissions[module]!
+                                                                    ..clear()
+                                                                    ..addAll(
+                                                                      _actions,
+                                                                    );
+                                                                }
+                                                              });
+                                                            },
+                                                    setDialogState:
+                                                        setDialogState,
+                                                  ),
+                                                )
+                                                .toList(),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 16),
+                          ),
+                        ),
 
-                            if (useExistingEmail) ...[
-                              // Dropdown of existing users
-                              StreamBuilder<QuerySnapshot>(
-                                stream:
-                                    FirebaseFirestore.instance
-                                        .collection("users")
-                                        .snapshots(),
-                                builder: (context, snapshot) {
-                                  if (snapshot.connectionState ==
-                                      ConnectionState.waiting) {
-                                    return const Center(
-                                      child: CircularProgressIndicator(
-                                        color: Color(0xFF10B981),
-                                        strokeWidth: 2,
-                                      ),
-                                    );
-                                  }
-                                  final docs = snapshot.data?.docs ?? [];
-                                  return DropdownButtonFormField<String>(
-                                    value: selectedUserId,
-                                    decoration: const InputDecoration(
-                                      labelText: "Select Existing User *",
-                                      prefixIcon: Icon(Icons.people_outline),
-                                      border: OutlineInputBorder(),
-                                    ),
-                                    items:
-                                        docs
-                                            .where((doc) {
-                                              final data =
-                                                  doc.data()
-                                                      as Map<String, dynamic>;
-                                              final name =
-                                                  (data['name'] ??
-                                                          data['username'] ??
-                                                          '')
-                                                      .toString()
-                                                      .toLowerCase();
-                                              final email =
-                                                  (data['email'] ?? '')
-                                                      .toString()
-                                                      .toLowerCase();
-                                              return email !=
-                                                      'developer@naattulink.com' &&
-                                                  name != 'developer';
-                                            })
-                                            .map((doc) {
-                                              final data =
-                                                  doc.data()
-                                                      as Map<String, dynamic>;
-                                              final name =
-                                                  data['name'] ??
-                                                  data['username'] ??
-                                                  'No Name';
-                                              final email =
-                                                  data['email'] ?? 'No Email';
-                                              return DropdownMenuItem<String>(
-                                                value: doc.id,
-                                                child: Text(
-                                                  "$name ($email)",
-                                                  style: GoogleFonts.inter(
-                                                    fontSize: 13,
-                                                  ),
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                ),
-                                              );
-                                            })
-                                            .toList(),
-                                    onChanged: (val) {
-                                      if (val != null) {
-                                        final matchedDoc = docs.firstWhere(
-                                          (d) => d.id == val,
-                                        );
-                                        final matchedData =
-                                            matchedDoc.data()
-                                                as Map<String, dynamic>;
-                                        setDialogState(() {
-                                          selectedUserId = val;
-                                          selectedUserEmail =
-                                              matchedData['email'];
-                                        });
-                                      }
-                                    },
-                                  );
-                                },
+                        // Footer Actions
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 28,
+                            vertical: 20,
+                          ),
+                          decoration: const BoxDecoration(
+                            border: Border(
+                              top: BorderSide(
+                                color: Color(0xFFE2E8F0),
+                                width: 1,
                               ),
-                            ] else ...[
-                              // New email textfield
-                              TextFormField(
-                                controller: emailController,
-                                keyboardType: TextInputType.emailAddress,
-                                decoration: InputDecoration(
-                                  labelText: "Email Address *",
-                                  prefixIcon: const Icon(
-                                    Icons.mail_outline_rounded,
-                                    size: 18,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              TextButton(
+                                onPressed:
+                                    isSaving
+                                        ? null
+                                        : () => Navigator.pop(context),
+                                style: TextButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 20,
+                                    vertical: 16,
                                   ),
-                                  labelStyle: GoogleFonts.inter(fontSize: 13),
-                                  border: const OutlineInputBorder(),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                child: Text(
+                                  "Cancel",
+                                  style: GoogleFonts.inter(
+                                    fontWeight: FontWeight.w600,
+                                    color: const Color(0xFF64748B),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              ElevatedButton.icon(
+                                onPressed:
+                                    isSaving
+                                        ? null
+                                        : () async {
+                                          final navigator = Navigator.of(
+                                            context,
+                                          );
+                                          final scaffoldMessenger =
+                                              ScaffoldMessenger.of(context);
+                                          final String name =
+                                              nameController.text.trim();
+                                          final String description =
+                                              descriptionController.text.trim();
+
+                                          if (name.isEmpty) {
+                                            scaffoldMessenger.showSnackBar(
+                                              const SnackBar(
+                                                content: Text(
+                                                  "Role name is required.",
+                                                ),
+                                                backgroundColor: Colors.orange,
+                                              ),
+                                            );
+                                            return;
+                                          }
+
+                                          if (name.toLowerCase() ==
+                                              "super admin") {
+                                            scaffoldMessenger.showSnackBar(
+                                              const SnackBar(
+                                                content: Text(
+                                                  "Error: Cannot create or modify a Super Admin role.",
+                                                ),
+                                                backgroundColor: Colors.red,
+                                              ),
+                                            );
+                                            return;
+                                          }
+
+                                          if (createAccount) {
+                                            if (useExistingEmail) {
+                                              if (selectedUserId == null ||
+                                                  passwordController.text
+                                                          .trim()
+                                                          .length <
+                                                      6) {
+                                                scaffoldMessenger.showSnackBar(
+                                                  const SnackBar(
+                                                    content: Text(
+                                                      "Please select an existing user and enter a password (min 6 chars).",
+                                                    ),
+                                                    backgroundColor:
+                                                        Colors.orange,
+                                                  ),
+                                                );
+                                                return;
+                                              }
+                                            } else {
+                                              if (emailController.text
+                                                      .trim()
+                                                      .isEmpty ||
+                                                  passwordController.text
+                                                          .trim()
+                                                          .length <
+                                                      6) {
+                                                scaffoldMessenger.showSnackBar(
+                                                  const SnackBar(
+                                                    content: Text(
+                                                      "Please enter an email and password (min 6 chars).",
+                                                    ),
+                                                    backgroundColor:
+                                                        Colors.orange,
+                                                  ),
+                                                );
+                                                return;
+                                              }
+                                            }
+                                          }
+
+                                          setDialogState(() {
+                                            isSaving = true;
+                                          });
+
+                                          try {
+                                            final String initials =
+                                                name.length >= 2
+                                                    ? name
+                                                        .substring(0, 2)
+                                                        .toUpperCase()
+                                                    : name[0].toUpperCase();
+
+                                            final List<Color> colors = [
+                                              const Color(0xFF8B5CF6),
+                                              const Color(0xFF3B82F6),
+                                              const Color(0xFF0D9488),
+                                              const Color(0xFFF59E0B),
+                                              const Color(0xFFEC4899),
+                                              const Color(0xFF64748B),
+                                            ];
+                                            final Color color =
+                                                colors[name.hashCode %
+                                                    colors.length];
+
+                                            // 1. Save the role document
+                                            await FirebaseFirestore.instance
+                                                .collection("roles")
+                                                .add({
+                                                  'name': name,
+                                                  'description': description,
+                                                  'usersCount': 0,
+                                                  'status': 'Active',
+                                                  'createdAt':
+                                                      _formatCurrentDateTime(),
+                                                  'initials': initials,
+                                                  'badgeColor':
+                                                      color.toARGB32(),
+                                                  'permissions':
+                                                      selectedPermissions,
+                                                });
+
+                                            // 2. Optionally create/update user account
+                                            if (createAccount) {
+                                              if (useExistingEmail) {
+                                                try {
+                                                  await FirebaseAuth.instance
+                                                      .createUserWithEmailAndPassword(
+                                                        email:
+                                                            selectedUserEmail!,
+                                                        password:
+                                                            passwordController
+                                                                .text
+                                                                .trim(),
+                                                      );
+                                                  await FirebaseAuthService
+                                                      .instance
+                                                      .grantAdminAccess(
+                                                        targetUid:
+                                                            selectedUserId!,
+                                                        targetDisplayName:
+                                                            selectedUserEmail!,
+                                                        roleId: name
+                                                            .toLowerCase()
+                                                            .replaceAll(
+                                                              ' ',
+                                                              '_',
+                                                            ),
+                                                        roleDisplayName: name,
+                                                        roleLevel:
+                                                            RoleLevels.levelFor(
+                                                              name,
+                                                            ),
+                                                        permissionsAdded: {},
+                                                        permissionsRemoved: {},
+                                                      );
+                                                } on FirebaseAuthException catch (
+                                                  authErr
+                                                ) {
+                                                  if (authErr.code ==
+                                                      'email-already-in-use') {
+                                                    await FirebaseAuthService
+                                                        .instance
+                                                        .grantAdminAccess(
+                                                          targetUid:
+                                                              selectedUserId!,
+                                                          targetDisplayName:
+                                                              selectedUserEmail!,
+                                                          roleId: name
+                                                              .toLowerCase()
+                                                              .replaceAll(
+                                                                ' ',
+                                                                '_',
+                                                              ),
+                                                          roleDisplayName: name,
+                                                          roleLevel:
+                                                              RoleLevels.levelFor(
+                                                                name,
+                                                              ),
+                                                          permissionsAdded: {},
+                                                          permissionsRemoved:
+                                                              {},
+                                                        );
+                                                  } else {
+                                                    rethrow;
+                                                  }
+                                                }
+                                              } else {
+                                                final targetEmail =
+                                                    emailController.text.trim();
+                                                final credential =
+                                                    await FirebaseAuth.instance
+                                                        .createUserWithEmailAndPassword(
+                                                          email: targetEmail,
+                                                          password:
+                                                              passwordController
+                                                                  .text
+                                                                  .trim(),
+                                                        );
+                                                await FirebaseFirestore.instance
+                                                    .collection("users")
+                                                    .doc(credential.user!.uid)
+                                                    .set({
+                                                      'username':
+                                                          targetEmail.split(
+                                                            '@',
+                                                          )[0],
+                                                      'name':
+                                                          targetEmail.split(
+                                                            '@',
+                                                          )[0],
+                                                      'email': targetEmail,
+                                                      'status': 'Active',
+                                                      'userType': 'Admin',
+                                                      'points': 0,
+                                                      'joinedDate':
+                                                          _formatCurrentDateTime(),
+                                                      'createdAt':
+                                                          FieldValue.serverTimestamp(),
+                                                    });
+
+                                                await FirebaseAuthService
+                                                    .instance
+                                                    .grantAdminAccess(
+                                                      targetUid:
+                                                          credential.user!.uid,
+                                                      targetDisplayName:
+                                                          targetEmail.split(
+                                                            '@',
+                                                          )[0],
+                                                      roleId: name
+                                                          .toLowerCase()
+                                                          .replaceAll(' ', '_'),
+                                                      roleDisplayName: name,
+                                                      roleLevel:
+                                                          RoleLevels.levelFor(
+                                                            name,
+                                                          ),
+                                                      permissionsAdded: {},
+                                                      permissionsRemoved: {},
+                                                    );
+                                              }
+                                            }
+
+                                            navigator.pop();
+                                            scaffoldMessenger.showSnackBar(
+                                              SnackBar(
+                                                content: Text(
+                                                  createAccount
+                                                      ? "Role and login account setup completed."
+                                                      : "Role added successfully.",
+                                                ),
+                                                backgroundColor: const Color(
+                                                  0xFF10B981,
+                                                ),
+                                              ),
+                                            );
+                                          } catch (e) {
+                                            setDialogState(() {
+                                              isSaving = false;
+                                            });
+                                            scaffoldMessenger.showSnackBar(
+                                              SnackBar(
+                                                content: Text("Error: $e"),
+                                                backgroundColor: Colors.red,
+                                              ),
+                                            );
+                                          }
+                                        },
+                                icon:
+                                    isSaving
+                                        ? const SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Colors.white,
+                                          ),
+                                        )
+                                        : const Icon(
+                                          Icons.save_outlined,
+                                          size: 18,
+                                        ),
+                                label: Text(
+                                  isSaving ? "Saving..." : "Save Role",
+                                  style: GoogleFonts.inter(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF10B981),
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 24,
+                                    vertical: 16,
+                                  ),
+                                  elevation: 0,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
                                 ),
                               ),
                             ],
-
-                            const SizedBox(height: 12),
-                            TextFormField(
-                              controller: passwordController,
-                              obscureText: obscurePassword,
-                              decoration: InputDecoration(
-                                labelText: "Password *",
-                                prefixIcon: const Icon(
-                                  Icons.lock_outline_rounded,
-                                  size: 18,
-                                ),
-                                suffixIcon: IconButton(
-                                  icon: Icon(
-                                    obscurePassword
-                                        ? Icons.visibility_off_outlined
-                                        : Icons.visibility_outlined,
-                                    size: 18,
-                                    color: const Color(0xFF94A3B8),
-                                  ),
-                                  onPressed:
-                                      () => setDialogState(
-                                        () =>
-                                            obscurePassword = !obscurePassword,
-                                      ),
-                                ),
-                                labelStyle: GoogleFonts.inter(fontSize: 13),
-                                helperText: "Minimum 6 characters",
-                                border: const OutlineInputBorder(),
-                              ),
-                            ),
-                          ],
-                          const SizedBox(height: 24),
-
-                          // ── Permissions ────────────────────────────────────────
-                          _sectionHeader(
-                            "Module Permissions",
-                            Icons.tune_rounded,
                           ),
-                          const SizedBox(height: 12),
-                          ..._modules.map((module) {
-                            return Padding(
-                              padding: const EdgeInsets.symmetric(
-                                vertical: 8.0,
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    module,
-                                    style: GoogleFonts.inter(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                      color: const Color(0xFF475569),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Wrap(
-                                    spacing: 12,
-                                    runSpacing: 8,
-                                    children:
-                                        _actions.map((action) {
-                                          final isChecked =
-                                              selectedPermissions[module]!
-                                                  .contains(action);
-                                          return Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              SizedBox(
-                                                width: 24,
-                                                height: 24,
-                                                child: Checkbox(
-                                                  value: isChecked,
-                                                  activeColor: const Color(
-                                                    0xFF10B981,
-                                                  ),
-                                                  onChanged: (val) {
-                                                    setDialogState(() {
-                                                      if (val == true) {
-                                                        selectedPermissions[module]!
-                                                            .add(action);
-                                                      } else {
-                                                        selectedPermissions[module]!
-                                                            .remove(action);
-                                                      }
-                                                    });
-                                                  },
-                                                ),
-                                              ),
-                                              const SizedBox(width: 4),
-                                              Text(
-                                                action,
-                                                style: GoogleFonts.inter(
-                                                  fontSize: 12,
-                                                ),
-                                              ),
-                                            ],
-                                          );
-                                        }).toList(),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  const Divider(color: Color(0xFFF1F5F9)),
-                                ],
-                              ),
-                            );
-                          }),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: Text(
-                        "Cancel",
-                        style: GoogleFonts.inter(
-                          color: const Color(0xFF64748B),
-                        ),
-                      ),
-                    ),
-                    ElevatedButton.icon(
-                      onPressed: () async {
-                        final navigator = Navigator.of(context);
-                        final scaffoldMessenger = ScaffoldMessenger.of(context);
-                        final String name = nameController.text.trim();
-                        final String description =
-                            descriptionController.text.trim();
-
-                        if (name.isEmpty) {
-                          scaffoldMessenger.showSnackBar(
-                            const SnackBar(
-                              content: Text("Role name is required."),
-                              backgroundColor: Colors.orange,
-                            ),
-                          );
-                          return;
-                        }
-
-                        // Prevent creating Super Admin
-                        if (name.toLowerCase() == "super admin") {
-                          scaffoldMessenger.showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                "Error: Cannot create or modify a Super Admin role.",
-                              ),
-                              backgroundColor: Colors.red,
-                            ),
-                          );
-                          return;
-                        }
-
-                        // Validate credentials
-                        if (createAccount) {
-                          if (useExistingEmail) {
-                            if (selectedUserId == null ||
-                                passwordController.text.trim().length < 6) {
-                              scaffoldMessenger.showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    "Please select an existing user and enter a password (min 6 chars).",
-                                  ),
-                                  backgroundColor: Colors.orange,
-                                ),
-                              );
-                              return;
-                            }
-                          } else {
-                            if (emailController.text.trim().isEmpty ||
-                                passwordController.text.trim().length < 6) {
-                              scaffoldMessenger.showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    "Please enter an email and password (min 6 chars).",
-                                  ),
-                                  backgroundColor: Colors.orange,
-                                ),
-                              );
-                              return;
-                            }
-                          }
-                        }
-
-                        try {
-                          final String initials =
-                              name.length >= 2
-                                  ? name.substring(0, 2).toUpperCase()
-                                  : name[0].toUpperCase();
-
-                          final List<Color> colors = [
-                            const Color(0xFF8B5CF6),
-                            const Color(0xFF3B82F6),
-                            const Color(0xFF0D9488),
-                            const Color(0xFFF59E0B),
-                            const Color(0xFFEC4899),
-                            const Color(0xFF64748B),
-                          ];
-                          final Color color =
-                              colors[name.hashCode % colors.length];
-
-                          // 1. Save the role document
-                          await FirebaseFirestore.instance
-                              .collection("roles")
-                              .add({
-                                'name': name,
-                                'description': description,
-                                'usersCount': 0,
-                                'status': 'Active',
-                                'createdAt': _formatCurrentDateTime(),
-                                'initials': initials,
-                                'badgeColor': color.toARGB32(),
-                                'permissions': selectedPermissions,
-                              });
-
-                          // 2. Optionally create/update user account
-                          if (createAccount) {
-                            if (useExistingEmail) {
-                              // Attempt to create credentials for existing email
-                              try {
-                                await FirebaseAuth.instance
-                                    .createUserWithEmailAndPassword(
-                                      email: selectedUserEmail!,
-                                      password: passwordController.text.trim(),
-                                    );
-                                // Update existing user doc
-                                await FirebaseAuthService.instance
-                                    .grantAdminAccess(
-                                      targetUid: selectedUserId!,
-                                      targetDisplayName: selectedUserEmail!,
-                                      roleId: name.toLowerCase().replaceAll(
-                                        ' ',
-                                        '_',
-                                      ),
-                                      roleDisplayName: name,
-                                      roleLevel: RoleLevels.levelFor(name),
-                                      permissionsAdded: {},
-                                      permissionsRemoved: {},
-                                    );
-                              } on FirebaseAuthException catch (authErr) {
-                                if (authErr.code == 'email-already-in-use') {
-                                  // Already registered in Auth, just assign the role
-                                  await FirebaseAuthService.instance
-                                      .grantAdminAccess(
-                                        targetUid: selectedUserId!,
-                                        targetDisplayName: selectedUserEmail!,
-                                        roleId: name.toLowerCase().replaceAll(
-                                          ' ',
-                                          '_',
-                                        ),
-                                        roleDisplayName: name,
-                                        roleLevel: RoleLevels.levelFor(name),
-                                        permissionsAdded: {},
-                                        permissionsRemoved: {},
-                                      );
-                                } else {
-                                  rethrow;
-                                }
-                              }
-                            } else {
-                              // Create new Auth account
-                              final targetEmail = emailController.text.trim();
-                              final credential = await FirebaseAuth.instance
-                                  .createUserWithEmailAndPassword(
-                                    email: targetEmail,
-                                    password: passwordController.text.trim(),
-                                  );
-                              await FirebaseFirestore.instance
-                                  .collection("users")
-                                  .doc(credential.user!.uid)
-                                  .set({
-                                    'username': targetEmail.split('@')[0],
-                                    'name': targetEmail.split('@')[0],
-                                    'email': targetEmail,
-                                    'status': 'Active',
-                                    'userType': 'Admin',
-                                    'points': 0,
-                                    'joinedDate': _formatCurrentDateTime(),
-                                    'createdAt': FieldValue.serverTimestamp(),
-                                  });
-
-                              await FirebaseAuthService.instance
-                                  .grantAdminAccess(
-                                    targetUid: credential.user!.uid,
-                                    targetDisplayName:
-                                        targetEmail.split('@')[0],
-                                    roleId: name.toLowerCase().replaceAll(
-                                      ' ',
-                                      '_',
-                                    ),
-                                    roleDisplayName: name,
-                                    roleLevel: RoleLevels.levelFor(name),
-                                    permissionsAdded: {},
-                                    permissionsRemoved: {},
-                                  );
-                            }
-                          }
-
-                          navigator.pop();
-                          scaffoldMessenger.showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                createAccount
-                                    ? "Role and login account setup completed."
-                                    : "Role added successfully.",
-                              ),
-                              backgroundColor: const Color(0xFF10B981),
-                            ),
-                          );
-                        } catch (e) {
-                          scaffoldMessenger.showSnackBar(
-                            SnackBar(
-                              content: Text("Error: $e"),
-                              backgroundColor: Colors.red,
-                            ),
-                          );
-                        }
-                      },
-                      icon: const Icon(Icons.save_outlined, size: 18),
-                      label: Text("Save Role", style: GoogleFonts.inter()),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF10B981),
-                        foregroundColor: Colors.white,
-                      ),
-                    ),
-                  ],
                 ),
           ),
-    );
-  }
-
-  /// Helper to render a bold section header with icon
-  Widget _sectionHeader(String label, IconData icon) {
-    return Row(
-      children: [
-        Icon(icon, size: 16, color: const Color(0xFF10B981)),
-        const SizedBox(width: 6),
-        Text(
-          label,
-          style: GoogleFonts.inter(
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-            color: const Color(0xFF1E293B),
-          ),
-        ),
-        const SizedBox(width: 10),
-        const Expanded(child: Divider(color: Color(0xFFE2E8F0))),
-      ],
     );
   }
 
@@ -2278,346 +2911,1071 @@ class _UserRolesPageState extends State<UserRolesPage> {
       return;
     }
 
-    showDialog(
-      context: context,
-      builder:
-          (context) => AlertDialog(
-            title: Text(
-              "Edit Role",
-              style: GoogleFonts.inter(fontWeight: FontWeight.bold),
+    Widget buildRoleStatItem(IconData icon, String label) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: const Color(0xFF64748B)),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: GoogleFonts.inter(
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              color: const Color(0xFF64748B),
             ),
-            contentPadding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
-            content: SizedBox(
-              width: 700,
-              height: MediaQuery.of(context).size.height * 0.75,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "Current Assigned Users",
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: const Color(0xFF1E293B),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Expanded(
-                    child: StreamBuilder<QuerySnapshot>(
-                      stream:
-                          FirebaseFirestore.instance
-                              .collection("admin_users")
-                              .snapshots(),
-                      builder: (context, adminSnapshot) {
-                        if (adminSnapshot.connectionState ==
-                            ConnectionState.waiting) {
-                          return const Center(
-                            child: CircularProgressIndicator(),
-                          );
-                        }
-                        if (!adminSnapshot.hasData ||
-                            adminSnapshot.data!.docs.isEmpty) {
-                          return Text(
-                            "No users assigned to this role.",
-                            style: GoogleFonts.inter(
-                              fontSize: 12,
-                              color: Colors.grey,
-                            ),
-                          );
-                        }
+          ),
+        ],
+      );
+    }
 
-                        return StreamBuilder<QuerySnapshot>(
-                          stream:
-                              FirebaseFirestore.instance
-                                  .collection("users")
-                                  .snapshots(),
-                          builder: (context, usersSnapshot) {
-                            if (usersSnapshot.connectionState ==
-                                ConnectionState.waiting) {
-                              return const Center(
-                                child: CircularProgressIndicator(),
-                              );
-                            }
-                            if (!usersSnapshot.hasData ||
-                                usersSnapshot.data!.docs.isEmpty) {
-                              return Text(
-                                "No users found.",
-                                style: GoogleFonts.inter(
-                                  fontSize: 12,
-                                  color: Colors.grey,
-                                ),
-                              );
-                            }
-
-                            // Get mapping of uid -> user doc data
-                            final Map<String, Map<String, dynamic>> userDocs =
-                                {};
-                            for (var doc in usersSnapshot.data!.docs) {
-                              userDocs[doc.id] =
-                                  doc.data() as Map<String, dynamic>;
-                            }
-
-                            // Filter admin users assigned to this role (either by roleId or in roleIds list)
-                            final canonicalRoleId = role.name
-                                .toLowerCase()
-                                .replaceAll(' ', '_');
-                            final assignedAdminDocs =
-                                adminSnapshot.data!.docs.where((doc) {
-                                  final d =
-                                      doc.data() as Map<String, dynamic>? ?? {};
-                                  final status =
-                                      d['status'] as String? ?? 'Active';
-                                  if (status != 'Active') return false;
-
-                                  final rId = (d['roleId'] ?? '').toString();
-                                  final rIds =
-                                      (d['roleIds'] as List<dynamic>?)
-                                          ?.map((e) => e.toString())
-                                          .toList() ??
-                                      [rId];
-                                  final uDoc = userDocs[doc.id] ?? {};
-                                  final email =
-                                      (uDoc['email'] ?? '')
-                                          .toString()
-                                          .toLowerCase();
-                                  final username =
-                                      (uDoc['username'] ?? uDoc['name'] ?? '')
-                                          .toString()
-                                          .toLowerCase();
-
-                                  if (rId == 'super_admin' ||
-                                      rId == 'developer' ||
-                                      rIds.contains('super_admin') ||
-                                      rIds.contains('developer') ||
-                                      email == 'superadmin@naattulink.com' ||
-                                      email == 'developer@naattulink.com' ||
-                                      username == 'superadmin' ||
-                                      username == 'developer') {
-                                    return false;
-                                  }
-                                  return rIds.contains(canonicalRoleId);
-                                }).toList();
-
-                            if (assignedAdminDocs.isEmpty) {
-                              return Container(
-                                padding: const EdgeInsets.all(16),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFF8FAFC),
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(
-                                    color: const Color(0xFFE2E8F0),
-                                  ),
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    "No users currently assigned to this role.",
-                                    style: GoogleFonts.inter(
-                                      fontSize: 13,
-                                      color: const Color(0xFF94A3B8),
-                                    ),
-                                  ),
-                                ),
-                              );
-                            }
-
-                            return StreamBuilder<QuerySnapshot>(
-                              stream:
-                                  FirebaseFirestore.instance
-                                      .collection("roles")
-                                      .snapshots(),
-                              builder: (context, rolesSnap) {
-                                if (rolesSnap.connectionState ==
-                                    ConnectionState.waiting) {
-                                  return const Center(
-                                    child: CircularProgressIndicator(),
-                                  );
-                                }
-
-                                final List<RoleModel> allRoles =
-                                    (rolesSnap.data?.docs ?? [])
-                                        .map((d) => RoleModel.fromFirestore(d))
-                                        .toList();
-
-                                return ListView.builder(
-                                  shrinkWrap: true,
-                                  itemCount: assignedAdminDocs.length,
-                                  itemBuilder: (context, index) {
-                                    final adminDoc = assignedAdminDocs[index];
-                                    final adminModel =
-                                        AdminUserModel.fromFirestore(adminDoc);
-                                    final userData =
-                                        userDocs[adminDoc.id] ??
-                                        {
-                                          'fullName':
-                                              adminModel.roleDisplayName,
-                                          'username': adminDoc.id,
-                                          'email': 'No Email',
-                                        };
-
-                                    return _AssignedUserCard(
-                                      userData: userData,
-                                      adminData: adminModel,
-                                      allRoles: allRoles,
-                                      allModules: _modules,
-                                      allActions: _actions,
-                                      isSuperAdmin: RbacSession().isSuperAdmin,
-                                      onUpdateRoles:
-                                          (newIds) => _updateUserRoles(
-                                            adminDoc.id,
-                                            userData['fullName'] ??
-                                                userData['username'] ??
-                                                'Unknown',
-                                            newIds,
-                                          ),
-                                    );
-                                  },
-                                );
-                              },
-                            );
-                          },
-                        );
-                      },
-                    ),
-                  ),
-                ],
+    Widget buildStatBox(
+      String title,
+      String value,
+      IconData icon,
+      Color color,
+    ) {
+      return Expanded(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: color, size: 18),
               ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text(
-                  "Close",
-                  style: GoogleFonts.inter(color: const Color(0xFF64748B)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: const Color(0xFF64748B),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      value,
+                      style: GoogleFonts.inter(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF0F172A),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
+        ),
+      );
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Container(
+            width: 750,
+            height: MediaQuery.of(context).size.height * 0.85,
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Header (with title, subtitle, close button)
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Text("✏️ ", style: TextStyle(fontSize: 22)),
+                            Text(
+                              "Edit Role",
+                              style: GoogleFonts.inter(
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                                color: const Color(0xFF0F172A),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          "Manage users assigned to this role",
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            color: const Color(0xFF64748B),
+                          ),
+                        ),
+                      ],
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close_rounded),
+                      color: const Color(0xFF64748B),
+                      splashRadius: 20,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                const SizedBox(height: 16),
+
+                // Content Section
+                Expanded(
+                  child: StreamBuilder<QuerySnapshot>(
+                    stream:
+                        FirebaseFirestore.instance
+                            .collection("admin_users")
+                            .snapshots(),
+                    builder: (context, adminSnapshot) {
+                      if (adminSnapshot.connectionState ==
+                          ConnectionState.waiting) {
+                        return const Center(
+                          child: CircularProgressIndicator(
+                            color: Color(0xFF10B981),
+                          ),
+                        );
+                      }
+
+                      return StreamBuilder<QuerySnapshot>(
+                        stream:
+                            FirebaseFirestore.instance
+                                .collection("users")
+                                .snapshots(),
+                        builder: (context, usersSnapshot) {
+                          if (usersSnapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            return const Center(
+                              child: CircularProgressIndicator(
+                                color: Color(0xFF10B981),
+                              ),
+                            );
+                          }
+
+                          // Get mapping of uid -> user doc data
+                          final Map<String, Map<String, dynamic>> userDocs = {};
+                          if (usersSnapshot.hasData) {
+                            for (var doc in usersSnapshot.data!.docs) {
+                              userDocs[doc.id] =
+                                  doc.data() as Map<String, dynamic>;
+                            }
+                          }
+
+                          // Filter active assigned admin users
+                          final canonicalRoleId = role.name
+                              .toLowerCase()
+                              .replaceAll(' ', '_');
+                          final List<QueryDocumentSnapshot> assignedAdminDocs =
+                              [];
+                          if (adminSnapshot.hasData) {
+                            for (var doc in adminSnapshot.data!.docs) {
+                              final d =
+                                  doc.data() as Map<String, dynamic>? ?? {};
+                              final status = d['status'] as String? ?? 'Active';
+                              if (status != 'Active') continue;
+
+                              final rId = (d['roleId'] ?? '').toString();
+                              final rIds =
+                                  (d['roleIds'] as List<dynamic>?)
+                                      ?.map((e) => e.toString())
+                                      .toList() ??
+                                  [rId];
+
+                              // Filter out deleted users whose document in users collection no longer exists
+                              if (!userDocs.containsKey(doc.id)) continue;
+
+                              final uDoc = userDocs[doc.id]!;
+                              final email =
+                                  (uDoc['email'] ?? '')
+                                      .toString()
+                                      .toLowerCase();
+                              final username =
+                                  (uDoc['username'] ?? uDoc['name'] ?? '')
+                                      .toString()
+                                      .toLowerCase();
+
+                              if (rId == 'super_admin' ||
+                                  rId == 'developer' ||
+                                  rIds.contains('super_admin') ||
+                                  rIds.contains('developer') ||
+                                  email == 'superadmin@naattulink.com' ||
+                                  email == 'developer@naattulink.com' ||
+                                  username == 'superadmin' ||
+                                  username == 'developer') {
+                                continue;
+                              }
+                              if (rIds.contains(canonicalRoleId)) {
+                                assignedAdminDocs.add(doc);
+                              }
+                            }
+                          }
+
+                          final totalPermissions = role.permissions.values
+                              .fold<int>(
+                                0,
+                                (acc, list) => acc + (list as List).length,
+                              );
+
+                          return SingleChildScrollView(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Stats Row
+                                Row(
+                                  children: [
+                                    buildStatBox(
+                                      "Assigned Users",
+                                      assignedAdminDocs.length.toString(),
+                                      Icons.people_outline_rounded,
+                                      const Color(0xFF3B82F6),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    buildStatBox(
+                                      "Permissions",
+                                      totalPermissions.toString(),
+                                      Icons.lock_outline_rounded,
+                                      const Color(0xFF10B981),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    buildStatBox(
+                                      "Active Users",
+                                      assignedAdminDocs.length.toString(),
+                                      Icons.circle_notifications_outlined,
+                                      const Color(0xFFF59E0B),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 16),
+
+                                // Role Summary Card
+                                Container(
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF8FAFC),
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                      color: const Color(0xFFE2E8F0),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      CircleAvatar(
+                                        radius: 22,
+                                        backgroundColor: role.badgeColor,
+                                        child: Text(
+                                          role.initials.isNotEmpty
+                                              ? role.initials
+                                              : (role.name.length >= 2
+                                                  ? role.name
+                                                      .substring(0, 2)
+                                                      .toUpperCase()
+                                                  : role.name.toUpperCase()),
+                                          style: GoogleFonts.inter(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 14),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              role.name,
+                                              style: GoogleFonts.inter(
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.bold,
+                                                color: const Color(0xFF0F172A),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              role.description.isNotEmpty
+                                                  ? role.description
+                                                  : "No description provided for this role.",
+                                              style: GoogleFonts.inter(
+                                                fontSize: 12,
+                                                color: const Color(0xFF64748B),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      const SizedBox(width: 16),
+                                      Row(
+                                        children: [
+                                          buildRoleStatItem(
+                                            Icons.people_outline_rounded,
+                                            "${assignedAdminDocs.length} Users",
+                                          ),
+                                          const SizedBox(width: 12),
+                                          buildRoleStatItem(
+                                            Icons.lock_open_rounded,
+                                            "$totalPermissions Permissions",
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                              vertical: 4,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFFECFDF5),
+                                              borderRadius:
+                                                  BorderRadius.circular(20),
+                                              border: Border.all(
+                                                color: const Color(0xFFA7F3D0),
+                                              ),
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                const Icon(
+                                                  Icons.circle,
+                                                  size: 6,
+                                                  color: Color(0xFF10B981),
+                                                ),
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  role.status,
+                                                  style: GoogleFonts.inter(
+                                                    fontSize: 10,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: const Color(
+                                                      0xFF065F46,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 24),
+
+                                // Assigned Users Header
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      "Assigned Users (${assignedAdminDocs.length})",
+                                      style: GoogleFonts.inter(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                        color: const Color(0xFF0F172A),
+                                      ),
+                                    ),
+                                    TextButton.icon(
+                                      onPressed: () {
+                                        Navigator.pop(context); // Close dialog
+                                        // Navigate to Grant Access Tab or Page
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder:
+                                                (context) =>
+                                                    const GrantAccessPage(),
+                                          ),
+                                        );
+                                      },
+                                      icon: const Icon(
+                                        Icons.person_add_alt_1_rounded,
+                                        size: 14,
+                                      ),
+                                      label: Text(
+                                        "Assign User",
+                                        style: GoogleFonts.inter(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      style: TextButton.styleFrom(
+                                        foregroundColor: const Color(
+                                          0xFF10B981,
+                                        ),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 8,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                          side: const BorderSide(
+                                            color: Color(0xFF10B981),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+
+                                // List of assigned users
+                                if (assignedAdminDocs.isEmpty)
+                                  Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 36,
+                                    ),
+                                    child: Column(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(16),
+                                          decoration: const BoxDecoration(
+                                            color: Color(0xFFF8FAFC),
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: const Icon(
+                                            Icons.people_outline_rounded,
+                                            size: 40,
+                                            color: Color(0xFF94A3B8),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 12),
+                                        Text(
+                                          "No users assigned",
+                                          style: GoogleFonts.inter(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.bold,
+                                            color: const Color(0xFF0F172A),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          "Click 'Assign User' to add users to this role.",
+                                          style: GoogleFonts.inter(
+                                            fontSize: 12,
+                                            color: const Color(0xFF64748B),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  )
+                                else
+                                  StreamBuilder<QuerySnapshot>(
+                                    stream:
+                                        FirebaseFirestore.instance
+                                            .collection("roles")
+                                            .snapshots(),
+                                    builder: (context, rolesSnap) {
+                                      if (rolesSnap.connectionState ==
+                                          ConnectionState.waiting) {
+                                        return const Center(
+                                          child: CircularProgressIndicator(),
+                                        );
+                                      }
+
+                                      final List<RoleModel> allRoles =
+                                          (rolesSnap.data?.docs ?? [])
+                                              .map(
+                                                (d) =>
+                                                    RoleModel.fromFirestore(d),
+                                              )
+                                              .toList();
+
+                                      return ListView.separated(
+                                        shrinkWrap: true,
+                                        physics:
+                                            const NeverScrollableScrollPhysics(),
+                                        itemCount: assignedAdminDocs.length,
+                                        separatorBuilder:
+                                            (context, index) =>
+                                                const SizedBox(height: 12),
+                                        itemBuilder: (context, index) {
+                                          final adminDoc =
+                                              assignedAdminDocs[index];
+                                          final adminModel =
+                                              AdminUserModel.fromFirestore(
+                                                adminDoc,
+                                              );
+                                          final userData =
+                                              userDocs[adminDoc.id] ??
+                                              {
+                                                'fullName':
+                                                    adminModel.roleDisplayName,
+                                                'username': adminDoc.id,
+                                                'email': 'No Email',
+                                              };
+
+                                          return _AssignedUserCard(
+                                            userData: userData,
+                                            adminData: adminModel,
+                                            allRoles: allRoles,
+                                            allModules: _modules,
+                                            allActions: _actions,
+                                            isSuperAdmin:
+                                                RbacSession().isSuperAdmin,
+                                            onUpdateRoles:
+                                                (newIds) => _updateUserRoles(
+                                                  adminDoc.id,
+                                                  userData['fullName'] ??
+                                                      userData['username'] ??
+                                                      'Unknown',
+                                                  newIds,
+                                                ),
+                                          );
+                                        },
+                                      );
+                                    },
+                                  ),
+                              ],
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                const SizedBox(height: 16),
+
+                // Footer Actions
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    OutlinedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF64748B),
+                        side: const BorderSide(color: Color(0xFFCBD5E1)),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 14,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      child: Text(
+                        "Cancel",
+                        style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF10B981),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 14,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      child: Text(
+                        "Save Changes",
+                        style: GoogleFonts.inter(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
   void _showViewRoleDialog(BuildContext context, RoleModel role) {
-    showDialog(
-      context: context,
-      builder:
-          (context) => AlertDialog(
-            title: Row(
-              children: [
-                CircleAvatar(
-                  radius: 16,
-                  backgroundColor: role.badgeColor,
-                  child: Text(
-                    role.initials,
+    Widget buildStatItem(
+      String title,
+      String value,
+      IconData icon,
+      Color color,
+    ) {
+      return Expanded(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(icon, size: 16, color: color),
+                  const SizedBox(width: 6),
+                  Text(
+                    title,
                     style: GoogleFonts.inter(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF64748B),
                     ),
                   ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                value,
+                style: GoogleFonts.inter(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF0F172A),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    role.name,
-                    style: GoogleFonts.inter(fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ],
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    String formatRoleCreatedDate(String rawDate) {
+      try {
+        final parsed = DateTime.tryParse(rawDate);
+        if (parsed != null) {
+          final months = [
+            "Jan",
+            "Feb",
+            "Mar",
+            "Apr",
+            "May",
+            "Jun",
+            "Jul",
+            "Aug",
+            "Sep",
+            "Oct",
+            "Nov",
+            "Dec",
+          ];
+          final period = parsed.hour >= 12 ? "PM" : "AM";
+          final hour =
+              parsed.hour > 12
+                  ? parsed.hour - 12
+                  : (parsed.hour == 0 ? 12 : parsed.hour);
+          final min = parsed.minute.toString().padLeft(2, '0');
+          return "${parsed.day} ${months[parsed.month - 1]} ${parsed.year} • $hour:$min $period";
+        }
+      } catch (_) {}
+      return rawDate;
+    }
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return Dialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Container(
+            width: 750,
+            height: MediaQuery.of(dialogContext).size.height * 0.85,
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(
-                  "Description",
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: const Color(0xFF94A3B8),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  role.description,
-                  style: GoogleFonts.inter(
-                    fontSize: 13,
-                    color: const Color(0xFF1E293B),
-                  ),
-                ),
-                const SizedBox(height: 16),
+                // Header (with title, subtitle, close button)
                 Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            "Users Count",
-                            style: GoogleFonts.inter(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: const Color(0xFF94A3B8),
-                            ),
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.people_outline_rounded,
+                                size: 24,
+                                color: Color(0xFF64748B),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  "Role Details",
+                                  style: GoogleFonts.inter(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.bold,
+                                    color: const Color(0xFF0F172A),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            role.usersCount.toString(),
+                            "View role information and assigned users",
                             style: GoogleFonts.inter(
                               fontSize: 13,
-                              fontWeight: FontWeight.w500,
-                              color: const Color(0xFF1E293B),
+                              color: const Color(0xFF64748B),
                             ),
                           ),
                         ],
                       ),
                     ),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            "Status",
-                            style: GoogleFonts.inter(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: const Color(0xFF94A3B8),
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          _buildStatusIndicator(role.status),
-                        ],
-                      ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(dialogContext),
+                      icon: const Icon(Icons.close_rounded),
+                      color: const Color(0xFF64748B),
+                      splashRadius: 20,
                     ),
                   ],
                 ),
                 const SizedBox(height: 16),
-                Text(
-                  "Created At",
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: const Color(0xFF94A3B8),
+                const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                const SizedBox(height: 16),
+
+                // Content Section
+                Expanded(
+                  child: StreamBuilder<QuerySnapshot>(
+                    stream:
+                        FirebaseFirestore.instance
+                            .collection("admin_users")
+                            .snapshots(),
+                    builder: (context, adminSnapshot) {
+                      if (adminSnapshot.connectionState ==
+                          ConnectionState.waiting) {
+                        return const Center(
+                          child: CircularProgressIndicator(
+                            color: Color(0xFF10B981),
+                          ),
+                        );
+                      }
+
+                      return StreamBuilder<QuerySnapshot>(
+                        stream:
+                            FirebaseFirestore.instance
+                                .collection("users")
+                                .snapshots(),
+                        builder: (context, usersSnapshot) {
+                          if (usersSnapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            return const Center(
+                              child: CircularProgressIndicator(
+                                color: Color(0xFF10B981),
+                              ),
+                            );
+                          }
+
+                          // Get mapping of uid -> user doc data
+                          final Map<String, Map<String, dynamic>> userDocs = {};
+                          if (usersSnapshot.hasData) {
+                            for (var doc in usersSnapshot.data!.docs) {
+                              userDocs[doc.id] =
+                                  doc.data() as Map<String, dynamic>;
+                            }
+                          }
+
+                          // Filter active assigned admin users
+                          final canonicalRoleId = role.name
+                              .toLowerCase()
+                              .replaceAll(' ', '_');
+                          final List<Map<String, dynamic>> assignedUsersList =
+                              [];
+                          if (adminSnapshot.hasData) {
+                            for (var doc in adminSnapshot.data!.docs) {
+                              final d =
+                                  doc.data() as Map<String, dynamic>? ?? {};
+                              final status = d['status'] as String? ?? 'Active';
+                              if (status != 'Active') continue;
+
+                              final rId = (d['roleId'] ?? '').toString();
+                              final rIds =
+                                  (d['roleIds'] as List<dynamic>?)
+                                      ?.map((e) => e.toString())
+                                      .toList() ??
+                                  [rId];
+
+                              // Filter out deleted users whose document in users collection no longer exists
+                              if (!userDocs.containsKey(doc.id)) continue;
+
+                              final uDoc = userDocs[doc.id]!;
+                              final email =
+                                  (uDoc['email'] ?? '')
+                                      .toString()
+                                      .toLowerCase();
+                              final username =
+                                  (uDoc['username'] ?? uDoc['name'] ?? '')
+                                      .toString()
+                                      .toLowerCase();
+
+                              if (rId == 'super_admin' ||
+                                  rId == 'developer' ||
+                                  rIds.contains('super_admin') ||
+                                  rIds.contains('developer') ||
+                                  email == 'superadmin@naattulink.com' ||
+                                  email == 'developer@naattulink.com' ||
+                                  username == 'superadmin' ||
+                                  username == 'developer') {
+                                continue;
+                              }
+                              if (rIds.contains(canonicalRoleId)) {
+                                assignedUsersList.add({
+                                  'uid': doc.id,
+                                  'fullName':
+                                      uDoc['fullName'] ??
+                                      uDoc['username'] ??
+                                      'No Name',
+                                  'email': uDoc['email'] ?? 'No Email',
+                                  'username':
+                                      uDoc['username'] ?? uDoc['name'] ?? 'N/A',
+                                  'webEmail':
+                                      d['webEmail'] ??
+                                      '${doc.id}_adm@naattulink.internal',
+                                  'webPassword': d['webPassword'],
+                                  'status': status,
+                                });
+                              }
+                            }
+                          }
+
+                          final totalPermissions = role.permissions.values
+                              .fold<int>(
+                                0,
+                                (acc, list) => acc + (list as List).length,
+                              );
+
+                          return SingleChildScrollView(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Role Initials Circular Avatar & Name
+                                Row(
+                                  children: [
+                                    CircleAvatar(
+                                      radius: 28,
+                                      backgroundColor: role.badgeColor,
+                                      child: Text(
+                                        role.initials.isNotEmpty
+                                            ? role.initials
+                                            : (role.name.length >= 2
+                                                ? role.name
+                                                    .substring(0, 2)
+                                                    .toUpperCase()
+                                                : role.name.toUpperCase()),
+                                        style: GoogleFonts.inter(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            role.name,
+                                            style: GoogleFonts.inter(
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.bold,
+                                              color: const Color(0xFF0F172A),
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            role.description.isNotEmpty
+                                                ? role.description
+                                                : "No description provided.",
+                                            style: GoogleFonts.inter(
+                                              fontSize: 13,
+                                              color: const Color(0xFF64748B),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 20),
+
+                                // Stats Box Row
+                                Row(
+                                  children: [
+                                    buildStatItem(
+                                      "Users",
+                                      assignedUsersList.length.toString(),
+                                      Icons.people_outline_rounded,
+                                      const Color(0xFF3B82F6),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    buildStatItem(
+                                      "Permissions",
+                                      totalPermissions.toString(),
+                                      Icons.lock_outline_rounded,
+                                      const Color(0xFF10B981),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    buildStatItem(
+                                      "Status",
+                                      role.status,
+                                      Icons.circle,
+                                      const Color(0xFF10B981),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 20),
+
+                                // Created On
+                                Text(
+                                  "Created On",
+                                  style: GoogleFonts.inter(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: const Color(0xFF64748B),
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  formatRoleCreatedDate(role.createdAt),
+                                  style: GoogleFonts.inter(
+                                    fontSize: 13,
+                                    color: const Color(0xFF1E293B),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                const SizedBox(height: 20),
+                                const Divider(color: Color(0xFFE2E8F0)),
+                                const SizedBox(height: 20),
+
+                                // Assigned Users Heading
+                                Text(
+                                  "Assigned Users (${assignedUsersList.length})",
+                                  style: GoogleFonts.inter(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: const Color(0xFF0F172A),
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+
+                                // Scrollable Assigned Users Section
+                                if (assignedUsersList.isEmpty)
+                                  Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 36,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF8FAFC),
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(
+                                        color: const Color(0xFFE2E8F0),
+                                      ),
+                                    ),
+                                    child: Column(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        const Icon(
+                                          Icons.people_outline_rounded,
+                                          size: 40,
+                                          color: Color(0xFF94A3B8),
+                                        ),
+                                        const SizedBox(height: 12),
+                                        Text(
+                                          "No users assigned",
+                                          style: GoogleFonts.inter(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.bold,
+                                            color: const Color(0xFF0F172A),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  )
+                                else
+                                  ListView.separated(
+                                    shrinkWrap: true,
+                                    physics:
+                                        const NeverScrollableScrollPhysics(),
+                                    itemCount: assignedUsersList.length,
+                                    separatorBuilder:
+                                        (context, index) =>
+                                            const SizedBox(height: 12),
+                                    itemBuilder: (context, index) {
+                                      final user = assignedUsersList[index];
+                                      return _ViewRoleUserCard(user: user);
+                                    },
+                                  ),
+                              ],
+                            ),
+                          );
+                        },
+                      );
+                    },
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  role.createdAt,
-                  style: GoogleFonts.inter(
-                    fontSize: 13,
-                    color: const Color(0xFF1E293B),
-                  ),
+                const SizedBox(height: 16),
+                const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                const SizedBox(height: 16),
+
+                // Footer Actions
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    ElevatedButton(
+                      onPressed: () => Navigator.pop(dialogContext),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF10B981),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 14,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      child: Text(
+                        "Close",
+                        style: GoogleFonts.inter(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text(
-                  "Close",
-                  style: GoogleFonts.inter(color: const Color(0xFF64748B)),
-                ),
-              ),
-            ],
           ),
+        );
+      },
     );
   }
 }
@@ -2905,6 +4263,8 @@ class _AssignedUserCardState extends State<_AssignedUserCard> {
             });
       }
 
+      if (!mounted) return;
+
       setState(() {
         _isDirty = false;
       });
@@ -2916,6 +4276,7 @@ class _AssignedUserCardState extends State<_AssignedUserCard> {
         ),
       );
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text("Failed to apply changes: $e"),
@@ -2923,6 +4284,186 @@ class _AssignedUserCardState extends State<_AssignedUserCard> {
         ),
       );
     }
+  }
+
+  Gradient _getAvatarGradient(String name) {
+    final code = name.codeUnits.fold(0, (acc, val) => acc + val);
+    if (code % 3 == 0) {
+      return const LinearGradient(
+        colors: [Color(0xFF3B82F6), Color(0xFF2563EB)],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      );
+    } else if (code % 3 == 1) {
+      return const LinearGradient(
+        colors: [Color(0xFF10B981), Color(0xFF059669)],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      );
+    } else {
+      return const LinearGradient(
+        colors: [Color(0xFF8B5CF6), Color(0xFF6D28D9)],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      );
+    }
+  }
+
+  String _formatDateTime(DateTime dt) {
+    final now = DateTime.now();
+    final diff = now.difference(dt);
+    if (diff.inDays == 0) {
+      if (dt.day == now.day) {
+        final period = dt.hour >= 12 ? "PM" : "AM";
+        final hour =
+            dt.hour > 12 ? dt.hour - 12 : (dt.hour == 0 ? 12 : dt.hour);
+        final min = dt.minute.toString().padLeft(2, '0');
+        return "Today $hour:$min $period";
+      }
+    }
+    final months = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
+    ];
+    final period = dt.hour >= 12 ? "PM" : "AM";
+    final hour = dt.hour > 12 ? dt.hour - 12 : (dt.hour == 0 ? 12 : dt.hour);
+    final min = dt.minute.toString().padLeft(2, '0');
+    return "${dt.day} ${months[dt.month - 1]} $hour:$min $period";
+  }
+
+  void _showRemoveRoleConfirm() {
+    final canonicalRoleId = widget.adminData.roleId;
+    showDialog(
+      context: context,
+      builder:
+          (dialogContext) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: Text(
+              'Remove Role',
+              style: GoogleFonts.inter(fontWeight: FontWeight.bold),
+            ),
+            content: Text(
+              'Are you sure you want to remove the role "${widget.adminData.roleDisplayName}" from this user?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: Text(
+                  'Cancel',
+                  style: GoogleFonts.inter(color: const Color(0xFF64748B)),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(dialogContext);
+                  final newRoles = List<String>.from(widget.adminData.roleIds)
+                    ..remove(canonicalRoleId);
+                  if (newRoles.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          "A user must have at least one role assigned. Use 'Remove User' to revoke all access.",
+                        ),
+                        backgroundColor: Colors.orange,
+                      ),
+                    );
+                  } else {
+                    widget.onUpdateRoles(newRoles);
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: Text(
+                  'Remove',
+                  style: GoogleFonts.inter(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+    );
+  }
+
+  void _showRemoveUserConfirm() {
+    showDialog(
+      context: context,
+      builder:
+          (dialogContext) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: Text(
+              'Remove User Access',
+              style: GoogleFonts.inter(fontWeight: FontWeight.bold),
+            ),
+            content: Text(
+              'Are you sure you want to revoke all admin access for "${widget.userData['fullName'] ?? 'this user'}"?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: Text(
+                  'Cancel',
+                  style: GoogleFonts.inter(color: const Color(0xFF64748B)),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  Navigator.pop(dialogContext);
+                  try {
+                    await FirebaseAuthService.instance.updateAdminStatus(
+                      targetUid: widget.adminData.uid,
+                      targetDisplayName: widget.userData['fullName'] ?? 'User',
+                      newStatus: 'Revoked',
+                    );
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text("User access revoked successfully."),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                  } catch (e) {
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text("Failed to revoke access: $e"),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: Text(
+                  'Remove Access',
+                  style: GoogleFonts.inter(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+    );
   }
 
   @override
@@ -3003,82 +4544,130 @@ class _AssignedUserCardState extends State<_AssignedUserCard> {
       }
     }
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
-        side: const BorderSide(color: Color(0xFFE2E8F0)),
+    final displayName =
+        widget.userData['fullName'] ?? widget.userData['username'] ?? 'No Name';
+    final email = widget.userData['email'] ?? 'No Email';
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
-      elevation: 0,
-      color: Colors.white,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          ListTile(
-            title: Text(
-              widget.userData['fullName'] ??
-                  widget.userData['username'] ??
-                  'No Name',
-              style: GoogleFonts.inter(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: const Color(0xFF1E293B),
-              ),
-            ),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          // Header / Info section
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Row(
               children: [
-                Text(
-                  widget.userData['email'] ?? '',
-                  style: GoogleFonts.inter(
-                    fontSize: 11,
-                    color: const Color(0xFF64748B),
+                // Gradient Avatar
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: _getAvatarGradient(displayName),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.08),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
-                ),
-                const SizedBox(height: 6),
-                Wrap(
-                  spacing: 4,
-                  runSpacing: 4,
-                  children:
-                      allocatedRoleIds.map((rId) {
-                        final displayName = rId
-                            .split('_')
-                            .map((w) => w[0].toUpperCase() + w.substring(1))
-                            .join(' ');
-                        return Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFEEF2FF),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            displayName,
-                            style: GoogleFonts.inter(
-                              fontSize: 9,
-                              fontWeight: FontWeight.w600,
-                              color: const Color(0xFF4F46E5),
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                ),
-                const SizedBox(height: 6),
-                if (userPermissions.isNotEmpty) ...[
-                  Text(
-                    "Permissions:",
-                    style: GoogleFonts.inter(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: const Color(0xFF64748B),
+                  child: Center(
+                    child: Text(
+                      displayName.isNotEmpty
+                          ? displayName[0].toUpperCase()
+                          : 'U',
+                      style: GoogleFonts.inter(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 2),
+                ),
+                const SizedBox(width: 14),
+                // Name & Email
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        displayName,
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: const Color(0xFF0F172A),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        email,
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: const Color(0xFF64748B),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // Role Badge
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEEF2FF),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: const Color(0xFFC7D2FE)),
+                  ),
+                  child: Text(
+                    widget.adminData.roleDisplayName,
+                    style: GoogleFonts.inter(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF4F46E5),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: Color(0xFFE2E8F0)),
+
+          // Permissions section
+          if (userPermissions.isNotEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Permissions",
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF475569),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
                   Wrap(
-                    spacing: 4,
-                    runSpacing: 4,
+                    spacing: 6,
+                    runSpacing: 6,
                     children:
                         userPermissions.entries.map((entry) {
                           final displayKey = entry.key
@@ -3092,73 +4681,231 @@ class _AssignedUserCardState extends State<_AssignedUserCard> {
                               .join(' ');
                           return Tooltip(
                             message:
-                                "$displayKey: ${entry.value.map((e) => e.isNotEmpty ? e[0].toUpperCase() + e.substring(1) : '').join(', ')}",
+                                "$displayKey: ${entry.value.map((e) => e.toUpperCase()).join(', ')}",
                             child: Container(
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 5,
-                                vertical: 1.5,
+                                horizontal: 10,
+                                vertical: 5,
                               ),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFF1F5F9),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                "$displayKey (${entry.value.length})",
-                                style: GoogleFonts.inter(
-                                  fontSize: 9,
-                                  color: const Color(0xFF475569),
+                                color: const Color(0xFFECFDF5),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: const Color(0xFFD1FAE5),
                                 ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    width: 6,
+                                    height: 6,
+                                    decoration: const BoxDecoration(
+                                      color: Color(0xFF10B981),
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    "$displayKey (${entry.value.length})",
+                                    style: GoogleFonts.inter(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600,
+                                      color: const Color(0xFF065F46),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           );
                         }).toList(),
                   ),
                 ],
+              ),
+            ),
+            const Divider(height: 1, color: Color(0xFFE2E8F0)),
+          ],
+
+          // Card Footer
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                // Date/time
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.access_time_rounded,
+                      size: 14,
+                      color: Color(0xFF94A3B8),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      "Last Updated: ${_formatDateTime(widget.adminData.updatedAt ?? widget.adminData.createdAt)}",
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: const Color(0xFF64748B),
+                      ),
+                    ),
+                  ],
+                ),
+                // Actions
+                Row(
+                  children: [
+                    OutlinedButton.icon(
+                      icon: Icon(
+                        _isExpanded
+                            ? Icons.keyboard_arrow_up_rounded
+                            : Icons.edit_outlined,
+                        size: 14,
+                      ),
+                      label: Text(
+                        _isExpanded ? "Collapse" : "Edit User",
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF10B981),
+                        side: const BorderSide(color: Color(0xFF10B981)),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _isExpanded = !_isExpanded;
+                          if (!_isExpanded) {
+                            _resetLocalData();
+                          }
+                        });
+                      },
+                    ),
+                    const SizedBox(width: 8),
+                    PopupMenuButton<String>(
+                      icon: const Icon(
+                        Icons.more_vert_rounded,
+                        color: Color(0xFF64748B),
+                      ),
+                      padding: EdgeInsets.zero,
+                      splashRadius: 20,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      onSelected: (value) async {
+                        if (value == 'edit' || value == 'perms') {
+                          setState(() {
+                            _isExpanded = true;
+                          });
+                        } else if (value == 'remove_role') {
+                          _showRemoveRoleConfirm();
+                        } else if (value == 'remove_user') {
+                          _showRemoveUserConfirm();
+                        }
+                      },
+                      itemBuilder:
+                          (context) => [
+                            PopupMenuItem(
+                              value: 'edit',
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.edit_outlined,
+                                    size: 16,
+                                    color: Color(0xFF64748B),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Edit Roles',
+                                    style: GoogleFonts.inter(fontSize: 12),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            PopupMenuItem(
+                              value: 'perms',
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.tune_rounded,
+                                    size: 16,
+                                    color: Color(0xFF64748B),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Change Permissions',
+                                    style: GoogleFonts.inter(fontSize: 12),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const PopupMenuDivider(height: 1),
+                            PopupMenuItem(
+                              value: 'remove_role',
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.no_accounts_outlined,
+                                    size: 16,
+                                    color: Colors.orange,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Remove Role',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 12,
+                                      color: Colors.orange,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            PopupMenuItem(
+                              value: 'remove_user',
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.delete_outline_rounded,
+                                    size: 16,
+                                    color: Colors.red,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Remove User',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 12,
+                                      color: Colors.red,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                    ),
+                  ],
+                ),
               ],
             ),
-            trailing: TextButton.icon(
-              icon: Icon(
-                _isDirty
-                    ? Icons.close_rounded
-                    : _isExpanded
-                    ? Icons.keyboard_arrow_up_rounded
-                    : Icons.edit_outlined,
-                size: 16,
-                color: _isDirty ? Colors.red : const Color(0xFF4F46E5),
-              ),
-              label: Text(
-                _isDirty
-                    ? "Discard"
-                    : _isExpanded
-                    ? "Collapse"
-                    : "Edit",
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: _isDirty ? Colors.red : const Color(0xFF4F46E5),
-                ),
-              ),
-              onPressed: () {
-                setState(() {
-                  _isExpanded = !_isExpanded;
-                  if (!_isExpanded) {
-                    _resetLocalData();
-                  }
-                });
-              },
-            ),
           ),
+
+          // Edit panel
           if (_isExpanded) ...[
             const Divider(height: 1, color: Color(0xFFE2E8F0)),
             Padding(
-              padding: const EdgeInsets.all(12.0),
+              padding: const EdgeInsets.all(20.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     "Allocate / Deallocate Roles",
                     style: GoogleFonts.inter(
-                      fontSize: 11,
+                      fontSize: 12,
                       fontWeight: FontWeight.bold,
                       color: const Color(0xFF475569),
                     ),
@@ -3207,7 +4954,7 @@ class _AssignedUserCardState extends State<_AssignedUserCard> {
                                           : null,
                                 ),
                               ),
-                              const SizedBox(width: 4),
+                              const SizedBox(width: 6),
                               Text(
                                 roleDef.name,
                                 style: GoogleFonts.inter(
@@ -3228,11 +4975,11 @@ class _AssignedUserCardState extends State<_AssignedUserCard> {
                   ),
                   const SizedBox(height: 16),
                   const Divider(color: Color(0xFFE2E8F0)),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 16),
                   Text(
                     "Override Module Permissions",
                     style: GoogleFonts.inter(
-                      fontSize: 11,
+                      fontSize: 12,
                       fontWeight: FontWeight.bold,
                       color: const Color(0xFF475569),
                     ),
@@ -3300,7 +5047,7 @@ class _AssignedUserCardState extends State<_AssignedUserCard> {
                                                   : null,
                                         ),
                                       ),
-                                      const SizedBox(width: 4),
+                                      const SizedBox(width: 6),
                                       Text(
                                         action,
                                         style: GoogleFonts.inter(
@@ -3326,7 +5073,7 @@ class _AssignedUserCardState extends State<_AssignedUserCard> {
                   if (_isDirty) ...[
                     const SizedBox(height: 16),
                     const Divider(color: Color(0xFFE2E8F0)),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 12),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
@@ -3375,6 +5122,179 @@ class _AssignedUserCardState extends State<_AssignedUserCard> {
               ),
             ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ViewRoleUserCard extends StatefulWidget {
+  final Map<String, dynamic> user;
+
+  const _ViewRoleUserCard({required this.user});
+
+  @override
+  State<_ViewRoleUserCard> createState() => _ViewRoleUserCardState();
+}
+
+class _ViewRoleUserCardState extends State<_ViewRoleUserCard> {
+  bool _showPassword = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final user = widget.user;
+    final uName = user['fullName'] ?? 'No Name';
+    final uEmail = user['email'] ?? 'No Email';
+    final uUsername = user['username'] ?? 'N/A';
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.015),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 👤 Profile Name & Status Dot
+          Row(
+            children: [
+              const Icon(
+                Icons.person_outline_rounded,
+                size: 16,
+                color: Color(0xFF64748B),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                uName,
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF0F172A),
+                ),
+              ),
+              const Spacer(),
+              // Status Pill
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFECFDF5),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.circle, size: 6, color: Color(0xFF10B981)),
+                    const SizedBox(width: 4),
+                    Text(
+                      "Active",
+                      style: GoogleFonts.inter(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF065F46),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+
+          // 📧 Email
+          Row(
+            children: [
+              const Icon(
+                Icons.mail_outline_rounded,
+                size: 16,
+                color: Color(0xFF64748B),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                uEmail,
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  color: const Color(0xFF334155),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+
+          // 🌐 Username
+          Row(
+            children: [
+              const Icon(
+                Icons.language_rounded,
+                size: 16,
+                color: Color(0xFF64748B),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                "Username : $uUsername",
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  color: const Color(0xFF334155),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+
+          // 🔒 Password status with Reset Password action
+          Row(
+            children: [
+              const Icon(
+                Icons.lock_outline_rounded,
+                size: 16,
+                color: Color(0xFF64748B),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                "Password : ",
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  color: const Color(0xFF64748B),
+                ),
+              ),
+              Text(
+                _showPassword
+                    ? (user['webPassword'] ?? 'Not Saved')
+                    : "●●●●●●●●",
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF0F172A),
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                icon: Icon(
+                  _showPassword
+                      ? Icons.visibility_off_outlined
+                      : Icons.visibility_outlined,
+                  size: 16,
+                  color: const Color(0xFF64748B),
+                ),
+                onPressed: () {
+                  setState(() {
+                    _showPassword = !_showPassword;
+                  });
+                },
+                constraints: const BoxConstraints(),
+                padding: EdgeInsets.zero,
+                splashRadius: 16,
+              ),
+            ],
+          ),
         ],
       ),
     );

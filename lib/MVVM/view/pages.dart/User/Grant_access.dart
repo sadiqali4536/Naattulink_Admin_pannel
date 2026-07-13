@@ -129,8 +129,6 @@ class _GrantAccessPageState extends State<GrantAccessPage> {
             _selectedRoles.add(roleDef);
           }
 
-
-
           // Pre-populate permissions with existing user's overrides
           _selectedPermissions = {};
           // Start with the union of selected roles base permissions
@@ -185,239 +183,401 @@ class _GrantAccessPageState extends State<GrantAccessPage> {
     final levelController = TextEditingController();
     bool isSaving = false;
 
+    InputDecoration inputDecoration({
+      required String labelText,
+      required String hintText,
+      required Widget prefixIcon,
+    }) {
+      return InputDecoration(
+        labelText: labelText,
+        hintText: hintText,
+        prefixIcon: prefixIcon,
+        labelStyle: GoogleFonts.inter(
+          fontSize: 13,
+          color: const Color(0xFF64748B),
+          fontWeight: FontWeight.w500,
+        ),
+        hintStyle: GoogleFonts.inter(
+          fontSize: 13,
+          color: const Color(0xFF94A3B8),
+        ),
+        filled: true,
+        fillColor: const Color(0xFFF8FAFC),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFFE2E8F0), width: 1),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFF10B981), width: 2),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.redAccent, width: 1),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.redAccent, width: 2),
+        ),
+      );
+    }
+
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
-            return AlertDialog(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
+            return Dialog(
+              backgroundColor: Colors.transparent,
+              insetPadding: const EdgeInsets.symmetric(
+                horizontal: 24,
+                vertical: 24,
               ),
-              title: Row(
-                children: [
-                  const Icon(
-                    Icons.shield_outlined,
-                    color: Color(0xFF059669),
-                    size: 22,
-                  ),
-                  const SizedBox(width: 10),
-                  Text(
-                    'Create New Role',
-                    style: GoogleFonts.inter(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
+              child: Container(
+                width: 480,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.15),
+                      blurRadius: 24,
+                      offset: const Offset(0, 8),
                     ),
-                  ),
-                ],
-              ),
-              content: Form(
-                key: formKey,
-                child: SizedBox(
-                  width: 400,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      TextFormField(
-                        controller: nameController,
-                        decoration: const InputDecoration(
-                          labelText: 'Role Name',
-                          hintText: 'e.g., Sub-Admin, Manager',
-                          border: OutlineInputBorder(),
-                          prefixIcon: Icon(Icons.badge_outlined),
-                        ),
-                        validator: (val) {
-                          if (val == null || val.trim().isEmpty) {
-                            return 'Please enter a role name';
-                          }
-                          if (val.trim().toLowerCase() == 'developer' ||
-                              val.trim().toLowerCase() == 'super_admin' ||
-                              val.trim().toLowerCase() == 'super admin') {
-                            return 'This role name is reserved';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: descriptionController,
-                        decoration: const InputDecoration(
-                          labelText: 'Description',
-                          hintText: 'Role duties and responsibilities',
-                          border: OutlineInputBorder(),
-                          prefixIcon: Icon(Icons.description_outlined),
-                        ),
-                        maxLines: 2,
-                        validator: (val) {
-                          if (val == null || val.trim().isEmpty) {
-                            return 'Please enter a description';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: levelController,
-                        keyboardType: TextInputType.number,
-                        decoration: InputDecoration(
-                          labelText:
-                              'Role Level (1 - ${_session.roleLevel - 1})',
-                          hintText: 'Higher number = more privilege',
-                          border: const OutlineInputBorder(),
-                          prefixIcon: const Icon(Icons.trending_up_rounded),
-                          helperText:
-                              'Must be lower than your level (${_session.roleLevel})',
-                        ),
-                        validator: (val) {
-                          if (val == null || val.trim().isEmpty) {
-                            return 'Please enter a level';
-                          }
-                          final lvl = int.tryParse(val.trim());
-                          if (lvl == null) {
-                            return 'Please enter a valid integer';
-                          }
-                          if (lvl < 1 || lvl >= _session.roleLevel) {
-                            return 'Level must be between 1 and ${_session.roleLevel - 1}';
-                          }
-                          return null;
-                        },
-                      ),
-                    ],
-                  ),
+                  ],
                 ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: isSaving ? null : () => Navigator.pop(context),
-                  child: Text(
-                    'Cancel',
-                    style: GoogleFonts.inter(
-                      color: Colors.grey[600],
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                ElevatedButton(
-                  onPressed:
-                      isSaving
-                          ? null
-                          : () async {
-                            if (formKey.currentState!.validate()) {
-                              setDialogState(() => isSaving = true);
-                              try {
-                                final name = nameController.text.trim();
-                                final description =
-                                    descriptionController.text.trim();
-                                final level = int.parse(
-                                  levelController.text.trim(),
-                                );
-                                final roleId = name.toLowerCase().replaceAll(
-                                  ' ',
-                                  '_',
-                                );
-
-                                // Check if role already exists
-                                final docSnap =
-                                    await FirebaseFirestore.instance
-                                        .collection('roles')
-                                        .doc(roleId)
-                                        .get();
-
-                                if (docSnap.exists) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'A role with this name already exists!',
-                                      ),
-                                      backgroundColor: Colors.red,
-                                    ),
-                                  );
-                                  setDialogState(() => isSaving = false);
-                                  return;
-                                }
-
-                                final initials =
-                                    name.length >= 2
-                                        ? name.substring(0, 2).toUpperCase()
-                                        : name[0].toUpperCase();
-
-                                final List<Color> colors = [
-                                  const Color(0xFF8B5CF6),
-                                  const Color(0xFF3B82F6),
-                                  const Color(0xFF0D9488),
-                                  const Color(0xFFF59E0B),
-                                  const Color(0xFFEC4899),
-                                  const Color(0xFF64748B),
-                                ];
-                                final Color color =
-                                    colors[name.hashCode % colors.length];
-
-                                await FirebaseFirestore.instance
-                                    .collection('roles')
-                                    .doc(roleId)
-                                    .set({
-                                      'name': name,
-                                      'description': description,
-                                      'level': level,
-                                      'status': 'Active',
-                                      'createdAt': Timestamp.now(),
-                                      'initials': initials,
-                                      'badgeColor': color.toARGB32(),
-                                      'permissions': {},
-                                      'usersCount': 0,
-                                      'canAssignBelow': true,
-                                    });
-
-                                Navigator.pop(context);
-
-                                _loadRoles();
-
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      'Role "$name" created successfully!',
-                                    ),
-                                    backgroundColor: const Color(0xFF059669),
-                                  ),
-                                );
-                              } catch (e) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text('Error creating role: $e'),
-                                    backgroundColor: Colors.red,
-                                  ),
-                                );
-                              } finally {
-                                setDialogState(() => isSaving = false);
-                              }
-                            }
-                          },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF059669),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  child:
-                      isSaving
-                          ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              color: Colors.white,
-                              strokeWidth: 2,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Header
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 18,
+                      ),
+                      decoration: const BoxDecoration(
+                        border: Border(
+                          bottom: BorderSide(
+                            color: Color(0xFFE2E8F0),
+                            width: 1,
+                          ),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFECFDF5),
+                              borderRadius: BorderRadius.circular(12),
                             ),
-                          )
-                          : Text(
-                            'Save Role',
-                            style: GoogleFonts.inter(
-                              fontWeight: FontWeight.w600,
+                            child: const Icon(
+                              Icons.shield_outlined,
+                              color: Color(0xFF10B981),
+                              size: 22,
                             ),
                           ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Create New Role',
+                              style: GoogleFonts.inter(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: const Color(0xFF0F172A),
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            onPressed:
+                                isSaving ? null : () => Navigator.pop(context),
+                            icon: const Icon(Icons.close_rounded),
+                            color: const Color(0xFF64748B),
+                            splashRadius: 20,
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Body
+                    Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Form(
+                        key: formKey,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            TextFormField(
+                              controller: nameController,
+                              enabled: !isSaving,
+                              decoration: inputDecoration(
+                                labelText: 'Role Name',
+                                hintText: 'e.g., Sub-Admin, Manager',
+                                prefixIcon: const Icon(
+                                  Icons.badge_outlined,
+                                  size: 18,
+                                ),
+                              ),
+                              validator: (val) {
+                                if (val == null || val.trim().isEmpty) {
+                                  return 'Please enter a role name';
+                                }
+                                if (val.trim().toLowerCase() == 'developer' ||
+                                    val.trim().toLowerCase() == 'super_admin' ||
+                                    val.trim().toLowerCase() == 'super admin') {
+                                  return 'This role name is reserved';
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 16),
+                            TextFormField(
+                              controller: descriptionController,
+                              enabled: !isSaving,
+                              maxLines: 2,
+                              decoration: inputDecoration(
+                                labelText: 'Description',
+                                hintText: 'Role duties and responsibilities',
+                                prefixIcon: const Icon(
+                                  Icons.description_outlined,
+                                  size: 18,
+                                ),
+                              ),
+                              validator: (val) {
+                                if (val == null || val.trim().isEmpty) {
+                                  return 'Please enter a description';
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 16),
+                            TextFormField(
+                              controller: levelController,
+                              enabled: !isSaving,
+                              keyboardType: TextInputType.number,
+                              decoration: inputDecoration(
+                                labelText:
+                                    'Role Level (1 - ${_session.roleLevel - 1})',
+                                hintText: 'Higher number = more privilege',
+                                prefixIcon: const Icon(
+                                  Icons.trending_up_rounded,
+                                  size: 18,
+                                ),
+                              ).copyWith(
+                                helperText:
+                                    'Must be lower than your level (${_session.roleLevel})',
+                                helperStyle: GoogleFonts.inter(
+                                  fontSize: 11,
+                                  color: const Color(0xFF64748B),
+                                ),
+                              ),
+                              validator: (val) {
+                                if (val == null || val.trim().isEmpty) {
+                                  return 'Please enter a level';
+                                }
+                                final lvl = int.tryParse(val.trim());
+                                if (lvl == null) {
+                                  return 'Please enter a valid integer';
+                                }
+                                if (lvl < 1 || lvl >= _session.roleLevel) {
+                                  return 'Level must be between 1 and ${_session.roleLevel - 1}';
+                                }
+                                return null;
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    // Footer Actions
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 16,
+                      ),
+                      decoration: const BoxDecoration(
+                        border: Border(
+                          top: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed:
+                                isSaving ? null : () => Navigator.pop(context),
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 14,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: Text(
+                              'Cancel',
+                              style: GoogleFonts.inter(
+                                color: const Color(0xFF64748B),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          ElevatedButton.icon(
+                            onPressed:
+                                isSaving
+                                    ? null
+                                    : () async {
+                                      if (formKey.currentState!.validate()) {
+                                        setDialogState(() => isSaving = true);
+                                        try {
+                                          final name =
+                                              nameController.text.trim();
+                                          final description =
+                                              descriptionController.text.trim();
+                                          final level = int.parse(
+                                            levelController.text.trim(),
+                                          );
+                                          final roleId = name
+                                              .toLowerCase()
+                                              .replaceAll(' ', '_');
+
+                                          final docSnap =
+                                              await FirebaseFirestore.instance
+                                                  .collection('roles')
+                                                  .doc(roleId)
+                                                  .get();
+
+                                          if (docSnap.exists) {
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              const SnackBar(
+                                                content: Text(
+                                                  'A role with this name already exists!',
+                                                ),
+                                                backgroundColor: Colors.red,
+                                              ),
+                                            );
+                                            setDialogState(
+                                              () => isSaving = false,
+                                            );
+                                            return;
+                                          }
+
+                                          final initials =
+                                              name.length >= 2
+                                                  ? name
+                                                      .substring(0, 2)
+                                                      .toUpperCase()
+                                                  : name[0].toUpperCase();
+
+                                          final List<Color> colors = [
+                                            const Color(0xFF8B5CF6),
+                                            const Color(0xFF3B82F6),
+                                            const Color(0xFF0D9488),
+                                            const Color(0xFFF59E0B),
+                                            const Color(0xFFEC4899),
+                                            const Color(0xFF64748B),
+                                          ];
+                                          final Color color =
+                                              colors[name.hashCode %
+                                                  colors.length];
+
+                                          await FirebaseFirestore.instance
+                                              .collection('roles')
+                                              .doc(roleId)
+                                              .set({
+                                                'name': name,
+                                                'description': description,
+                                                'level': level,
+                                                'status': 'Active',
+                                                'createdAt': Timestamp.now(),
+                                                'initials': initials,
+                                                'badgeColor': color.toARGB32(),
+                                                'permissions': {},
+                                                'usersCount': 0,
+                                                'canAssignBelow': true,
+                                              });
+
+                                          Navigator.pop(context);
+                                          _loadRoles();
+
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
+                                            SnackBar(
+                                              content: Text(
+                                                'Role "$name" created successfully!',
+                                              ),
+                                              backgroundColor: const Color(
+                                                0xFF059669,
+                                              ),
+                                            ),
+                                          );
+                                        } catch (e) {
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
+                                            SnackBar(
+                                              content: Text(
+                                                'Error creating role: $e',
+                                              ),
+                                              backgroundColor: Colors.red,
+                                            ),
+                                          );
+                                        } finally {
+                                          setDialogState(
+                                            () => isSaving = false,
+                                          );
+                                        }
+                                      }
+                                    },
+                            icon:
+                                isSaving
+                                    ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        color: Colors.white,
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                    : const Icon(Icons.save_outlined, size: 18),
+                            label: Text(
+                              isSaving ? 'Saving...' : 'Save Role',
+                              style: GoogleFonts.inter(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF10B981),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 14,
+                              ),
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             );
           },
         );
@@ -801,10 +961,6 @@ class _GrantAccessPageState extends State<GrantAccessPage> {
       child: Column(
         children: [
           _ReadOnlyField(
-            label: 'Full Name',
-            value: _selectedUser!['fullName'] ?? '-',
-          ),
-          _ReadOnlyField(
             label: 'Username',
             value: _selectedUser!['username'] ?? '-',
           ),
@@ -995,6 +1151,17 @@ class _GrantAccessPageState extends State<GrantAccessPage> {
                       }
                     });
                   },
+                  onAllChanged: (actions, granted) {
+                    setState(() {
+                      if (granted) {
+                        _selectedPermissions[mod.id] = Set<String>.from(
+                          actions,
+                        );
+                      } else {
+                        _selectedPermissions.remove(mod.id);
+                      }
+                    });
+                  },
                 ),
               ),
         ],
@@ -1016,8 +1183,8 @@ class _GrantAccessPageState extends State<GrantAccessPage> {
           _SummarySection(
             title: 'User',
             child: _ReadOnlyField(
-              label: 'Full Name',
-              value: _selectedUser!['fullName'] ?? '-',
+              label: 'Username',
+              value: _selectedUser!['username'] ?? '-',
             ),
           ),
           const SizedBox(height: 16),
@@ -1745,11 +1912,13 @@ class _ModulePermissionTile extends StatefulWidget {
   final ModuleDefinition module;
   final Set<String> selected;
   final void Function(String action, bool granted) onChanged;
+  final void Function(List<String> actions, bool granted) onAllChanged;
 
   const _ModulePermissionTile({
     required this.module,
     required this.selected,
     required this.onChanged,
+    required this.onAllChanged,
   });
 
   @override
@@ -1762,6 +1931,9 @@ class _ModulePermissionTileState extends State<_ModulePermissionTile> {
   @override
   Widget build(BuildContext context) {
     final hasAny = widget.selected.isNotEmpty;
+    final allActions = widget.module.actions;
+    final isAllSelected = widget.selected.length == allActions.length;
+    final hasSomeSelected = widget.selected.isNotEmpty && !isAllSelected;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -1785,17 +1957,32 @@ class _ModulePermissionTileState extends State<_ModulePermissionTile> {
                 ),
                 child: Row(
                   children: [
-                    Icon(
-                      hasAny
-                          ? Icons.check_box_rounded
-                          : Icons.check_box_outline_blank_rounded,
-                      color:
-                          hasAny
-                              ? const Color(0xFF059669)
-                              : const Color(0xFF94A3B8),
-                      size: 20,
+                    GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () {
+                        if (isAllSelected) {
+                          widget.onAllChanged(allActions, false);
+                        } else {
+                          widget.onAllChanged(allActions, true);
+                        }
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.all(4.0),
+                        child: Icon(
+                          isAllSelected
+                              ? Icons.check_box_rounded
+                              : hasSomeSelected
+                              ? Icons.indeterminate_check_box_rounded
+                              : Icons.check_box_outline_blank_rounded,
+                          color:
+                              hasAny
+                                  ? const Color(0xFF059669)
+                                  : const Color(0xFF94A3B8),
+                          size: 20,
+                        ),
+                      ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         widget.module.displayName,

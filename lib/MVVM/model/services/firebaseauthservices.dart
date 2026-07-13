@@ -256,10 +256,11 @@ class FirebaseAuthService {
       } catch (_) {}
     }
 
-    // Persist webAuthUid + webEmail to admin_users/{targetUid}
+    // Persist webAuthUid + webEmail + webPassword to admin_users/{targetUid}
     await _db.collection('admin_users').doc(targetUid).update({
       'webAuthUid': webAuthUid,
       'webEmail': webEmail,
+      'webPassword': webPassword,
       'webAccountCreatedAt': FieldValue.serverTimestamp(),
     });
 
