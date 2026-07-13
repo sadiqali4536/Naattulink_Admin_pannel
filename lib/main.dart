@@ -14,8 +14,8 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   
-  // Ensure the developer account exists in Firebase Auth and Firestore
-  await ensureDeveloperAccountCreated();
+  // Ensure the Super Admin account exists in Firebase Auth and Firestore
+  await ensureSuperAdminAccountCreated();
   
   runApp(const MyApp());
 }

@@ -137,6 +137,7 @@ class _ProfileUserState extends State<ProfileUser> {
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
   Map<String, String> _userRoles = {};
+  final Set<String> _superAdminUids = {};
   StreamSubscription<QuerySnapshot>? _adminUsersSub;
 
   @override
@@ -150,16 +151,36 @@ class _ProfileUserState extends State<ProfileUser> {
         .snapshots()
         .listen((snapshot) {
           final Map<String, String> updatedRoles = {};
+          final Set<String> updatedSuperAdminUids = {};
           for (var doc in snapshot.docs) {
             final data = doc.data() as Map<String, dynamic>?;
-            final role = data?['roleDisplayName'] ?? '';
+            final role = (data?['roleDisplayName'] ?? '').toString();
+            final roleId = (data?['roleId'] ?? '').toString().toLowerCase();
+            final roleIds =
+                (data?['roleIds'] as List<dynamic>?)
+                    ?.map((e) => e.toString().toLowerCase())
+                    .toList() ??
+                [];
+            final isSuper =
+                role.toLowerCase() == 'super admin' ||
+                role.toLowerCase() == 'developer' ||
+                roleId == 'super_admin' ||
+                roleId == 'developer' ||
+                roleIds.contains('super_admin') ||
+                roleIds.contains('developer');
+            if (isSuper) {
+              updatedSuperAdminUids.add(doc.id);
+              continue;
+            }
             if (role.isNotEmpty) {
-              updatedRoles[doc.id] = role.toString();
+              updatedRoles[doc.id] = role;
             }
           }
           if (mounted) {
             setState(() {
               _userRoles = updatedRoles;
+              _superAdminUids.clear();
+              _superAdminUids.addAll(updatedSuperAdminUids);
             });
           }
         });
@@ -220,7 +241,10 @@ class _ProfileUserState extends State<ProfileUser> {
       Query query = FirebaseFirestore.instance.collection("users");
 
       if (_selectedStatus != "All Status") {
-        query = query.where("status", isEqualTo: _selectedStatus);
+        query = query.where(
+          "status",
+          whereIn: [_selectedStatus, _selectedStatus.toLowerCase()],
+        );
       }
       if (_selectedType != "All Types") {
         query = query.where("userType", isEqualTo: _selectedType);
@@ -277,7 +301,10 @@ class _ProfileUserState extends State<ProfileUser> {
     try {
       Query query = FirebaseFirestore.instance.collection("users");
       if (_selectedStatus != "All Status") {
-        query = query.where("status", isEqualTo: _selectedStatus);
+        query = query.where(
+          "status",
+          whereIn: [_selectedStatus, _selectedStatus.toLowerCase()],
+        );
       }
       if (_selectedType != "All Types") {
         query = query.where("userType", isEqualTo: _selectedType);
@@ -321,13 +348,13 @@ class _ProfileUserState extends State<ProfileUser> {
       final activeSnap =
           await db
               .collection("users")
-              .where("status", isEqualTo: "Active")
+              .where("status", whereIn: ["Active", "active"])
               .count()
               .get();
       final suspendedSnap =
           await db
               .collection("users")
-              .where("status", isEqualTo: "Suspended")
+              .where("status", whereIn: ["Suspended", "suspended"])
               .count()
               .get();
 
@@ -396,24 +423,32 @@ class _ProfileUserState extends State<ProfileUser> {
         .map((entry) {
           final doc = entry.value;
           final data = doc.data() as Map<String, dynamic>;
-          final rawUser = UserModel.fromMap(data, doc.id, startIndex + entry.key);
-          final role = _userRoles[rawUser.id];
-          final finalUserType = (role != null && role.isNotEmpty) ? role : "Customer";
+          final rawUser = UserModel.fromMap(
+            data,
+            doc.id,
+            startIndex + entry.key,
+          );
+          final role = _userRoles[rawUser.no];
+          final finalUserType =
+              (role != null && role.isNotEmpty) ? role : "Customer";
           return UserModel(
-            id: rawUser.id,
+            no: rawUser.no,
             name: rawUser.name,
             phone: rawUser.phone,
             email: rawUser.email,
+            address: rawUser.address,
             userType: finalUserType,
             status: rawUser.status,
             joinedDate: rawUser.joinedDate,
             points: rawUser.points,
-            address: rawUser.address,
-            index: rawUser.index,
-            avatarUrl: rawUser.avatarUrl,
+            userId: rawUser.userId,
+            role: rawUser.role,
           );
         })
         .where((user) {
+          if (_superAdminUids.contains(user.userId)) {
+            return false;
+          }
           final email = user.email.toLowerCase();
           final name = user.name.toLowerCase();
           final userType = user.userType.toLowerCase();
@@ -513,9 +548,9 @@ class _ProfileUserState extends State<ProfileUser> {
                           .where((n) => n.isNotEmpty)
                           .toList();
 
-                  // Hide Super Admin unless current user is Developer
+                  // Hide Super Admin unless current user is Super Admin
                   final filtered =
-                      RbacSession().isDev
+                      RbacSession().isSuperAdmin
                           ? roles
                           : roles.where((r) => r != "Super Admin").toList();
 
@@ -2713,13 +2748,35 @@ class _ProfileUserState extends State<ProfileUser> {
     );
   }
 
+  // Widget _buildUserTypeBadge(String type) {
+  //   return Align(
+  //     alignment: Alignment.centerLeft,
+  //     child: Container(
+  //       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+  //       decoration: BoxDecoration(
+  //         color: const Color(0xFFEFF6FF), // Tinted blue
+  //         borderRadius: BorderRadius.circular(6),
+  //       ),
+  //       child: Text(
+  //         type,
+  //         style: GoogleFonts.inter(
+  //           fontSize: 11,
+  //           fontWeight: FontWeight.bold,
+  //           color: const Color(0xFF3B82F6),
+  //         ),
+  //       ),
+  //     ),
+  //   );
+  // }
   Widget _buildUserTypeBadge(String type) {
+    final isAdmin = type.toLowerCase() == 'admin';
+
     return Align(
       alignment: Alignment.centerLeft,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
-          color: const Color(0xFFEFF6FF), // Tinted blue
+          color: isAdmin ? const Color(0xFFF3F4F6) : const Color(0xFFEFF6FF),
           borderRadius: BorderRadius.circular(6),
         ),
         child: Text(
@@ -2727,7 +2784,7 @@ class _ProfileUserState extends State<ProfileUser> {
           style: GoogleFonts.inter(
             fontSize: 11,
             fontWeight: FontWeight.bold,
-            color: const Color(0xFF3B82F6),
+            color: isAdmin ? Colors.black : const Color(0xFF3B82F6),
           ),
         ),
       ),

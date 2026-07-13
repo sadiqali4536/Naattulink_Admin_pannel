@@ -35,11 +35,12 @@ class RbacSession {
   String status = 'Inactive';
   Map<String, List<String>> effectivePermissions = {};
 
-  bool get isSuperAdmin => roleLevel >= RoleLevels.superAdmin && roleLevel < RoleLevels.developer;
-  bool get isDeveloper => roleLevel >= RoleLevels.developer;
+  bool get isSuperAdmin => roleLevel >= RoleLevels.superAdmin;
+  bool get isDeveloper => isSuperAdmin;
+
   /// Alias for [isDeveloper] — kept for backward compatibility with existing pages.
-  bool get isDev => isDeveloper;
-  bool get isPrivileged => isSuperAdmin || isDeveloper;
+  bool get isDev => isSuperAdmin;
+  bool get isPrivileged => isSuperAdmin;
 
   /// Whether session is fully loaded and status is Active.
   bool get isActive => status == 'Active' && uid != null;
@@ -56,20 +57,20 @@ class RbacSession {
         .doc(uid)
         .snapshots()
         .listen((snapshot) async {
-      if (!snapshot.exists) {
-        // Access revoked — force sign out
-        await _forceSignOut();
-        return;
-      }
-      final data = snapshot.data() as Map<String, dynamic>? ?? {};
-      final newStatus = data['status'] as String? ?? 'Active';
-      if (newStatus != 'Active') {
-        await _forceSignOut();
-        return;
-      }
-      // Re-load session silently to pick up permission changes
-      await loadSession(fromListener: true);
-    });
+          if (!snapshot.exists) {
+            // Access revoked — force sign out
+            await _forceSignOut();
+            return;
+          }
+          final data = snapshot.data() ?? {};
+          final newStatus = data['status'] as String? ?? 'Active';
+          if (newStatus != 'Active') {
+            await _forceSignOut();
+            return;
+          }
+          // Re-load session silently to pick up permission changes
+          await loadSession(fromListener: true);
+        });
   }
 
   Future<void> _forceSignOut() async {
@@ -87,33 +88,56 @@ class RbacSession {
       return;
     }
 
-    uid = user.uid;
+    final currentAuthUid = user.uid;
     email = user.email;
 
-    // ── Developer check (hardcoded dev emails) ────────────────────────────────
+    // ── Resolve web-panel account → original UID ──────────────────────────────
+    // When a web-panel account ({uid}_adm@naattulink.internal) is signed in,
+    // its Firebase UID differs from the user's real UID stored in admin_users.
+    // web_auth_index/{webAuthUid} maps back to the original uid.
+    String? originalUid;
+    try {
+      final indexDoc =
+          await FirebaseFirestore.instance
+              .collection('web_auth_index')
+              .doc(currentAuthUid)
+              .get();
+      if (indexDoc.exists) {
+        originalUid = indexDoc.data()!['originalUid'] as String?;
+      }
+    } catch (_) {}
+
+    // Use originalUid for all RBAC operations (falls back to currentAuthUid
+    // for Super Admin accounts that sign in with their real Firebase account).
+    uid = originalUid ?? currentAuthUid;
+
+    // ── Super Admin check (hardcoded superadmin/dev emails) ───────────────────
     const devEmails = [
       'developer@naattulink.com',
       'developer@nattulinkapp.com',
+      'superadmin@naattulink.com',
     ];
     if (devEmails.contains(user.email)) {
-      roleId = 'developer';
-      roleDisplayName = 'Developer';
-      roleLevel = RoleLevels.developer;
+      roleId = 'super_admin';
+      roleDisplayName = 'Super Admin';
+      roleLevel = RoleLevels.superAdmin;
       status = 'Active';
-      fullName = 'Developer';
-      username = 'developer';
+      fullName = 'Super Admin';
+      username = 'superadmin';
       effectivePermissions = _allPermissions();
       if (!fromListener) _startSessionListener(uid!);
       return;
     }
 
     // ── Load admin_users/{uid} ────────────────────────────────────────────────
+    // uid is the original user UID, not the web auth account UID.
     DocumentSnapshot? adminDoc;
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('admin_users')
-          .doc(user.uid)
-          .get();
+      final doc =
+          await FirebaseFirestore.instance
+              .collection('admin_users')
+              .doc(uid)
+              .get();
       if (doc.exists) adminDoc = doc;
     } catch (_) {}
 
@@ -126,7 +150,7 @@ class RbacSession {
 
     final adminUser = AdminUserModel.fromFirestore(adminDoc);
 
-    // ── Status check (recommendation #8) ─────────────────────────────────────
+    // ── Status check ──────────────────────────────────────────────────────────
     if (adminUser.status != 'Active') {
       clear();
       await FirebaseAuth.instance.signOut();
@@ -138,35 +162,43 @@ class RbacSession {
     roleLevel = adminUser.roleLevel;
     status = adminUser.status;
 
-    // ── Super Admin — full access, no role doc needed ─────────────────────────
+    // ── Super Admin — full access ─────────────────────────────────────────────
     if (adminUser.roleId == 'super_admin') {
-      fullName = await _loadDisplayName(user.uid);
-      username = await _loadUsername(user.uid);
+      fullName = await _loadDisplayName(uid!);
+      username = await _loadUsername(uid!);
       effectivePermissions = _allPermissions();
       if (!fromListener) _startSessionListener(uid!);
       return;
     }
 
-    // ── Load role base permissions from roles/{roleId} ────────────────────────
+    // ── Load role base permissions from roles/{roleIds} ───────────────────────
     Map<String, List<String>> basePermissions = {};
     try {
-      final roleDoc = await FirebaseFirestore.instance
-          .collection('roles')
-          .doc(adminUser.roleId)
-          .get();
-      if (roleDoc.exists) {
-        final role = RoleDefinition.fromFirestore(roleDoc);
-        // If role is disabled, deny access
-        if (!role.isActive) {
-          clear();
-          await FirebaseAuth.instance.signOut();
-          return;
+      for (final rId in adminUser.roleIds) {
+        final roleDoc =
+            await FirebaseFirestore.instance
+                .collection('roles')
+                .doc(rId)
+                .get();
+        if (roleDoc.exists) {
+          final role = RoleDefinition.fromFirestore(roleDoc);
+          if (role.isActive) {
+            // Merge this role's base permissions (union)
+            for (final entry in role.permissions.entries) {
+              final currentList = basePermissions[entry.key] ?? [];
+              for (final val in entry.value) {
+                if (!currentList.contains(val)) {
+                  currentList.add(val);
+                }
+              }
+              basePermissions[entry.key] = currentList;
+            }
+          }
         }
-        basePermissions = role.permissions;
       }
     } catch (_) {}
 
-    // ── Merge overrides: base + added - removed (recommendation #7) ───────────
+    // ── Merge overrides: base + added − removed ───────────────────────────────
     effectivePermissions = _mergePermissions(
       base: basePermissions,
       added: adminUser.permissionOverridesAdded,
@@ -174,8 +206,8 @@ class RbacSession {
     );
 
     // ── Load profile display info from users/{uid} ────────────────────────────
-    fullName = await _loadDisplayName(user.uid);
-    username = await _loadUsername(user.uid);
+    fullName = await _loadDisplayName(uid!);
+    username = await _loadUsername(uid!);
 
     // ── Start listener for real-time session refresh ──────────────────────────
     if (!fromListener) _startSessionListener(uid!);
@@ -218,11 +250,12 @@ class RbacSession {
   /// Must be checked before revoking/demoting/deactivating any super admin.
   Future<bool> isLastSuperAdmin(String targetUid) async {
     try {
-      final q = await FirebaseFirestore.instance
-          .collection('admin_users')
-          .where('roleId', isEqualTo: 'super_admin')
-          .where('status', isEqualTo: 'Active')
-          .get();
+      final q =
+          await FirebaseFirestore.instance
+              .collection('admin_users')
+              .where('roleId', isEqualTo: 'super_admin')
+              .where('status', isEqualTo: 'Active')
+              .get();
       // If only one super admin exists and it's the target → block
       return q.docs.length == 1 && q.docs.first.id == targetUid;
     } catch (_) {
@@ -297,7 +330,8 @@ class RbacSession {
 
   Future<String> _loadDisplayName(String uid) async {
     try {
-      final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      final doc =
+          await FirebaseFirestore.instance.collection('users').doc(uid).get();
       if (doc.exists) {
         final d = doc.data() as Map<String, dynamic>;
         return d['fullName'] as String? ?? d['name'] as String? ?? 'Admin';
@@ -308,7 +342,8 @@ class RbacSession {
 
   Future<String?> _loadUsername(String uid) async {
     try {
-      final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      final doc =
+          await FirebaseFirestore.instance.collection('users').doc(uid).get();
       if (doc.exists) {
         final d = doc.data() as Map<String, dynamic>;
         return d['username'] as String?;

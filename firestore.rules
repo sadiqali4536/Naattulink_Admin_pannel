@@ -11,9 +11,28 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Returns the admin_users document for the caller (may not exist)
+    // Returns the admin_users document for the caller.
+    // Handles both cases:
+    //   A) The caller is signed in with their real Firebase account
+    //      (developers, super admins who haven't set up a separate web account yet).
+    //      → looks up admin_users/{request.auth.uid} directly.
+    //   B) The caller is signed in with a web-panel account
+    //      (email: {uid}_adm@naattulink.internal).
+    //      → looks up web_auth_index/{request.auth.uid} to resolve the original uid,
+    //        then reads admin_users/{originalUid}.
     function getAdminData() {
-      return get(/databases/$(database)/documents/admin_users/$(request.auth.uid)).data;
+      let uid = request.auth.uid;
+      // Case A: direct admin_users entry
+      let hasDirect = exists(/databases/$(database)/documents/admin_users/$(uid));
+      // Case B: web-panel account → resolve via index
+      let hasIndex = !hasDirect
+          && exists(/databases/$(database)/documents/web_auth_index/$(uid));
+      return hasDirect
+          ? get(/databases/$(database)/documents/admin_users/$(uid)).data
+          : (hasIndex
+              ? get(/databases/$(database)/documents/admin_users/
+                  get(/databases/$(database)/documents/web_auth_index/$(uid)).data.originalUid).data
+              : null);
     }
 
     // Is the caller an active admin panel user?
@@ -30,12 +49,8 @@ service cloud.firestore {
       return getAdminData().roleLevel;
     }
 
-    function isDeveloper() {
-      return isAuthenticated() && callerLevel() >= 100;
-    }
-
     function isSuperAdmin() {
-      return isAuthenticated() && callerLevel() >= 90;
+      return isAuthenticated() && callerLevel() >= 100;
     }
 
     function isAdmin() {
@@ -83,24 +98,29 @@ service cloud.firestore {
     // The heart of RBAC — who has access to what
     // =========================================================================
     match /admin_users/{targetUid} {
-      // Only active admins can read admin user records
+      // Active admins can read all admin_users records
       allow read: if isActiveAdmin();
 
-      // Create: Super Admin+ and the target roleLevel must be below caller's
-      allow create: if isSuperAdmin()
+      // A web-panel auth account (webAuthUid) can read its own linked admin record.
+      // This is needed during session load: the web account reads admin_users/{originalUid}
+      // to populate the RBAC session.
+      allow read: if isAuthenticated()
+          && resource.data.webAuthUid == request.auth.uid;
+
+      // Create: Admin+ and the target roleLevel must be below caller's
+      allow create: if isAdmin()
           && request.resource.data.roleLevel != null
           && canAssignLevel(request.resource.data.roleLevel);
 
-      // Update: Super Admin+ and the updated roleLevel must still be below caller's
-      // Also prevent modifying the super_admin if it would leave zero super admins
-      allow update: if isSuperAdmin()
+      // Update: Admin+ and the updated roleLevel must still be below caller's
+      allow update: if isAdmin()
           && request.resource.data.roleLevel != null
           && canAssignLevel(request.resource.data.roleLevel)
           // Cannot deactivate self
           && targetUid != request.auth.uid;
 
-      // Delete: Developer only — soft delete via status is preferred
-      allow delete: if isDeveloper();
+      // Super Admin only — soft delete via status is preferred
+      allow delete: if isSuperAdmin();
     }
 
     // =========================================================================
@@ -111,19 +131,19 @@ service cloud.firestore {
       // All active admins can read role definitions
       allow read: if isActiveAdmin();
 
-      // Super Admin+ can create new roles
+      // Admin+ can create new roles
       // New role level must be strictly below caller's level
-      allow create: if isSuperAdmin()
+      allow create: if isAdmin()
           && request.resource.data.level != null
           && canAssignLevel(request.resource.data.level);
 
-      // Super Admin+ can update roles they have authority over
-      allow update: if isSuperAdmin()
+      // Admin+ can update roles they have authority over
+      allow update: if isAdmin()
           && resource.data.level < callerLevel()
           && (request.resource.data.level == null || canAssignLevel(request.resource.data.level));
 
-      // Developer only can delete role definitions
-      allow delete: if isDeveloper();
+      // Super Admin only can delete role definitions
+      allow delete: if isSuperAdmin();
     }
 
     // =========================================================================
@@ -131,7 +151,7 @@ service cloud.firestore {
     // =========================================================================
     match /modules/{moduleId} {
       allow read: if isActiveAdmin();
-      allow write: if isDeveloper();
+      allow write: if isSuperAdmin();
     }
 
     // =========================================================================
@@ -184,7 +204,7 @@ service cloud.firestore {
       allow create: if isAuthenticated();
       // Payments are generally immutable — only Admin+ can update status
       allow update: if isAdmin();
-      allow delete: if isDeveloper();
+      allow delete: if isSuperAdmin();
     }
 
     // =========================================================================
@@ -194,6 +214,28 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow create: if isManager(); // Manager+ can send notifications
       allow update, delete: if isAdmin();
+    }
+
+    // =========================================================================
+    // web_auth_index collection
+    // Reverse-lookup: web_auth_index/{webAuthUid} → { originalUid, webEmail }
+    // Written by the admin panel when granting web access.
+    // Read by the session loader to resolve webAuthUid → originalUid.
+    // =========================================================================
+    match /web_auth_index/{webAuthUid} {
+      // A web-panel account can read its own index entry (needed during login
+      // to resolve the originalUid for RBAC session loading).
+      allow read: if isAuthenticated() && request.auth.uid == webAuthUid;
+
+      // Active admins can read all index entries (for admin panel management)
+      allow read: if isActiveAdmin();
+
+      // Only Admin+ can write index entries (done by the admin panel
+      // via createWebAdminAccount())
+      allow create, update: if isAdmin();
+
+      // Super Admin only can delete index entries
+      allow delete: if isSuperAdmin();
     }
 
     // =========================================================================

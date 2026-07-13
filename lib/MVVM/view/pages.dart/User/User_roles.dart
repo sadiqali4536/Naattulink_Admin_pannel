@@ -38,7 +38,10 @@ class RoleModel {
       description: data['description'] ?? '',
       usersCount: data['usersCount'] ?? 0,
       status: data['status'] ?? 'Active',
-      createdAt: data['createdAt'] ?? '',
+      createdAt:
+          data['createdAt'] is Timestamp
+              ? (data['createdAt'] as Timestamp).toDate().toIso8601String()
+              : (data['createdAt']?.toString() ?? ''),
       initials: data['initials'] ?? '',
       badgeColor: Color(data['badgeColor'] ?? 0xFF8B5CF6),
       permissions: data['permissions'] as Map<String, dynamic>? ?? {},
@@ -77,7 +80,8 @@ class _UserRolesPageState extends State<UserRolesPage> {
   }
 
   Stream<QuerySnapshot> get adminUsersStream {
-    _adminUsersStream ??= FirebaseFirestore.instance.collection("admin_users").snapshots();
+    _adminUsersStream ??=
+        FirebaseFirestore.instance.collection("admin_users").snapshots();
     return _adminUsersStream!;
   }
 
@@ -85,7 +89,8 @@ class _UserRolesPageState extends State<UserRolesPage> {
   void initState() {
     super.initState();
     _rolesStream = FirebaseFirestore.instance.collection("roles").snapshots();
-    _adminUsersStream = FirebaseFirestore.instance.collection("admin_users").snapshots();
+    _adminUsersStream =
+        FirebaseFirestore.instance.collection("admin_users").snapshots();
   }
 
   String _searchQuery = "";
@@ -267,7 +272,7 @@ class _UserRolesPageState extends State<UserRolesPage> {
                           );
                       final matchesStatus =
                           _selectedStatus == "All Status" ||
-                          role.status == _selectedStatus;
+                          role.status.toLowerCase() == _selectedStatus.toLowerCase();
                       return matchesSearch && matchesStatus;
                     }).toList();
 
@@ -921,8 +926,10 @@ class _UserRolesPageState extends State<UserRolesPage> {
   void _showAssignUserDialog(BuildContext context, RoleModel role) {
     final searchController = TextEditingController();
     String searchQuery = "";
-    final adminUsersStream = FirebaseFirestore.instance.collection("admin_users").snapshots();
-    final usersStream = FirebaseFirestore.instance.collection("users").snapshots();
+    final adminUsersStream =
+        FirebaseFirestore.instance.collection("admin_users").snapshots();
+    final usersStream =
+        FirebaseFirestore.instance.collection("users").snapshots();
 
     showDialog(
       context: context,
@@ -1069,13 +1076,13 @@ class _UserRolesPageState extends State<UserRolesPage> {
                         child: StreamBuilder<QuerySnapshot>(
                           stream: adminUsersStream,
                           builder: (context, adminSnapshot) {
-                            final Map<String, String> userRoles = {};
+                            final Map<String, Map<String, dynamic>> adminDocs =
+                                {};
                             if (adminSnapshot.hasData) {
                               for (var doc in adminSnapshot.data!.docs) {
                                 final d = doc.data() as Map<String, dynamic>?;
                                 if (d != null) {
-                                  userRoles[doc.id] =
-                                      (d['roleDisplayName'] ?? '').toString();
+                                  adminDocs[doc.id] = d;
                                 }
                               }
                             }
@@ -1096,9 +1103,20 @@ class _UserRolesPageState extends State<UserRolesPage> {
                                 final docs = snapshot.data?.docs ?? [];
                                 final filtered =
                                     docs.where((doc) {
-                                      if (!userRoles.containsKey(doc.id)) {
+                                      if (!adminDocs.containsKey(doc.id)) {
                                         return false;
                                       }
+                                      final adminData = adminDocs[doc.id]!;
+                                      final rId =
+                                          (adminData['roleId'] ?? '')
+                                              .toString();
+                                      final rIds =
+                                          (adminData['roleIds']
+                                                  as List<dynamic>?)
+                                              ?.map((e) => e.toString())
+                                              .toList() ??
+                                          [rId];
+
                                       final data =
                                           doc.data() as Map<String, dynamic>;
                                       final name =
@@ -1113,7 +1131,14 @@ class _UserRolesPageState extends State<UserRolesPage> {
                                               .toLowerCase();
 
                                       if (email == 'developer@naattulink.com' ||
-                                          name == 'developer') {
+                                          email ==
+                                              'superadmin@naattulink.com' ||
+                                          name == 'developer' ||
+                                          name == 'superadmin' ||
+                                          rId == 'super_admin' ||
+                                          rId == 'developer' ||
+                                          rIds.contains('super_admin') ||
+                                          rIds.contains('developer')) {
                                         return false;
                                       }
 
@@ -1164,8 +1189,25 @@ class _UserRolesPageState extends State<UserRolesPage> {
                                         data['name'] ??
                                         'Unknown';
                                     final email = data['email'] ?? '';
-                                    final currentRole = userRoles[doc.id] ?? '';
-                                    final isAssigned = currentRole == role.name;
+                                    final adminData = adminDocs[doc.id];
+                                    final currentRole =
+                                        adminData?['roleDisplayName']
+                                            ?.toString() ??
+                                        '';
+                                    final rId =
+                                        (adminData?['roleId'] ?? '').toString();
+                                    final rIds =
+                                        (adminData?['roleIds']
+                                                as List<dynamic>?)
+                                            ?.map((e) => e.toString())
+                                            .toList() ??
+                                        [rId];
+                                    final targetRoleId = role.name
+                                        .toLowerCase()
+                                        .replaceAll(' ', '_');
+                                    final isAssigned = rIds.contains(
+                                      targetRoleId,
+                                    );
                                     final hasOtherRole =
                                         currentRole.isNotEmpty && !isAssigned;
 
@@ -1325,7 +1367,13 @@ class _UserRolesPageState extends State<UserRolesPage> {
                                               ],
                                             ),
                                           ),
-                                          if (!isAssigned)
+                                          if (isAssigned)
+                                            const Icon(
+                                              Icons.check_circle_rounded,
+                                              color: Color(0xFF10B981),
+                                              size: 24,
+                                            )
+                                          else
                                             ElevatedButton(
                                               onPressed: () async {
                                                 try {
@@ -2162,6 +2210,62 @@ class _UserRolesPageState extends State<UserRolesPage> {
     );
   }
 
+  Future<void> _updateUserRoles(
+    String targetUid,
+    String targetName,
+    List<String> newRoleIds,
+  ) async {
+    if (newRoleIds.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "A user must have at least one role assigned. Use 'Unassign' to remove all access.",
+          ),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    try {
+      final primaryRoleId = newRoleIds.first;
+      final joinedDisplayNames = newRoleIds
+          .map(
+            (id) => id
+                .split('_')
+                .map((w) => w[0].toUpperCase() + w.substring(1))
+                .join(' '),
+          )
+          .join(', ');
+      final maxLevel = newRoleIds
+          .map((id) => RoleLevels.levelFor(id))
+          .reduce((a, b) => a > b ? a : b);
+
+      await FirebaseAuthService.instance.grantAdminAccess(
+        targetUid: targetUid,
+        targetDisplayName: targetName,
+        roleId: primaryRoleId,
+        roleDisplayName: joinedDisplayNames,
+        roleLevel: maxLevel,
+        roleIds: newRoleIds,
+      );
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("User role allocation updated successfully."),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Failed to update user roles: $e"),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   void _showEditRoleDialog(BuildContext context, RoleModel role) {
     // Safety check
     if (role.name == "Super Admin") {
@@ -2174,227 +2278,219 @@ class _UserRolesPageState extends State<UserRolesPage> {
       return;
     }
 
-    final nameController = TextEditingController(text: role.name);
-    final descriptionController = TextEditingController(text: role.description);
-    String selectedStatus = role.status;
-
-    // permissions structure: Map<String, List<String>>
-    final Map<String, List<String>> selectedPermissions = {};
-    for (var module in _modules) {
-      final List<dynamic>? existing =
-          role.permissions[module] as List<dynamic>?;
-      selectedPermissions[module] =
-          existing != null ? List<String>.from(existing) : [];
-    }
-
     showDialog(
       context: context,
       builder:
-          (context) => StatefulBuilder(
-            builder:
-                (context, setDialogState) => AlertDialog(
-                  title: Text(
-                    "Edit Role",
-                    style: GoogleFonts.inter(fontWeight: FontWeight.bold),
+          (context) => AlertDialog(
+            title: Text(
+              "Edit Role",
+              style: GoogleFonts.inter(fontWeight: FontWeight.bold),
+            ),
+            contentPadding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
+            content: SizedBox(
+              width: 700,
+              height: MediaQuery.of(context).size.height * 0.75,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Current Assigned Users",
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF1E293B),
+                    ),
                   ),
-                  content: SizedBox(
-                    width: 800,
-                    child: SingleChildScrollView(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          TextFormField(
-                            controller: nameController,
-                            decoration: InputDecoration(
-                              labelText: "Role Name",
-                              labelStyle: GoogleFonts.inter(fontSize: 13),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          TextFormField(
-                            controller: descriptionController,
-                            decoration: InputDecoration(
-                              labelText: "Description",
-                              labelStyle: GoogleFonts.inter(fontSize: 13),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          DropdownButtonFormField<String>(
-                            initialValue: selectedStatus,
-                            decoration: InputDecoration(
-                              labelText: "Status",
-                              labelStyle: GoogleFonts.inter(fontSize: 13),
-                            ),
-                            items:
-                                ["Active", "Inactive"]
-                                    .map(
-                                      (status) => DropdownMenuItem(
-                                        value: status,
-                                        child: Text(
-                                          status,
-                                          style: GoogleFonts.inter(
-                                            fontSize: 13,
-                                          ),
-                                        ),
-                                      ),
-                                    )
-                                    .toList(),
-                            onChanged: (val) {
-                              if (val != null) {
-                                setDialogState(() {
-                                  selectedStatus = val;
-                                });
-                              }
-                            },
-                          ),
-                          const SizedBox(height: 24),
-                          Text(
-                            "Module Permissions",
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: StreamBuilder<QuerySnapshot>(
+                      stream:
+                          FirebaseFirestore.instance
+                              .collection("admin_users")
+                              .snapshots(),
+                      builder: (context, adminSnapshot) {
+                        if (adminSnapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
+                        }
+                        if (!adminSnapshot.hasData ||
+                            adminSnapshot.data!.docs.isEmpty) {
+                          return Text(
+                            "No users assigned to this role.",
                             style: GoogleFonts.inter(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: const Color(0xFF1E293B),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          ..._modules.map((module) {
-                            return Padding(
-                              padding: const EdgeInsets.symmetric(
-                                vertical: 8.0,
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    module,
-                                    style: GoogleFonts.inter(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                      color: const Color(0xFF475569),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Wrap(
-                                    spacing: 12,
-                                    runSpacing: 8,
-                                    children:
-                                        _actions.map((action) {
-                                          final isChecked =
-                                              selectedPermissions[module]!
-                                                  .contains(action);
-                                          return Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              SizedBox(
-                                                width: 24,
-                                                height: 24,
-                                                child: Checkbox(
-                                                  value: isChecked,
-                                                  activeColor: const Color(
-                                                    0xFF10B981,
-                                                  ),
-                                                  onChanged: (val) {
-                                                    setDialogState(() {
-                                                      if (val == true) {
-                                                        selectedPermissions[module]!
-                                                            .add(action);
-                                                      } else {
-                                                        selectedPermissions[module]!
-                                                            .remove(action);
-                                                      }
-                                                    });
-                                                  },
-                                                ),
-                                              ),
-                                              const SizedBox(width: 4),
-                                              Text(
-                                                action,
-                                                style: GoogleFonts.inter(
-                                                  fontSize: 12,
-                                                ),
-                                              ),
-                                            ],
-                                          );
-                                        }).toList(),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  const Divider(color: Color(0xFFF1F5F9)),
-                                ],
-                              ),
-                            );
-                          }),
-                        ],
-                      ),
-                    ),
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: Text(
-                        "Cancel",
-                        style: GoogleFonts.inter(
-                          color: const Color(0xFF64748B),
-                        ),
-                      ),
-                    ),
-                    ElevatedButton(
-                      onPressed: () async {
-                        final navigator = Navigator.of(context);
-                        final scaffoldMessenger = ScaffoldMessenger.of(context);
-                        final String name = nameController.text.trim();
-                        final String description =
-                            descriptionController.text.trim();
-
-                        // Prevent creating/updating Super Admin
-                        if (name.toLowerCase() == "super admin" ||
-                            role.name == "Super Admin") {
-                          scaffoldMessenger.showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                "Error: Cannot create or modify a Super Admin role.",
-                              ),
-                              backgroundColor: Colors.red,
+                              fontSize: 12,
+                              color: Colors.grey,
                             ),
                           );
-                          return;
                         }
 
-                        if (name.isNotEmpty) {
-                          final String initials =
-                              name.length >= 2
-                                  ? name.substring(0, 2).toUpperCase()
-                                  : (name.isNotEmpty
-                                      ? name[0].toUpperCase()
-                                      : 'R');
-                          await FirebaseFirestore.instance
-                              .collection("roles")
-                              .doc(role.id)
-                              .update({
-                                'name': name,
-                                'description': description,
-                                'status': selectedStatus,
-                                'initials': initials,
-                                'permissions': selectedPermissions,
-                              });
-                        }
-                        navigator.pop();
-                        scaffoldMessenger.showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              "Role '${nameController.text}' updated successfully.",
-                            ),
-                          ),
+                        return StreamBuilder<QuerySnapshot>(
+                          stream:
+                              FirebaseFirestore.instance
+                                  .collection("users")
+                                  .snapshots(),
+                          builder: (context, usersSnapshot) {
+                            if (usersSnapshot.connectionState ==
+                                ConnectionState.waiting) {
+                              return const Center(
+                                child: CircularProgressIndicator(),
+                              );
+                            }
+                            if (!usersSnapshot.hasData ||
+                                usersSnapshot.data!.docs.isEmpty) {
+                              return Text(
+                                "No users found.",
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  color: Colors.grey,
+                                ),
+                              );
+                            }
+
+                            // Get mapping of uid -> user doc data
+                            final Map<String, Map<String, dynamic>> userDocs =
+                                {};
+                            for (var doc in usersSnapshot.data!.docs) {
+                              userDocs[doc.id] =
+                                  doc.data() as Map<String, dynamic>;
+                            }
+
+                            // Filter admin users assigned to this role (either by roleId or in roleIds list)
+                            final canonicalRoleId = role.name
+                                .toLowerCase()
+                                .replaceAll(' ', '_');
+                            final assignedAdminDocs =
+                                adminSnapshot.data!.docs.where((doc) {
+                                  final d =
+                                      doc.data() as Map<String, dynamic>? ?? {};
+                                  final status =
+                                      d['status'] as String? ?? 'Active';
+                                  if (status != 'Active') return false;
+
+                                  final rId = (d['roleId'] ?? '').toString();
+                                  final rIds =
+                                      (d['roleIds'] as List<dynamic>?)
+                                          ?.map((e) => e.toString())
+                                          .toList() ??
+                                      [rId];
+                                  final uDoc = userDocs[doc.id] ?? {};
+                                  final email =
+                                      (uDoc['email'] ?? '')
+                                          .toString()
+                                          .toLowerCase();
+                                  final username =
+                                      (uDoc['username'] ?? uDoc['name'] ?? '')
+                                          .toString()
+                                          .toLowerCase();
+
+                                  if (rId == 'super_admin' ||
+                                      rId == 'developer' ||
+                                      rIds.contains('super_admin') ||
+                                      rIds.contains('developer') ||
+                                      email == 'superadmin@naattulink.com' ||
+                                      email == 'developer@naattulink.com' ||
+                                      username == 'superadmin' ||
+                                      username == 'developer') {
+                                    return false;
+                                  }
+                                  return rIds.contains(canonicalRoleId);
+                                }).toList();
+
+                            if (assignedAdminDocs.isEmpty) {
+                              return Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF8FAFC),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: const Color(0xFFE2E8F0),
+                                  ),
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    "No users currently assigned to this role.",
+                                    style: GoogleFonts.inter(
+                                      fontSize: 13,
+                                      color: const Color(0xFF94A3B8),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }
+
+                            return StreamBuilder<QuerySnapshot>(
+                              stream:
+                                  FirebaseFirestore.instance
+                                      .collection("roles")
+                                      .snapshots(),
+                              builder: (context, rolesSnap) {
+                                if (rolesSnap.connectionState ==
+                                    ConnectionState.waiting) {
+                                  return const Center(
+                                    child: CircularProgressIndicator(),
+                                  );
+                                }
+
+                                final List<RoleModel> allRoles =
+                                    (rolesSnap.data?.docs ?? [])
+                                        .map((d) => RoleModel.fromFirestore(d))
+                                        .toList();
+
+                                return ListView.builder(
+                                  shrinkWrap: true,
+                                  itemCount: assignedAdminDocs.length,
+                                  itemBuilder: (context, index) {
+                                    final adminDoc = assignedAdminDocs[index];
+                                    final adminModel =
+                                        AdminUserModel.fromFirestore(adminDoc);
+                                    final userData =
+                                        userDocs[adminDoc.id] ??
+                                        {
+                                          'fullName':
+                                              adminModel.roleDisplayName,
+                                          'username': adminDoc.id,
+                                          'email': 'No Email',
+                                        };
+
+                                    return _AssignedUserCard(
+                                      userData: userData,
+                                      adminData: adminModel,
+                                      allRoles: allRoles,
+                                      allModules: _modules,
+                                      allActions: _actions,
+                                      isSuperAdmin: RbacSession().isSuperAdmin,
+                                      onUpdateRoles:
+                                          (newIds) => _updateUserRoles(
+                                            adminDoc.id,
+                                            userData['fullName'] ??
+                                                userData['username'] ??
+                                                'Unknown',
+                                            newIds,
+                                          ),
+                                    );
+                                  },
+                                );
+                              },
+                            );
+                          },
                         );
                       },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF10B981),
-                        foregroundColor: Colors.white,
-                      ),
-                      child: Text("Save Changes", style: GoogleFonts.inter()),
                     ),
-                  ],
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(
+                  "Close",
+                  style: GoogleFonts.inter(color: const Color(0xFF64748B)),
                 ),
+              ),
+            ],
           ),
     );
   }
@@ -2622,6 +2718,663 @@ class StatsCard extends StatelessWidget {
               ),
             ],
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AssignedUserCard extends StatefulWidget {
+  final Map<String, dynamic> userData;
+  final AdminUserModel adminData;
+  final List<RoleModel> allRoles;
+  final Function(List<String>) onUpdateRoles;
+  final bool isSuperAdmin;
+  final List<String>? allModules;
+  final List<String>? allActions;
+
+  const _AssignedUserCard({
+    required this.userData,
+    required this.adminData,
+    required this.allRoles,
+    required this.onUpdateRoles,
+    required this.isSuperAdmin,
+    this.allModules,
+    this.allActions,
+  });
+
+  @override
+  State<_AssignedUserCard> createState() => _AssignedUserCardState();
+}
+
+class _AssignedUserCardState extends State<_AssignedUserCard> {
+  bool _isExpanded = false;
+  List<String> _localRoleIds = [];
+  Map<String, List<String>> _localPermissionOverridesAdded = {};
+  Map<String, List<String>> _localPermissionOverridesRemoved = {};
+  bool _isDirty = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _resetLocalData();
+  }
+
+  void _resetLocalData() {
+    _localRoleIds = List<String>.from(widget.adminData.roleIds);
+    _localPermissionOverridesAdded = {};
+    widget.adminData.permissionOverridesAdded.forEach((k, v) {
+      _localPermissionOverridesAdded[k.toLowerCase().replaceAll(' ', '_')] =
+          List<String>.from(v).map((e) => e.toLowerCase()).toList();
+    });
+    _localPermissionOverridesRemoved = {};
+    widget.adminData.permissionOverridesRemoved.forEach((k, v) {
+      _localPermissionOverridesRemoved[k.toLowerCase().replaceAll(' ', '_')] =
+          List<String>.from(v).map((e) => e.toLowerCase()).toList();
+    });
+    _isDirty = false;
+  }
+
+  @override
+  void didUpdateWidget(_AssignedUserCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_isDirty) {
+      _resetLocalData();
+    }
+  }
+
+  void _checkIfDirty() {
+    final bool rolesChanged =
+        !_listsAreEqual(_localRoleIds, widget.adminData.roleIds);
+    final bool addedChanged =
+        !_mapsAreEqual(
+          _localPermissionOverridesAdded,
+          widget.adminData.permissionOverridesAdded,
+        );
+    final bool removedChanged =
+        !_mapsAreEqual(
+          _localPermissionOverridesRemoved,
+          widget.adminData.permissionOverridesRemoved,
+        );
+    setState(() {
+      _isDirty = rolesChanged || addedChanged || removedChanged;
+    });
+  }
+
+  bool _listsAreEqual(List<dynamic> a, List<dynamic> b) {
+    if (a.length != b.length) return false;
+    final setA = Set.from(a);
+    final setB = Set.from(b);
+    return setA.length == setB.length && setA.containsAll(setB);
+  }
+
+  bool _mapsAreEqual(Map<String, List<String>> a, Map<String, List<String>> b) {
+    final cleanA = a.map(
+      (k, v) => MapEntry(
+        k.toLowerCase().replaceAll(' ', '_'),
+        v.where((e) => e.isNotEmpty).map((e) => e.toLowerCase()).toList(),
+      ),
+    )..removeWhere((k, v) => v.isEmpty);
+    final cleanB = b.map(
+      (k, v) => MapEntry(
+        k.toLowerCase().replaceAll(' ', '_'),
+        v.where((e) => e.isNotEmpty).map((e) => e.toLowerCase()).toList(),
+      ),
+    )..removeWhere((k, v) => v.isEmpty);
+    if (cleanA.length != cleanB.length) return false;
+    for (final key in cleanA.keys) {
+      if (!cleanB.containsKey(key)) return false;
+      if (!_listsAreEqual(cleanA[key]!, cleanB[key]!)) return false;
+    }
+    return true;
+  }
+
+  void _toggleLocalPermissionOverride(
+    String module,
+    String action,
+    bool enable,
+    bool hasBase,
+  ) {
+    final canonicalModule = module.toLowerCase().replaceAll(' ', '_');
+    final canonicalAction = action.toLowerCase();
+    setState(() {
+      if (hasBase) {
+        if (enable) {
+          if (_localPermissionOverridesRemoved.containsKey(canonicalModule)) {
+            _localPermissionOverridesRemoved[canonicalModule]!.remove(
+              canonicalAction,
+            );
+            if (_localPermissionOverridesRemoved[canonicalModule]!.isEmpty) {
+              _localPermissionOverridesRemoved.remove(canonicalModule);
+            }
+          }
+        } else {
+          final list = _localPermissionOverridesRemoved[canonicalModule] ?? [];
+          if (!list.contains(canonicalAction)) {
+            list.add(canonicalAction);
+            _localPermissionOverridesRemoved[canonicalModule] = list;
+          }
+        }
+      } else {
+        if (enable) {
+          final list = _localPermissionOverridesAdded[canonicalModule] ?? [];
+          if (!list.contains(canonicalAction)) {
+            list.add(canonicalAction);
+            _localPermissionOverridesAdded[canonicalModule] = list;
+          }
+        } else {
+          if (_localPermissionOverridesAdded.containsKey(canonicalModule)) {
+            _localPermissionOverridesAdded[canonicalModule]!.remove(
+              canonicalAction,
+            );
+            if (_localPermissionOverridesAdded[canonicalModule]!.isEmpty) {
+              _localPermissionOverridesAdded.remove(canonicalModule);
+            }
+          }
+        }
+      }
+    });
+    _checkIfDirty();
+  }
+
+  Future<void> _applyChanges() async {
+    try {
+      final bool rolesChanged =
+          !_listsAreEqual(_localRoleIds, widget.adminData.roleIds);
+      if (rolesChanged) {
+        await widget.onUpdateRoles(_localRoleIds);
+      }
+
+      final bool permissionsChanged =
+          !_mapsAreEqual(
+            _localPermissionOverridesAdded,
+            widget.adminData.permissionOverridesAdded,
+          ) ||
+          !_mapsAreEqual(
+            _localPermissionOverridesRemoved,
+            widget.adminData.permissionOverridesRemoved,
+          );
+
+      if (permissionsChanged) {
+        await FirebaseFirestore.instance
+            .collection("admin_users")
+            .doc(widget.adminData.uid)
+            .update({
+              'permissionOverrides.added': _localPermissionOverridesAdded,
+              'permissionOverrides.removed': _localPermissionOverridesRemoved,
+            });
+      }
+
+      setState(() {
+        _isDirty = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Changes applied successfully."),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Failed to apply changes: $e"),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final allocatedRoleIds = _localRoleIds;
+    final modulesList =
+        widget.allModules ??
+        const [
+          "Dashboard",
+          "Workers",
+          "Users",
+          "Bookings",
+          "Payments",
+          "Reports",
+          "Notifications",
+          "Settings",
+        ];
+    final actionsList =
+        widget.allActions ??
+        const ["View", "Create", "Edit", "Delete", "Approve", "Manage"];
+
+    final Map<String, Set<String>> basePermissions = {};
+    final Map<String, Set<String>> userPermissions = {};
+    for (final roleId in allocatedRoleIds) {
+      final roleObj = widget.allRoles.firstWhere(
+        (r) => r.id == roleId,
+        orElse:
+            () => RoleModel(
+              id: roleId,
+              name: roleId
+                  .split('_')
+                  .map((w) => w[0].toUpperCase() + w.substring(1))
+                  .join(' '),
+              description: '',
+              permissions: {},
+              status: 'Active',
+              initials: '',
+              badgeColor: Colors.blue,
+              createdAt: '',
+              usersCount: 0,
+            ),
+      );
+      for (final entry in roleObj.permissions.entries) {
+        final canonicalKey = entry.key.toLowerCase().replaceAll(' ', '_');
+        final currentBaseSet = basePermissions[canonicalKey] ?? {};
+        currentBaseSet.addAll(
+          List<String>.from(entry.value).map((e) => e.toLowerCase()),
+        );
+        basePermissions[canonicalKey] = currentBaseSet;
+
+        final currentSet = userPermissions[canonicalKey] ?? {};
+        currentSet.addAll(
+          List<String>.from(entry.value).map((e) => e.toLowerCase()),
+        );
+        userPermissions[canonicalKey] = currentSet;
+      }
+    }
+
+    for (final entry in _localPermissionOverridesAdded.entries) {
+      final canonicalKey = entry.key.toLowerCase().replaceAll(' ', '_');
+      final currentSet = userPermissions[canonicalKey] ?? {};
+      currentSet.addAll(
+        List<String>.from(entry.value).map((e) => e.toLowerCase()),
+      );
+      userPermissions[canonicalKey] = currentSet;
+    }
+
+    for (final entry in _localPermissionOverridesRemoved.entries) {
+      final canonicalKey = entry.key.toLowerCase().replaceAll(' ', '_');
+      final currentSet = userPermissions[canonicalKey] ?? {};
+      currentSet.removeAll(
+        List<String>.from(entry.value).map((e) => e.toLowerCase()),
+      );
+      if (currentSet.isEmpty) {
+        userPermissions.remove(canonicalKey);
+      } else {
+        userPermissions[canonicalKey] = currentSet;
+      }
+    }
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: const BorderSide(color: Color(0xFFE2E8F0)),
+      ),
+      elevation: 0,
+      color: Colors.white,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ListTile(
+            title: Text(
+              widget.userData['fullName'] ??
+                  widget.userData['username'] ??
+                  'No Name',
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFF1E293B),
+              ),
+            ),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  widget.userData['email'] ?? '',
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    color: const Color(0xFF64748B),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 4,
+                  runSpacing: 4,
+                  children:
+                      allocatedRoleIds.map((rId) {
+                        final displayName = rId
+                            .split('_')
+                            .map((w) => w[0].toUpperCase() + w.substring(1))
+                            .join(' ');
+                        return Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEEF2FF),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            displayName,
+                            style: GoogleFonts.inter(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFF4F46E5),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                ),
+                const SizedBox(height: 6),
+                if (userPermissions.isNotEmpty) ...[
+                  Text(
+                    "Permissions:",
+                    style: GoogleFonts.inter(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF64748B),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Wrap(
+                    spacing: 4,
+                    runSpacing: 4,
+                    children:
+                        userPermissions.entries.map((entry) {
+                          final displayKey = entry.key
+                              .split('_')
+                              .map(
+                                (w) =>
+                                    w.isNotEmpty
+                                        ? w[0].toUpperCase() + w.substring(1)
+                                        : '',
+                              )
+                              .join(' ');
+                          return Tooltip(
+                            message:
+                                "$displayKey: ${entry.value.map((e) => e.isNotEmpty ? e[0].toUpperCase() + e.substring(1) : '').join(', ')}",
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 5,
+                                vertical: 1.5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF1F5F9),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                "$displayKey (${entry.value.length})",
+                                style: GoogleFonts.inter(
+                                  fontSize: 9,
+                                  color: const Color(0xFF475569),
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                  ),
+                ],
+              ],
+            ),
+            trailing: TextButton.icon(
+              icon: Icon(
+                _isDirty
+                    ? Icons.close_rounded
+                    : _isExpanded
+                    ? Icons.keyboard_arrow_up_rounded
+                    : Icons.edit_outlined,
+                size: 16,
+                color: _isDirty ? Colors.red : const Color(0xFF4F46E5),
+              ),
+              label: Text(
+                _isDirty
+                    ? "Discard"
+                    : _isExpanded
+                    ? "Collapse"
+                    : "Edit",
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: _isDirty ? Colors.red : const Color(0xFF4F46E5),
+                ),
+              ),
+              onPressed: () {
+                setState(() {
+                  _isExpanded = !_isExpanded;
+                  if (!_isExpanded) {
+                    _resetLocalData();
+                  }
+                });
+              },
+            ),
+          ),
+          if (_isExpanded) ...[
+            const Divider(height: 1, color: Color(0xFFE2E8F0)),
+            Padding(
+              padding: const EdgeInsets.all(12.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Allocate / Deallocate Roles",
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF475569),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 8,
+                    children:
+                        widget.allRoles.map((roleDef) {
+                          final canonicalId = roleDef.name
+                              .toLowerCase()
+                              .replaceAll(' ', '_');
+                          final isSelected =
+                              _localRoleIds.contains(roleDef.id) ||
+                              _localRoleIds.contains(canonicalId);
+                          return Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: Checkbox(
+                                  value: isSelected,
+                                  activeColor: const Color(0xFF10B981),
+                                  onChanged:
+                                      widget.isSuperAdmin
+                                          ? (val) {
+                                            setState(() {
+                                              final canonicalId = roleDef.name
+                                                  .toLowerCase()
+                                                  .replaceAll(' ', '_');
+                                              if (val == true) {
+                                                _localRoleIds.add(canonicalId);
+                                              } else {
+                                                _localRoleIds.remove(
+                                                  canonicalId,
+                                                );
+                                                _localRoleIds.remove(
+                                                  roleDef.id,
+                                                );
+                                              }
+                                            });
+                                            _checkIfDirty();
+                                          }
+                                          : null,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                roleDef.name,
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  color:
+                                      isSelected
+                                          ? const Color(0xFF1E293B)
+                                          : const Color(0xFF64748B),
+                                  fontWeight:
+                                      isSelected
+                                          ? FontWeight.w500
+                                          : FontWeight.normal,
+                                ),
+                              ),
+                            ],
+                          );
+                        }).toList(),
+                  ),
+                  const SizedBox(height: 16),
+                  const Divider(color: Color(0xFFE2E8F0)),
+                  const SizedBox(height: 8),
+                  Text(
+                    "Override Module Permissions",
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF475569),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  ...modulesList.map((module) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            module,
+                            style: GoogleFonts.inter(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: const Color(0xFF64748B),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Wrap(
+                            spacing: 12,
+                            runSpacing: 8,
+                            children:
+                                actionsList.map((action) {
+                                  final canonicalModule = module
+                                      .toLowerCase()
+                                      .replaceAll(' ', '_');
+                                  final canonicalAction = action.toLowerCase();
+
+                                  final hasBase =
+                                      basePermissions[canonicalModule]
+                                          ?.contains(canonicalAction) ??
+                                      false;
+                                  final isAdded =
+                                      _localPermissionOverridesAdded[canonicalModule]
+                                          ?.contains(canonicalAction) ??
+                                      false;
+                                  final isRemoved =
+                                      _localPermissionOverridesRemoved[canonicalModule]
+                                          ?.contains(canonicalAction) ??
+                                      false;
+                                  final isActive =
+                                      (hasBase || isAdded) && !isRemoved;
+
+                                  return Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      SizedBox(
+                                        width: 20,
+                                        height: 20,
+                                        child: Checkbox(
+                                          value: isActive,
+                                          activeColor: const Color(0xFF10B981),
+                                          onChanged:
+                                              widget.isSuperAdmin
+                                                  ? (val) {
+                                                    _toggleLocalPermissionOverride(
+                                                      module,
+                                                      action,
+                                                      val == true,
+                                                      hasBase,
+                                                    );
+                                                  }
+                                                  : null,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        action,
+                                        style: GoogleFonts.inter(
+                                          fontSize: 11,
+                                          color:
+                                              isActive
+                                                  ? const Color(0xFF1E293B)
+                                                  : const Color(0xFF94A3B8),
+                                          fontWeight:
+                                              isActive
+                                                  ? FontWeight.w500
+                                                  : FontWeight.normal,
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                }).toList(),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                  if (_isDirty) ...[
+                    const SizedBox(height: 16),
+                    const Divider(color: Color(0xFFE2E8F0)),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () {
+                            setState(() {
+                              _resetLocalData();
+                            });
+                          },
+                          child: Text(
+                            "Discard Changes",
+                            style: GoogleFonts.inter(
+                              color: const Color(0xFFEF4444),
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        ElevatedButton(
+                          onPressed: _applyChanges,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF10B981),
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 10,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          child: Text(
+                            "Apply Changes",
+                            style: GoogleFonts.inter(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );

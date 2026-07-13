@@ -258,7 +258,7 @@ class _LoginpageState extends State<Loginpage>
           const SizedBox(height: 20),
 
           // Password field
-          _buildFieldLabel('Password'),
+          _buildFieldLabel('Web Panel Password'),
           const SizedBox(height: 8),
           TextFormField(
             controller: _passController,
@@ -275,7 +275,7 @@ class _LoginpageState extends State<Loginpage>
               color: const Color(0xFF0F172A),
             ),
             decoration: _inputDecoration(
-              hint: 'Enter your password',
+              hint: 'Enter your web panel password',
               prefixIcon: Icons.lock_outline_rounded,
               suffixIcon: IconButton(
                 icon: Icon(
@@ -436,11 +436,15 @@ class _LoginpageState extends State<Loginpage>
         return 'No account found for this username.';
       case 'wrong-password':
       case 'invalid-credential':
-        return 'Incorrect password. Please try again.';
+      case 'invalid-login-credentials':
+        return 'Incorrect web panel password. '
+            'Use the password provided by your administrator.';
       case 'too-many-requests':
-        return 'Too many failed attempts. Try again later.';
+        return 'Too many failed attempts. Please try again later.';
       case 'user-disabled':
-        return 'This account has been disabled.';
+        return 'This account has been disabled. Contact your administrator.';
+      case 'network-request-failed':
+        return 'Network error. Please check your connection.';
       default:
         return 'Authentication failed. Please try again.';
     }

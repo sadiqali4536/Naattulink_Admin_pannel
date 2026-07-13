@@ -1,4 +1,6 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:swiftclean_admin/MVVM/model/models/admin_model.dart';
@@ -20,8 +22,9 @@ class _GrantAccessPageState extends State<GrantAccessPage> {
   // Step 1 — Selected user
   Map<String, dynamic>? _selectedUser;
 
-  // Step 2 — Selected role
-  RoleDefinition? _selectedRole;
+  // Step 2 — Selected roles
+  final Set<String> _selectedRoleIds = {};
+  final List<RoleDefinition> _selectedRoles = [];
   List<RoleDefinition> _availableRoles = [];
   bool _loadingRoles = false;
 
@@ -36,20 +39,25 @@ class _GrantAccessPageState extends State<GrantAccessPage> {
   // Step 4 — Confirmation / existing record info
   AdminUserModel? _existingRecord;
 
+  // Web password generated in step 4 and used during submit
+  String? _webPassword;
+
   @override
   void initState() {
     super.initState();
     _loadModules();
+    _loadRoles();
   }
 
   // ---------------------------------------------------------------------------
   // Data loaders
   // ---------------------------------------------------------------------------
   Future<void> _loadModules() async {
-    setState(() => _loadingModules = true);
+    if (mounted) setState(() => _loadingModules = true);
     try {
-      final snapshot = await FirebaseFirestore.instance.collection('modules').get();
-      if (snapshot.docs.isNotEmpty) {
+      final snapshot =
+          await FirebaseFirestore.instance.collection('modules').get();
+      if (snapshot.docs.isNotEmpty && mounted) {
         setState(() {
           _modules = snapshot.docs.map(ModuleDefinition.fromFirestore).toList();
         });
@@ -57,30 +65,364 @@ class _GrantAccessPageState extends State<GrantAccessPage> {
     } catch (_) {
       // Fallback to builtin
     }
-    setState(() => _loadingModules = false);
+    if (mounted) setState(() => _loadingModules = false);
   }
 
   Future<void> _loadRoles() async {
-    setState(() => _loadingRoles = true);
-    _availableRoles = await FirebaseAuthService.instance
-        .fetchAssignableRoles(_session.roleLevel);
-    setState(() => _loadingRoles = false);
+    if (mounted) setState(() => _loadingRoles = true);
+    try {
+      final roles = await FirebaseAuthService.instance.fetchAssignableRoles(
+        _session.roleLevel,
+      );
+      if (mounted) {
+        setState(() {
+          _availableRoles = roles;
+        });
+      }
+    } catch (_) {}
+    if (mounted) setState(() => _loadingRoles = false);
+  }
+
+  void _updateSelectedPermissionsFromRoles() {
+    _selectedPermissions = {};
+    for (final role in _selectedRoles) {
+      for (final e in role.permissions.entries) {
+        final currentSet = _selectedPermissions[e.key] ?? {};
+        currentSet.addAll(e.value);
+        _selectedPermissions[e.key] = currentSet;
+      }
+    }
   }
 
   Future<void> _checkExistingRecord(String uid) async {
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('admin_users')
-          .doc(uid)
-          .get();
+      final doc =
+          await FirebaseFirestore.instance
+              .collection('admin_users')
+              .doc(uid)
+              .get();
       if (doc.exists) {
-        setState(() => _existingRecord = AdminUserModel.fromFirestore(doc));
+        final record = AdminUserModel.fromFirestore(doc);
+        setState(() {
+          _existingRecord = record;
+          _selectedRoleIds.clear();
+          _selectedRoles.clear();
+
+          // Tick all currently assigned roles
+          for (final rId in record.roleIds) {
+            final roleDef = _availableRoles.firstWhere(
+              (r) => r.id == rId,
+              orElse:
+                  () => RoleDefinition(
+                    id: rId,
+                    name: rId
+                        .split('_')
+                        .map((w) => w[0].toUpperCase() + w.substring(1))
+                        .join(' '),
+                    level: record.roleLevel,
+                    description: '',
+                    status: 'Active',
+                    permissions: {},
+                  ),
+            );
+            _selectedRoleIds.add(rId);
+            _selectedRoles.add(roleDef);
+          }
+
+
+
+          // Pre-populate permissions with existing user's overrides
+          _selectedPermissions = {};
+          // Start with the union of selected roles base permissions
+          for (final role in _selectedRoles) {
+            for (final e in role.permissions.entries) {
+              final currentSet = _selectedPermissions[e.key] ?? {};
+              currentSet.addAll(e.value);
+              _selectedPermissions[e.key] = currentSet;
+            }
+          }
+          // Apply overrides added
+          for (final e in record.permissionOverridesAdded.entries) {
+            final currentSet = _selectedPermissions[e.key] ?? {};
+            currentSet.addAll(e.value);
+            _selectedPermissions[e.key] = currentSet;
+          }
+          // Apply overrides removed
+          for (final e in record.permissionOverridesRemoved.entries) {
+            final currentSet = _selectedPermissions[e.key] ?? {};
+            currentSet.removeAll(e.value);
+            if (currentSet.isEmpty) {
+              _selectedPermissions.remove(e.key);
+            } else {
+              _selectedPermissions[e.key] = currentSet;
+            }
+          }
+        });
       } else {
-        setState(() => _existingRecord = null);
+        setState(() {
+          _existingRecord = null;
+          _selectedRoleIds.clear();
+          _selectedRoles.clear();
+
+          _selectedPermissions = {};
+        });
       }
     } catch (_) {
-      setState(() => _existingRecord = null);
+      setState(() {
+        _existingRecord = null;
+        _selectedRoleIds.clear();
+        _selectedRoles.clear();
+
+        _selectedPermissions = {};
+      });
     }
+  }
+
+  void _showCreateRoleDialog(BuildContext context) {
+    final formKey = GlobalKey<FormState>();
+    final nameController = TextEditingController();
+    final descriptionController = TextEditingController();
+    final levelController = TextEditingController();
+    bool isSaving = false;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              title: Row(
+                children: [
+                  const Icon(
+                    Icons.shield_outlined,
+                    color: Color(0xFF059669),
+                    size: 22,
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    'Create New Role',
+                    style: GoogleFonts.inter(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
+                  ),
+                ],
+              ),
+              content: Form(
+                key: formKey,
+                child: SizedBox(
+                  width: 400,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextFormField(
+                        controller: nameController,
+                        decoration: const InputDecoration(
+                          labelText: 'Role Name',
+                          hintText: 'e.g., Sub-Admin, Manager',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.badge_outlined),
+                        ),
+                        validator: (val) {
+                          if (val == null || val.trim().isEmpty) {
+                            return 'Please enter a role name';
+                          }
+                          if (val.trim().toLowerCase() == 'developer' ||
+                              val.trim().toLowerCase() == 'super_admin' ||
+                              val.trim().toLowerCase() == 'super admin') {
+                            return 'This role name is reserved';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: descriptionController,
+                        decoration: const InputDecoration(
+                          labelText: 'Description',
+                          hintText: 'Role duties and responsibilities',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.description_outlined),
+                        ),
+                        maxLines: 2,
+                        validator: (val) {
+                          if (val == null || val.trim().isEmpty) {
+                            return 'Please enter a description';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: levelController,
+                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(
+                          labelText:
+                              'Role Level (1 - ${_session.roleLevel - 1})',
+                          hintText: 'Higher number = more privilege',
+                          border: const OutlineInputBorder(),
+                          prefixIcon: const Icon(Icons.trending_up_rounded),
+                          helperText:
+                              'Must be lower than your level (${_session.roleLevel})',
+                        ),
+                        validator: (val) {
+                          if (val == null || val.trim().isEmpty) {
+                            return 'Please enter a level';
+                          }
+                          final lvl = int.tryParse(val.trim());
+                          if (lvl == null) {
+                            return 'Please enter a valid integer';
+                          }
+                          if (lvl < 1 || lvl >= _session.roleLevel) {
+                            return 'Level must be between 1 and ${_session.roleLevel - 1}';
+                          }
+                          return null;
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isSaving ? null : () => Navigator.pop(context),
+                  child: Text(
+                    'Cancel',
+                    style: GoogleFonts.inter(
+                      color: Colors.grey[600],
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed:
+                      isSaving
+                          ? null
+                          : () async {
+                            if (formKey.currentState!.validate()) {
+                              setDialogState(() => isSaving = true);
+                              try {
+                                final name = nameController.text.trim();
+                                final description =
+                                    descriptionController.text.trim();
+                                final level = int.parse(
+                                  levelController.text.trim(),
+                                );
+                                final roleId = name.toLowerCase().replaceAll(
+                                  ' ',
+                                  '_',
+                                );
+
+                                // Check if role already exists
+                                final docSnap =
+                                    await FirebaseFirestore.instance
+                                        .collection('roles')
+                                        .doc(roleId)
+                                        .get();
+
+                                if (docSnap.exists) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'A role with this name already exists!',
+                                      ),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                  setDialogState(() => isSaving = false);
+                                  return;
+                                }
+
+                                final initials =
+                                    name.length >= 2
+                                        ? name.substring(0, 2).toUpperCase()
+                                        : name[0].toUpperCase();
+
+                                final List<Color> colors = [
+                                  const Color(0xFF8B5CF6),
+                                  const Color(0xFF3B82F6),
+                                  const Color(0xFF0D9488),
+                                  const Color(0xFFF59E0B),
+                                  const Color(0xFFEC4899),
+                                  const Color(0xFF64748B),
+                                ];
+                                final Color color =
+                                    colors[name.hashCode % colors.length];
+
+                                await FirebaseFirestore.instance
+                                    .collection('roles')
+                                    .doc(roleId)
+                                    .set({
+                                      'name': name,
+                                      'description': description,
+                                      'level': level,
+                                      'status': 'Active',
+                                      'createdAt': Timestamp.now(),
+                                      'initials': initials,
+                                      'badgeColor': color.toARGB32(),
+                                      'permissions': {},
+                                      'usersCount': 0,
+                                      'canAssignBelow': true,
+                                    });
+
+                                Navigator.pop(context);
+
+                                _loadRoles();
+
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      'Role "$name" created successfully!',
+                                    ),
+                                    backgroundColor: const Color(0xFF059669),
+                                  ),
+                                );
+                              } catch (e) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Error creating role: $e'),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                              } finally {
+                                setDialogState(() => isSaving = false);
+                              }
+                            }
+                          },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF059669),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child:
+                      isSaving
+                          ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                          : Text(
+                            'Save Role',
+                            style: GoogleFonts.inter(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -95,45 +437,90 @@ class _GrantAccessPageState extends State<GrantAccessPage> {
   }
 
   bool get _canProceedStep0 => _selectedUser != null;
-  bool get _canProceedStep1 => _selectedRole != null;
+  bool get _canProceedStep1 => _selectedRoleIds.isNotEmpty;
   bool get _canProceedStep2 => _selectedPermissions.isNotEmpty;
 
   // ---------------------------------------------------------------------------
   // Submit
   // ---------------------------------------------------------------------------
   Future<void> _submit() async {
-    if (_selectedUser == null || _selectedRole == null) return;
+    if (_selectedUser == null || _selectedRoles.isEmpty) return;
+
+    // Require a web password for new grants. Re-grants keep the existing one.
+    final isNewGrant = _existingRecord?.webAuthUid == null;
+    if (isNewGrant && (_webPassword == null || _webPassword!.isEmpty)) {
+      _showError(
+        'Please generate a web password before granting access.\n'
+        'Use the "Generate Password" button in the confirmation step.',
+      );
+      return;
+    }
+
     setState(() => _isSubmitting = true);
 
     try {
-      // Build permission overrides relative to role base
-      final rolePerms = _selectedRole!.permissions;
+      // 1. Build permission overrides relative to roles base (combined)
+      final rolePerms = <String, List<String>>{};
+      for (final r in _selectedRoles) {
+        for (final e in r.permissions.entries) {
+          final currentList = rolePerms[e.key] ?? [];
+          for (final val in e.value) {
+            if (!currentList.contains(val)) currentList.add(val);
+          }
+          rolePerms[e.key] = currentList;
+        }
+      }
+
       final addedOverrides = <String, List<String>>{};
       final removedOverrides = <String, List<String>>{};
 
       for (final mod in _modules) {
         final selected = _selectedPermissions[mod.id] ?? {};
         final base = Set<String>.from(rolePerms[mod.id] ?? []);
-
         final added = selected.difference(base);
         final removed = base.difference(selected);
-
         if (added.isNotEmpty) addedOverrides[mod.id] = added.toList();
         if (removed.isNotEmpty) removedOverrides[mod.id] = removed.toList();
       }
 
+      final primaryRole = _selectedRoles.first;
+      final maxLevel = _selectedRoles
+          .map((r) => r.level)
+          .reduce((a, b) => a > b ? a : b);
+      final roleDisplay = _selectedRoles.map((r) => r.name).join(', ');
+
+      // 2. Write RBAC record (admin_users/{uid})
       await FirebaseAuthService.instance.grantAdminAccess(
         targetUid: _selectedUser!['uid'],
         targetDisplayName: _selectedUser!['fullName'],
-        roleId: _selectedRole!.id,
-        roleDisplayName: _selectedRole!.name,
-        roleLevel: _selectedRole!.level,
+        roleId: primaryRole.id,
+        roleDisplayName: roleDisplay,
+        roleLevel: maxLevel,
+        roleIds: _selectedRoleIds.toList(),
         permissionsAdded: addedOverrides,
         permissionsRemoved: removedOverrides,
       );
 
+      // 3. Create (or verify) the web-panel Firebase Auth account
+      //    If the user already had one, createWebAdminAccount() returns the
+      //    existing webAuthUid without changing the password.
+      bool createdNew = false;
+      if (_webPassword != null && _webPassword!.isNotEmpty) {
+        final prevWebUid = _existingRecord?.webAuthUid;
+        await FirebaseAuthService.instance.createWebAdminAccount(
+          targetUid: _selectedUser!['uid'],
+          targetDisplayName: _selectedUser!['fullName'],
+          webPassword: _webPassword!,
+        );
+        // Detect whether a brand-new account was created
+        createdNew = prevWebUid == null;
+      } else {
+        // Re-grant with no new password — existing web account is kept
+        createdNew = false;
+      }
+
       if (!mounted) return;
-      _showSuccessDialog();
+      _showSuccessDialog(webAccountCreatedNew: createdNew);
     } catch (e) {
       _showError(e.toString());
     } finally {
@@ -189,13 +576,19 @@ class _GrantAccessPageState extends State<GrantAccessPage> {
       ),
       child: Row(
         children: [
-          const Icon(Icons.admin_panel_settings_rounded,
-              color: Color(0xFF059669), size: 24),
+          const Icon(
+            Icons.admin_panel_settings_rounded,
+            color: Color(0xFF059669),
+            size: 24,
+          ),
           const SizedBox(width: 12),
           Text(
             'Grant Admin Access',
             style: GoogleFonts.inter(
-                fontSize: 20, fontWeight: FontWeight.bold, color: const Color(0xFF0F172A)),
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: const Color(0xFF0F172A),
+            ),
           ),
           const Spacer(),
           if (_existingRecord != null)
@@ -208,14 +601,20 @@ class _GrantAccessPageState extends State<GrantAccessPage> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.edit_outlined,
-                      size: 14, color: Color(0xFFD97706)),
+                  const Icon(
+                    Icons.edit_outlined,
+                    size: 14,
+                    color: Color(0xFFD97706),
+                  ),
                   const SizedBox(width: 6),
-                  Text('Update Mode',
-                      style: GoogleFonts.inter(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFFD97706))),
+                  Text(
+                    'Update Mode',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFFD97706),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -240,74 +639,87 @@ class _GrantAccessPageState extends State<GrantAccessPage> {
       color: const Color(0xFF0F172A),
       padding: const EdgeInsets.symmetric(vertical: 32),
       child: Column(
-        children: steps.asMap().entries.map((entry) {
-          final i = entry.key;
-          final (label, icon) = entry.value;
-          final isDone = i < _currentStep;
-          final isActive = i == _currentStep;
+        children:
+            steps.asMap().entries.map((entry) {
+              final i = entry.key;
+              final (label, icon) = entry.value;
+              final isDone = i < _currentStep;
+              final isActive = i == _currentStep;
 
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            child: Row(
-              children: [
-                // Connector line
-                Column(
+              return Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 4,
+                ),
+                child: Row(
                   children: [
-                    Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: isDone
-                            ? const Color(0xFF059669)
-                            : isActive
-                                ? const Color(0xFF10B981)
-                                : const Color(0xFF1E293B),
-                        borderRadius: BorderRadius.circular(16),
-                        border: isActive
-                            ? Border.all(color: const Color(0xFF10B981), width: 2)
-                            : null,
-                      ),
-                      child: Icon(
-                        isDone ? Icons.check_rounded : icon,
-                        color: isDone || isActive
-                            ? Colors.white
-                            : const Color(0xFF475569),
-                        size: 16,
+                    // Connector line
+                    Column(
+                      children: [
+                        Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color:
+                                isDone
+                                    ? const Color(0xFF059669)
+                                    : isActive
+                                    ? const Color(0xFF10B981)
+                                    : const Color(0xFF1E293B),
+                            borderRadius: BorderRadius.circular(16),
+                            border:
+                                isActive
+                                    ? Border.all(
+                                      color: const Color(0xFF10B981),
+                                      width: 2,
+                                    )
+                                    : null,
+                          ),
+                          child: Icon(
+                            isDone ? Icons.check_rounded : icon,
+                            color:
+                                isDone || isActive
+                                    ? Colors.white
+                                    : const Color(0xFF475569),
+                            size: 16,
+                          ),
+                        ),
+                        if (i < steps.length - 1)
+                          Container(
+                            width: 2,
+                            height: 36,
+                            margin: const EdgeInsets.symmetric(vertical: 2),
+                            color:
+                                isDone
+                                    ? const Color(0xFF059669)
+                                    : const Color(0xFF1E293B),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.only(bottom: 36),
+                        child: Text(
+                          label,
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            fontWeight:
+                                isActive ? FontWeight.w600 : FontWeight.w400,
+                            color:
+                                isActive
+                                    ? Colors.white
+                                    : isDone
+                                    ? const Color(0xFF10B981)
+                                    : const Color(0xFF475569),
+                          ),
+                        ),
                       ),
                     ),
-                    if (i < steps.length - 1)
-                      Container(
-                        width: 2,
-                        height: 36,
-                        margin: const EdgeInsets.symmetric(vertical: 2),
-                        color: isDone
-                            ? const Color(0xFF059669)
-                            : const Color(0xFF1E293B),
-                      ),
                   ],
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 36),
-                    child: Text(
-                      label,
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
-                        color: isActive
-                            ? Colors.white
-                            : isDone
-                                ? const Color(0xFF10B981)
-                                : const Color(0xFF475569),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          );
-        }).toList(),
+              );
+            }).toList(),
       ),
     );
   }
@@ -347,8 +759,9 @@ class _GrantAccessPageState extends State<GrantAccessPage> {
             future: FirebaseAuthService.instance.fetchGrantableUsers(),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator(
-                    color: Color(0xFF059669)));
+                return const Center(
+                  child: CircularProgressIndicator(color: Color(0xFF059669)),
+                );
               }
               final users = snapshot.data ?? [];
               return _UserSearchDropdown(
@@ -388,14 +801,19 @@ class _GrantAccessPageState extends State<GrantAccessPage> {
       child: Column(
         children: [
           _ReadOnlyField(
-              label: 'Full Name', value: _selectedUser!['fullName'] ?? '-'),
+            label: 'Full Name',
+            value: _selectedUser!['fullName'] ?? '-',
+          ),
           _ReadOnlyField(
-              label: 'Username', value: _selectedUser!['username'] ?? '-'),
+            label: 'Username',
+            value: _selectedUser!['username'] ?? '-',
+          ),
           _ReadOnlyField(label: 'Email', value: _selectedUser!['email'] ?? '-'),
           _ReadOnlyField(
-              label: 'Phone',
-              value: _selectedUser!['phone'] ?? '-',
-              isLast: true),
+            label: 'Phone',
+            value: _selectedUser!['phone'] ?? '-',
+            isLast: true,
+          ),
         ],
       ),
     );
@@ -411,15 +829,20 @@ class _GrantAccessPageState extends State<GrantAccessPage> {
       ),
       child: Row(
         children: [
-          const Icon(Icons.info_outline_rounded,
-              color: Color(0xFFD97706), size: 18),
+          const Icon(
+            Icons.info_outline_rounded,
+            color: Color(0xFFD97706),
+            size: 18,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               'This user already has "${_existingRecord!.roleDisplayName}" access. '
               'Proceeding will update their role and permissions.',
               style: GoogleFonts.inter(
-                  fontSize: 12, color: const Color(0xFFD97706)),
+                fontSize: 12,
+                color: const Color(0xFFD97706),
+              ),
             ),
           ),
         ],
@@ -431,44 +854,84 @@ class _GrantAccessPageState extends State<GrantAccessPage> {
   // Step 1 — Assign Role
   // ---------------------------------------------------------------------------
   Widget _buildStep1AssignRole() {
-    if (_availableRoles.isEmpty && !_loadingRoles) {
-      _loadRoles();
-    }
-
     return _StepCard(
       title: 'Assign Role',
       subtitle:
           'Select a role for this user. You can only assign roles below your own level (${_session.roleDisplayName}).',
-      child: _loadingRoles
-          ? const Center(
-              child: CircularProgressIndicator(color: Color(0xFF059669)))
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _SectionLabel('Available Roles'),
-                const SizedBox(height: 12),
-                ..._availableRoles.map((role) => _RoleTile(
+      child:
+          _loadingRoles
+              ? const Center(
+                child: CircularProgressIndicator(color: Color(0xFF059669)),
+              )
+              : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _SectionLabel('Available Roles'),
+                      TextButton.icon(
+                        onPressed: () => _showCreateRoleDialog(context),
+                        icon: const Icon(
+                          Icons.add_rounded,
+                          size: 18,
+                          color: Color(0xFF059669),
+                        ),
+                        label: Text(
+                          'Create Role',
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF059669),
+                          ),
+                        ),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(6),
+                            side: const BorderSide(color: Color(0xFFE2E8F0)),
+                          ),
+                          backgroundColor: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  ..._availableRoles.map(
+                    (role) => _RoleTile(
                       role: role,
-                      isSelected: _selectedRole?.id == role.id,
-                      onTap: () => setState(() {
-                        _selectedRole = role;
-                        // Pre-populate permissions with role base permissions
-                        _selectedPermissions = {};
-                        for (final e in role.permissions.entries) {
-                          _selectedPermissions[e.key] = Set<String>.from(e.value);
-                        }
-                      }),
-                    )),
-                if (_availableRoles.isEmpty)
-                  Center(
-                    child: Text(
-                      'No roles available to assign at your current permission level.',
-                      style: GoogleFonts.inter(
-                          fontSize: 13, color: const Color(0xFF94A3B8)),
+                      isSelected: _selectedRoleIds.contains(role.id),
+                      onTap:
+                          () => setState(() {
+                            if (_selectedRoleIds.contains(role.id)) {
+                              _selectedRoleIds.remove(role.id);
+                              _selectedRoles.removeWhere(
+                                (r) => r.id == role.id,
+                              );
+                            } else {
+                              _selectedRoleIds.add(role.id);
+                              _selectedRoles.add(role);
+                            }
+
+                            _updateSelectedPermissionsFromRoles();
+                          }),
                     ),
                   ),
-              ],
-            ),
+                  if (_availableRoles.isEmpty)
+                    Center(
+                      child: Text(
+                        'No roles available to assign at your current permission level.',
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          color: const Color(0xFF94A3B8),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
     );
   }
 
@@ -483,7 +946,7 @@ class _GrantAccessPageState extends State<GrantAccessPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (_selectedRole != null)
+          if (_selectedRoles.isNotEmpty)
             Container(
               margin: const EdgeInsets.only(bottom: 20),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -494,37 +957,46 @@ class _GrantAccessPageState extends State<GrantAccessPage> {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.shield_outlined,
-                      color: Color(0xFF059669), size: 16),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Base role: ${_selectedRole!.name} — permissions pre-loaded. '
-                    'You can add or remove actions below.',
-                    style: GoogleFonts.inter(
-                        fontSize: 12, color: const Color(0xFF059669)),
+                  const Icon(
+                    Icons.info_outline_rounded,
+                    color: Color(0xFF059669),
+                    size: 18,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Base roles: ${_selectedRoles.map((r) => r.name).join(", ")} — permissions pre-loaded. '
+                      'You can add or remove specific actions below.',
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: const Color(0xFF047857),
+                      ),
+                    ),
                   ),
                 ],
               ),
             ),
           ..._modules
               .where((mod) => _session.canGrantModule(mod.id))
-              .map((mod) => _ModulePermissionTile(
-                    module: mod,
-                    selected: _selectedPermissions[mod.id] ?? {},
-                    onChanged: (action, granted) {
-                      setState(() {
-                        _selectedPermissions[mod.id] ??= {};
-                        if (granted) {
-                          _selectedPermissions[mod.id]!.add(action);
-                        } else {
-                          _selectedPermissions[mod.id]!.remove(action);
-                        }
-                        if (_selectedPermissions[mod.id]!.isEmpty) {
-                          _selectedPermissions.remove(mod.id);
-                        }
-                      });
-                    },
-                  )),
+              .map(
+                (mod) => _ModulePermissionTile(
+                  module: mod,
+                  selected: _selectedPermissions[mod.id] ?? {},
+                  onChanged: (action, granted) {
+                    setState(() {
+                      _selectedPermissions[mod.id] ??= {};
+                      if (granted) {
+                        _selectedPermissions[mod.id]!.add(action);
+                      } else {
+                        _selectedPermissions[mod.id]!.remove(action);
+                      }
+                      if (_selectedPermissions[mod.id]!.isEmpty) {
+                        _selectedPermissions.remove(mod.id);
+                      }
+                    });
+                  },
+                ),
+              ),
         ],
       ),
     );
@@ -544,8 +1016,9 @@ class _GrantAccessPageState extends State<GrantAccessPage> {
           _SummarySection(
             title: 'User',
             child: _ReadOnlyField(
-                label: 'Full Name',
-                value: _selectedUser!['fullName'] ?? '-'),
+              label: 'Full Name',
+              value: _selectedUser!['fullName'] ?? '-',
+            ),
           ),
           const SizedBox(height: 16),
 
@@ -555,26 +1028,31 @@ class _GrantAccessPageState extends State<GrantAccessPage> {
             child: Row(
               children: [
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFFF0FDF4),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(color: const Color(0xFFBBF7D0)),
                   ),
                   child: Text(
-                    _selectedRole?.name ?? '-',
+                    _selectedRoles.map((r) => r.name).join(', '),
                     style: GoogleFonts.inter(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFF059669)),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF059669),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  'Level ${_selectedRole?.level ?? 0}',
+                  'Level ${_selectedRoles.isNotEmpty ? _selectedRoles.map((r) => r.level).reduce((a, b) => a > b ? a : b) : 0}',
                   style: GoogleFonts.inter(
-                      fontSize: 12, color: const Color(0xFF94A3B8)),
+                    fontSize: 12,
+                    color: const Color(0xFF94A3B8),
+                  ),
                 ),
               ],
             ),
@@ -587,92 +1065,94 @@ class _GrantAccessPageState extends State<GrantAccessPage> {
             child: Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: _selectedPermissions.entries
-                  .map((e) => Chip(
-                        label: Text(
-                          '${e.key.split("_").map((w) => "${w[0].toUpperCase()}${w.substring(1)}").join(" ")} '
-                          '(${e.value.join(", ")})',
-                          style: GoogleFonts.inter(fontSize: 11),
+              children:
+                  _selectedPermissions.entries
+                      .map(
+                        (e) => Chip(
+                          label: Text(
+                            '${e.key.split("_").map((w) => "${w[0].toUpperCase()}${w.substring(1)}").join(" ")} '
+                            '(${e.value.join(", ")})',
+                            style: GoogleFonts.inter(fontSize: 11),
+                          ),
+                          backgroundColor: const Color(0xFFF0FDF4),
+                          side: const BorderSide(color: Color(0xFFBBF7D0)),
                         ),
-                        backgroundColor: const Color(0xFFF0FDF4),
-                        side: const BorderSide(color: Color(0xFFBBF7D0)),
-                      ))
-                  .toList(),
+                      )
+                      .toList(),
             ),
           ),
           const SizedBox(height: 16),
 
-          // Login credentials note
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF8FAFC),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.key_outlined,
-                        color: Color(0xFF059669), size: 16),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Login Credentials',
-                      style: GoogleFonts.inter(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFF0F172A)),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  '• Username: ${_selectedUser!["username"] ?? "-"} (unchanged)',
-                  style: GoogleFonts.inter(
-                      fontSize: 12, color: const Color(0xFF475569)),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '• Password: The user\'s existing app password.',
-                  style: GoogleFonts.inter(
-                      fontSize: 12, color: const Color(0xFF475569)),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '• If they need a new password, use "Send Reset Email" below.',
-                  style: GoogleFonts.inter(
-                      fontSize: 12, color: const Color(0xFF475569)),
-                ),
-                const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  onPressed: () async {
-                    final email = _selectedUser!['email'] ?? '';
-                    if (email.isEmpty) return;
-                    try {
-                      await FirebaseAuthService.instance
-                          .sendPasswordResetEmail(email);
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                          content: Text('Reset email sent to $email'),
-                          backgroundColor: const Color(0xFF059669),
-                        ));
-                      }
-                    } catch (_) {}
-                  },
-                  icon: const Icon(Icons.email_outlined, size: 16),
-                  label: Text('Send Password Reset Email',
-                      style: GoogleFonts.inter(fontSize: 13)),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF059669),
-                    side: const BorderSide(color: Color(0xFF059669)),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8)),
+          // Web Password — required for new grants, optional for re-grants
+          if (_existingRecord?.webAuthUid == null) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF7ED),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFFED7AA)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.info_outline_rounded,
+                    color: Color(0xFFD97706),
+                    size: 16,
                   ),
-                ),
-              ],
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'A web panel password is required. Generate one below '
+                      'and share it securely with the user.',
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: const Color(0xFFD97706),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
+          ] else ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0FDF4),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFBBF7D0)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.check_circle_outline_rounded,
+                    color: Color(0xFF059669),
+                    size: 16,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'This user already has a web panel account. '
+                      'The existing password will be preserved.',
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: const Color(0xFF059669),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 16),
+          _PasswordDeliverySection(
+            email: _selectedUser?['email'] ?? '',
+            username: _selectedUser?['username'] ?? '-',
+            showGenerateOnly: _existingRecord?.webAuthUid != null,
+            onPasswordGenerated: (pwd) {
+              setState(() => _webPassword = pwd);
+            },
           ),
         ],
       ),
@@ -694,37 +1174,44 @@ class _GrantAccessPageState extends State<GrantAccessPage> {
             style: OutlinedButton.styleFrom(
               foregroundColor: const Color(0xFF475569),
               side: const BorderSide(color: Color(0xFFE2E8F0)),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10)),
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
           ),
         const SizedBox(width: 12),
         if (_currentStep < 3)
           ElevatedButton.icon(
             onPressed: _canProceed() ? _nextStep : null,
-            icon: Text('Next', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+            icon: Text(
+              'Next',
+              style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+            ),
             label: const Icon(Icons.arrow_forward_rounded, size: 16),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF059669),
               foregroundColor: Colors.white,
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10)),
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
           )
         else
           ElevatedButton.icon(
             onPressed: _isSubmitting ? null : _submit,
-            icon: _isSubmitting
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                        color: Colors.white, strokeWidth: 2))
-                : const Icon(Icons.check_rounded, size: 16),
+            icon:
+                _isSubmitting
+                    ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
+                    )
+                    : const Icon(Icons.check_rounded, size: 16),
             label: Text(
               _existingRecord != null ? 'Update Access' : 'Grant Access',
               style: GoogleFonts.inter(fontWeight: FontWeight.w600),
@@ -732,10 +1219,10 @@ class _GrantAccessPageState extends State<GrantAccessPage> {
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF059669),
               foregroundColor: Colors.white,
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10)),
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
           ),
       ],
@@ -758,77 +1245,137 @@ class _GrantAccessPageState extends State<GrantAccessPage> {
   // ---------------------------------------------------------------------------
   // Dialogs
   // ---------------------------------------------------------------------------
-  void _showSuccessDialog() {
+  void _showSuccessDialog({bool webAccountCreatedNew = false}) {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 12),
-            Container(
-              width: 64,
-              height: 64,
-              decoration: const BoxDecoration(
-                color: Color(0xFFF0FDF4),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.check_circle_outline_rounded,
-                  color: Color(0xFF059669), size: 36),
+      builder:
+          (_) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
             ),
-            const SizedBox(height: 20),
-            Text(
-              'Access Granted!',
-              style: GoogleFonts.inter(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: const Color(0xFF0F172A)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 12),
+                Container(
+                  width: 64,
+                  height: 64,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFF0FDF4),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.check_circle_outline_rounded,
+                    color: Color(0xFF059669),
+                    size: 36,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'Access Granted!',
+                  style: GoogleFonts.inter(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF0F172A),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '${_selectedUser!["fullName"]} now has ${_selectedRoles.map((r) => r.name).join(", ")} access.',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    color: const Color(0xFF64748B),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                // Web account status indicator
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color:
+                        webAccountCreatedNew
+                            ? const Color(0xFFEFF6FF)
+                            : const Color(0xFFF0FDF4),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color:
+                          webAccountCreatedNew
+                              ? const Color(0xFFBFDBFE)
+                              : const Color(0xFFBBF7D0),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        webAccountCreatedNew
+                            ? Icons.vpn_key_rounded
+                            : Icons.lock_outline_rounded,
+                        size: 16,
+                        color:
+                            webAccountCreatedNew
+                                ? const Color(0xFF3B82F6)
+                                : const Color(0xFF059669),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          webAccountCreatedNew
+                              ? 'Web panel account created. Share the generated password securely.'
+                              : 'Existing web panel account preserved. Password unchanged.',
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            color:
+                                webAccountCreatedNew
+                                    ? const Color(0xFF1D4ED8)
+                                    : const Color(0xFF059669),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    setState(() {
+                      _currentStep = 0;
+                      _selectedUser = null;
+                      _selectedRoleIds.clear();
+                      _selectedRoles.clear();
+                      _selectedPermissions = {};
+                      _existingRecord = null;
+                      _webPassword = null;
+                    });
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF059669),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    minimumSize: const Size(double.infinity, 44),
+                  ),
+                  child: Text('Grant Another', style: GoogleFonts.inter()),
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
-            Text(
-              '${_selectedUser!["fullName"]} now has ${_selectedRole!.name} access.',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.inter(
-                  fontSize: 13, color: const Color(0xFF64748B)),
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-                // Reset form
-                setState(() {
-                  _currentStep = 0;
-                  _selectedUser = null;
-                  _selectedRole = null;
-                  _selectedPermissions = {};
-                  _existingRecord = null;
-                });
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF059669),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10)),
-                minimumSize: const Size(double.infinity, 44),
-              ),
-              child: Text('Grant Another', style: GoogleFonts.inter()),
-            ),
-          ],
-        ),
-      ),
+          ),
     );
   }
 
   void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(message, style: GoogleFonts.inter()),
-      backgroundColor: const Color(0xFFEF4444),
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      margin: const EdgeInsets.all(16),
-    ));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, style: GoogleFonts.inter()),
+        backgroundColor: const Color(0xFFEF4444),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
   }
 }
 
@@ -857,23 +1404,31 @@ class _StepCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 12,
-              offset: const Offset(0, 4)),
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title,
-              style: GoogleFonts.inter(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: const Color(0xFF0F172A))),
+          Text(
+            title,
+            style: GoogleFonts.inter(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: const Color(0xFF0F172A),
+            ),
+          ),
           const SizedBox(height: 4),
-          Text(subtitle,
-              style: GoogleFonts.inter(
-                  fontSize: 13, color: const Color(0xFF64748B))),
+          Text(
+            subtitle,
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              color: const Color(0xFF64748B),
+            ),
+          ),
           const SizedBox(height: 24),
           const Divider(color: Color(0xFFF1F5F9)),
           const SizedBox(height: 20),
@@ -925,18 +1480,20 @@ class _ReadOnlyField extends StatelessWidget {
             child: Text(
               label,
               style: GoogleFonts.inter(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  color: const Color(0xFF94A3B8)),
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: const Color(0xFF94A3B8),
+              ),
             ),
           ),
           Expanded(
             child: Text(
               value,
               style: GoogleFonts.inter(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: const Color(0xFF1E293B)),
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: const Color(0xFF1E293B),
+              ),
             ),
           ),
         ],
@@ -965,11 +1522,18 @@ class _UserSearchDropdownState extends State<_UserSearchDropdown> {
 
   @override
   Widget build(BuildContext context) {
-    final filtered = widget.users
-        .where((u) =>
-            u['fullName'].toString().toLowerCase().contains(_query.toLowerCase()) ||
-            u['username'].toString().toLowerCase().contains(_query.toLowerCase()))
-        .toList();
+    final filtered =
+        widget.users
+            .where(
+              (u) =>
+                  u['fullName'].toString().toLowerCase().contains(
+                    _query.toLowerCase(),
+                  ) ||
+                  u['username'].toString().toLowerCase().contains(
+                    _query.toLowerCase(),
+                  ),
+            )
+            .toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -978,9 +1542,15 @@ class _UserSearchDropdownState extends State<_UserSearchDropdown> {
           onChanged: (v) => setState(() => _query = v),
           decoration: InputDecoration(
             hintText: 'Search by name or username…',
-            hintStyle: GoogleFonts.inter(fontSize: 13, color: const Color(0xFFCBD5E1)),
-            prefixIcon: const Icon(Icons.search_rounded,
-                size: 20, color: Color(0xFF94A3B8)),
+            hintStyle: GoogleFonts.inter(
+              fontSize: 13,
+              color: const Color(0xFFCBD5E1),
+            ),
+            prefixIcon: const Icon(
+              Icons.search_rounded,
+              size: 20,
+              color: Color(0xFF94A3B8),
+            ),
             filled: true,
             fillColor: const Color(0xFFF8FAFC),
             border: OutlineInputBorder(
@@ -991,8 +1561,10 @@ class _UserSearchDropdownState extends State<_UserSearchDropdown> {
               borderRadius: BorderRadius.circular(10),
               borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
             ),
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 12,
+            ),
           ),
         ),
         const SizedBox(height: 8),
@@ -1006,38 +1578,55 @@ class _UserSearchDropdownState extends State<_UserSearchDropdown> {
           child: ListView.separated(
             shrinkWrap: true,
             itemCount: filtered.length,
-            separatorBuilder: (_, __) =>
-                const Divider(height: 1, color: Color(0xFFF1F5F9)),
+            separatorBuilder:
+                (_, __) => const Divider(height: 1, color: Color(0xFFF1F5F9)),
             itemBuilder: (context, i) {
               final user = filtered[i];
               final isSelected = user['uid'] == widget.selectedUid;
-              return ListTile(
-                dense: true,
-                leading: CircleAvatar(
-                  radius: 16,
-                  backgroundColor: const Color(0xFFF0FDF4),
-                  child: Text(
-                    (user['fullName'] as String).isNotEmpty
-                        ? (user['fullName'] as String)[0].toUpperCase()
-                        : '?',
-                    style: GoogleFonts.inter(
+              // Wrap in Material so ListTile's ink splashes and selection
+              // background render above the outer Container's DecoratedBox.
+              return Material(
+                color: isSelected ? const Color(0xFFF0FDF4) : Colors.white,
+                child: ListTile(
+                  dense: true,
+                  leading: CircleAvatar(
+                    radius: 16,
+                    backgroundColor: const Color(0xFFF0FDF4),
+                    child: Text(
+                      (user['fullName'] as String).isNotEmpty
+                          ? (user['fullName'] as String)[0].toUpperCase()
+                          : '?',
+                      style: GoogleFonts.inter(
                         fontSize: 13,
                         fontWeight: FontWeight.bold,
-                        color: const Color(0xFF059669)),
+                        color: const Color(0xFF059669),
+                      ),
+                    ),
                   ),
+                  title: Text(
+                    user['fullName'] as String,
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  subtitle: Text(
+                    '@${user["username"]}',
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      color: const Color(0xFF94A3B8),
+                    ),
+                  ),
+                  trailing:
+                      isSelected
+                          ? const Icon(
+                            Icons.check_circle_rounded,
+                            color: Color(0xFF059669),
+                            size: 18,
+                          )
+                          : null,
+                  onTap: () => widget.onSelected(user),
                 ),
-                title: Text(user['fullName'] as String,
-                    style: GoogleFonts.inter(
-                        fontSize: 13, fontWeight: FontWeight.w500)),
-                subtitle: Text('@${user["username"]}',
-                    style: GoogleFonts.inter(
-                        fontSize: 11, color: const Color(0xFF94A3B8))),
-                trailing: isSelected
-                    ? const Icon(Icons.check_circle_rounded,
-                        color: Color(0xFF059669), size: 18)
-                    : null,
-                tileColor: isSelected ? const Color(0xFFF0FDF4) : null,
-                onTap: () => widget.onSelected(user),
               );
             },
           ),
@@ -1069,12 +1658,14 @@ class _RoleTile extends StatelessWidget {
           duration: const Duration(milliseconds: 200),
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: isSelected ? const Color(0xFFF0FDF4) : const Color(0xFFF8FAFC),
+            color:
+                isSelected ? const Color(0xFFF0FDF4) : const Color(0xFFF8FAFC),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: isSelected
-                  ? const Color(0xFF059669)
-                  : const Color(0xFFE2E8F0),
+              color:
+                  isSelected
+                      ? const Color(0xFF059669)
+                      : const Color(0xFFE2E8F0),
               width: isSelected ? 1.5 : 1,
             ),
           ),
@@ -1084,49 +1675,64 @@ class _RoleTile extends StatelessWidget {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: isSelected
-                      ? const Color(0xFF059669)
-                      : const Color(0xFFE2E8F0),
+                  color:
+                      isSelected
+                          ? const Color(0xFF059669)
+                          : const Color(0xFFE2E8F0),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(Icons.shield_outlined,
-                    color: isSelected ? Colors.white : const Color(0xFF94A3B8),
-                    size: 20),
+                child: Icon(
+                  Icons.shield_outlined,
+                  color: isSelected ? Colors.white : const Color(0xFF94A3B8),
+                  size: 20,
+                ),
               ),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(role.name,
-                        style: GoogleFonts.inter(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: const Color(0xFF0F172A))),
+                    Text(
+                      role.name,
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF0F172A),
+                      ),
+                    ),
                     if (role.description.isNotEmpty)
-                      Text(role.description,
-                          style: GoogleFonts.inter(
-                              fontSize: 12, color: const Color(0xFF94A3B8))),
+                      Text(
+                        role.description,
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: const Color(0xFF94A3B8),
+                        ),
+                      ),
                   ],
                 ),
               ),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: const Color(0xFFF1F5F9),
                   borderRadius: BorderRadius.circular(6),
                 ),
-                child: Text('Level ${role.level}',
-                    style: GoogleFonts.inter(
-                        fontSize: 11,
-                        color: const Color(0xFF64748B),
-                        fontWeight: FontWeight.w500)),
+                child: Text(
+                  'Level ${role.level}',
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    color: const Color(0xFF64748B),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
               ),
               const SizedBox(width: 8),
               if (isSelected)
-                const Icon(Icons.check_circle_rounded,
-                    color: Color(0xFF059669), size: 20),
+                const Icon(
+                  Icons.check_circle_rounded,
+                  color: Color(0xFF059669),
+                  size: 20,
+                ),
             ],
           ),
         ),
@@ -1173,16 +1779,20 @@ class _ModulePermissionTileState extends State<_ModulePermissionTile> {
               onTap: () => setState(() => _expanded = !_expanded),
               borderRadius: BorderRadius.circular(10),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 child: Row(
                   children: [
                     Icon(
                       hasAny
                           ? Icons.check_box_rounded
                           : Icons.check_box_outline_blank_rounded,
-                      color: hasAny
-                          ? const Color(0xFF059669)
-                          : const Color(0xFF94A3B8),
+                      color:
+                          hasAny
+                              ? const Color(0xFF059669)
+                              : const Color(0xFF94A3B8),
                       size: 20,
                     ),
                     const SizedBox(width: 12),
@@ -1190,16 +1800,19 @@ class _ModulePermissionTileState extends State<_ModulePermissionTile> {
                       child: Text(
                         widget.module.displayName,
                         style: GoogleFonts.inter(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                            color: const Color(0xFF0F172A)),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: const Color(0xFF0F172A),
+                        ),
                       ),
                     ),
                     if (hasAny)
                       Text(
                         '${widget.selected.length}/${widget.module.actions.length} actions',
                         style: GoogleFonts.inter(
-                            fontSize: 11, color: const Color(0xFF059669)),
+                          fontSize: 11,
+                          color: const Color(0xFF059669),
+                        ),
                       ),
                     const SizedBox(width: 8),
                     Icon(
@@ -1220,31 +1833,35 @@ class _ModulePermissionTileState extends State<_ModulePermissionTile> {
                 child: Wrap(
                   spacing: 8,
                   runSpacing: 8,
-                  children: widget.module.actions.map((action) {
-                    final isOn = widget.selected.contains(action);
-                    return FilterChip(
-                      label: Text(
-                        '${action[0].toUpperCase()}${action.substring(1)}',
-                        style: GoogleFonts.inter(fontSize: 12),
-                      ),
-                      selected: isOn,
-                      onSelected: (v) => widget.onChanged(action, v),
-                      selectedColor: const Color(0xFFD1FAE5),
-                      checkmarkColor: const Color(0xFF059669),
-                      backgroundColor: const Color(0xFFF1F5F9),
-                      side: BorderSide(
-                        color: isOn
-                            ? const Color(0xFF059669)
-                            : const Color(0xFFE2E8F0),
-                      ),
-                      labelStyle: GoogleFonts.inter(
-                        color: isOn
-                            ? const Color(0xFF059669)
-                            : const Color(0xFF64748B),
-                        fontWeight: isOn ? FontWeight.w600 : FontWeight.normal,
-                      ),
-                    );
-                  }).toList(),
+                  children:
+                      widget.module.actions.map((action) {
+                        final isOn = widget.selected.contains(action);
+                        return FilterChip(
+                          label: Text(
+                            '${action[0].toUpperCase()}${action.substring(1)}',
+                            style: GoogleFonts.inter(fontSize: 12),
+                          ),
+                          selected: isOn,
+                          onSelected: (v) => widget.onChanged(action, v),
+                          selectedColor: const Color(0xFFD1FAE5),
+                          checkmarkColor: const Color(0xFF059669),
+                          backgroundColor: const Color(0xFFF1F5F9),
+                          side: BorderSide(
+                            color:
+                                isOn
+                                    ? const Color(0xFF059669)
+                                    : const Color(0xFFE2E8F0),
+                          ),
+                          labelStyle: GoogleFonts.inter(
+                            color:
+                                isOn
+                                    ? const Color(0xFF059669)
+                                    : const Color(0xFF64748B),
+                            fontWeight:
+                                isOn ? FontWeight.w600 : FontWeight.normal,
+                          ),
+                        );
+                      }).toList(),
                 ),
               ),
             ],
@@ -1276,15 +1893,339 @@ class _SummarySection extends StatelessWidget {
           Text(
             title.toUpperCase(),
             style: GoogleFonts.inter(
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
-                color: const Color(0xFF94A3B8),
-                letterSpacing: 1),
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFF94A3B8),
+              letterSpacing: 1,
+            ),
           ),
           const SizedBox(height: 10),
           child,
         ],
       ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Password Delivery Section Widget
+// ---------------------------------------------------------------------------
+class _PasswordDeliverySection extends StatefulWidget {
+  final String email;
+  final String username;
+
+  /// Called whenever a password is generated. Parent uses this to gate submit.
+  final void Function(String password) onPasswordGenerated;
+
+  /// When true, the email-reset option is hidden (user already has web account).
+  final bool showGenerateOnly;
+
+  const _PasswordDeliverySection({
+    required this.email,
+    required this.username,
+    required this.onPasswordGenerated,
+    this.showGenerateOnly = false,
+  });
+
+  @override
+  State<_PasswordDeliverySection> createState() =>
+      _PasswordDeliverySectionState();
+}
+
+class _PasswordDeliverySectionState extends State<_PasswordDeliverySection> {
+  String? _generatedPassword;
+  bool _passwordCopied = false;
+  bool _emailSent = false;
+  bool _isSendingEmail = false;
+
+  String _generateSecurePassword() {
+    const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+    const lower = 'abcdefghjkmnpqrstuvwxyz';
+    const digits = '23456789';
+    const special = '!@#\$%^&*';
+    const all = upper + lower + digits + special;
+    final rand = Random.secure();
+    final buf = [
+      upper[rand.nextInt(upper.length)],
+      lower[rand.nextInt(lower.length)],
+      digits[rand.nextInt(digits.length)],
+      special[rand.nextInt(special.length)],
+      ...List.generate(8, (_) => all[rand.nextInt(all.length)]),
+    ]..shuffle(rand);
+    return buf.join();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Row(
+            children: [
+              const Icon(
+                Icons.key_outlined,
+                color: Color(0xFF059669),
+                size: 16,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Login Credentials',
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFF0F172A),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Username: ${widget.username}',
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              color: const Color(0xFF475569),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Title
+          Text(
+            'Choose how to deliver the password to this user:',
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: const Color(0xFF334155),
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Option — Copy Password (only option; email delivery not applicable
+          // because the web-panel account uses an internal @naattulink.internal email)
+          if (!widget.showGenerateOnly) ...[
+            _OptionCard(
+              icon: Icons.info_outline_rounded,
+              iconColor: const Color(0xFF3B82F6),
+              iconBg: const Color(0xFFEFF6FF),
+              title: 'How to deliver the web password',
+              subtitle:
+                  'Generate a password below, copy it, and share it securely\n'
+                  'with the user (e.g. via a secure messaging app or in person).\n'
+                  'The web password is separate from the mobile app password.',
+              trailingWidget: const SizedBox.shrink(),
+            ),
+            const SizedBox(height: 10),
+            const Divider(height: 1, color: Color(0xFFE2E8F0)),
+            const SizedBox(height: 10),
+          ],
+
+          // Option — Generate & Copy Web Password
+          _OptionCard(
+            icon: Icons.copy_rounded,
+            iconColor: const Color(0xFF059669),
+            iconBg: const Color(0xFFF0FDF4),
+            title:
+                widget.showGenerateOnly
+                    ? 'Generate New Password (Optional)'
+                    : 'Generate Web Panel Password',
+            subtitle:
+                widget.showGenerateOnly
+                    ? 'User already has a web account. You can generate a new password here for reference, but update it via Firebase console.'
+                    : 'Generate a secure web-panel password and copy it to share with the user securely.',
+            trailingWidget:
+                _generatedPassword == null
+                    ? ElevatedButton.icon(
+                      onPressed: () {
+                        final pass = _generateSecurePassword();
+                        setState(() {
+                          _generatedPassword = pass;
+                          _passwordCopied = false;
+                        });
+                        // Notify parent so it can pass password to _submit()
+                        widget.onPasswordGenerated(pass);
+                      },
+                      icon: const Icon(Icons.auto_fix_high_rounded, size: 14),
+                      label: Text(
+                        'Generate',
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF059669),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 10,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        elevation: 0,
+                      ),
+                    )
+                    : const SizedBox.shrink(),
+          ),
+
+          // Generated password display
+          if (_generatedPassword != null) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFF10B981)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: SelectableText(
+                      _generatedPassword!,
+                      style: GoogleFonts.robotoMono(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF0F172A),
+                        letterSpacing: 1.5,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 250),
+                    child:
+                        _passwordCopied
+                            ? const Icon(
+                              Icons.check_circle_rounded,
+                              key: ValueKey('check'),
+                              color: Color(0xFF059669),
+                              size: 22,
+                            )
+                            : IconButton(
+                              key: const ValueKey('copy'),
+                              tooltip: 'Copy to clipboard',
+                              icon: const Icon(
+                                Icons.copy_rounded,
+                                size: 20,
+                                color: Color(0xFF059669),
+                              ),
+                              onPressed: () async {
+                                await Clipboard.setData(
+                                  ClipboardData(text: _generatedPassword!),
+                                );
+                                setState(() => _passwordCopied = true);
+                                Future.delayed(const Duration(seconds: 3), () {
+                                  if (mounted) {
+                                    setState(() => _passwordCopied = false);
+                                  }
+                                });
+                              },
+                            ),
+                  ),
+                  IconButton(
+                    tooltip: 'Regenerate',
+                    icon: const Icon(
+                      Icons.refresh_rounded,
+                      size: 20,
+                      color: Color(0xFF94A3B8),
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _generatedPassword = _generateSecurePassword();
+                        _passwordCopied = false;
+                      });
+                    },
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              '⚠ Share this password securely with the user. '
+              'It is the web panel login password — not the mobile app password.',
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                color: const Color(0xFFD97706),
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Option card tile helper
+// ---------------------------------------------------------------------------
+class _OptionCard extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final Color iconBg;
+  final String title;
+  final String subtitle;
+  final Widget trailingWidget;
+
+  const _OptionCard({
+    required this.icon,
+    required this.iconColor,
+    required this.iconBg,
+    required this.title,
+    required this.subtitle,
+    required this.trailingWidget,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: iconBg,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, color: iconColor, size: 18),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF0F172A),
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  color: const Color(0xFF64748B),
+                  height: 1.4,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 12),
+        trailingWidget,
+      ],
     );
   }
 }

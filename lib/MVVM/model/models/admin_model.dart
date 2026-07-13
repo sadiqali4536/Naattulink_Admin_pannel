@@ -48,6 +48,9 @@ class AuditActions {
   static const String createdRole = 'Created Role';
   static const String updatedRole = 'Updated Role';
   static const String disabledRole = 'Disabled Role';
+
+  /// Fired whenever an admin generates / resets a web-panel password.
+  static const String webPasswordSet = 'Web Password Set';
 }
 
 // ===========================================================================
@@ -55,8 +58,7 @@ class AuditActions {
 // ===========================================================================
 
 class RoleLevels {
-  static const int developer = 100;
-  static const int superAdmin = 90;
+  static const int superAdmin = 100;
   static const int admin = 80;
   static const int manager = 70;
   static const int staff = 60;
@@ -66,7 +68,6 @@ class RoleLevels {
 
   /// Map of canonical roleId → level.
   static const Map<String, int> _levels = {
-    'developer': developer,
     'super_admin': superAdmin,
     'admin': admin,
     'manager': manager,
@@ -75,11 +76,14 @@ class RoleLevels {
     'support': support,
   };
 
-  static int levelFor(String roleId) =>
-      _levels[roleId.toLowerCase().replaceAll(' ', '_')] ?? customDefault;
+  static int levelFor(String roleId) {
+    final clean = roleId.toLowerCase().replaceAll(' ', '_');
+    if (clean == 'developer') return superAdmin;
+    return _levels[clean] ?? customDefault;
+  }
 
   /// All standard assignable roleIds with levels strictly below [currentLevel].
-  /// Super Admin (90) is NEVER in this list — only Developer manages it.
+  /// Super Admin (100) is NEVER in this list — it cannot be assigned by lower roles.
   static List<_RoleEntry> assignableBelow(int currentLevel) {
     const all = [
       _RoleEntry('admin', 'Admin', admin),
@@ -219,8 +223,11 @@ class AdminUserModel {
   final String roleId; // references roles/{roleId}, e.g. "admin"
   final String roleDisplayName; // cached for display only
   final int roleLevel;
+  final List<String> roleIds; // all assigned roles
+
   /// Active | Inactive | Suspended | Revoked | Deleted
   final String status;
+
   /// Only the additions/removals on top of the role's base permissions
   final Map<String, List<String>> permissionOverridesAdded;
   final Map<String, List<String>> permissionOverridesRemoved;
@@ -230,11 +237,22 @@ class AdminUserModel {
   final DateTime? updatedAt;
   final String? updatedBy;
 
+  // ── Web-panel authentication ─────────────────────────────────────────────
+  /// The Firebase Auth UID of the dedicated web-panel account
+  /// (email: {uid}_adm@naattulink.internal).
+  /// Null until an admin grants access and creates the web account.
+  final String? webAuthUid;
+
+  /// The synthetic Firebase Auth email used exclusively for web panel login.
+  /// Format: {uid}_adm@naattulink.internal
+  final String? webEmail;
+
   const AdminUserModel({
     required this.uid,
     required this.roleId,
     required this.roleDisplayName,
     required this.roleLevel,
+    required this.roleIds,
     required this.status,
     required this.permissionOverridesAdded,
     required this.permissionOverridesRemoved,
@@ -243,6 +261,8 @@ class AdminUserModel {
     required this.createdAt,
     this.updatedAt,
     this.updatedBy,
+    this.webAuthUid,
+    this.webEmail,
   });
 
   factory AdminUserModel.fromFirestore(DocumentSnapshot doc) {
@@ -251,12 +271,14 @@ class AdminUserModel {
     final added = overrides['added'] as Map<String, dynamic>? ?? {};
     final removed = overrides['removed'] as Map<String, dynamic>? ?? {};
     final roleId = d['roleId'] as String? ?? d['role'] as String? ?? 'staff';
+    final roleIds = (d['roleIds'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [roleId];
 
     return AdminUserModel(
       uid: doc.id,
       roleId: roleId,
       roleDisplayName: d['roleDisplayName'] as String? ?? _toDisplay(roleId),
       roleLevel: d['roleLevel'] as int? ?? RoleLevels.levelFor(roleId),
+      roleIds: roleIds,
       status: d['status'] as String? ?? 'Active',
       permissionOverridesAdded: _castPermMap(added),
       permissionOverridesRemoved: _castPermMap(removed),
@@ -265,33 +287,42 @@ class AdminUserModel {
       createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (d['updatedAt'] as Timestamp?)?.toDate(),
       updatedBy: d['updatedBy'] as String?,
+      webAuthUid: d['webAuthUid'] as String?,
+      webEmail: d['webEmail'] as String?,
     );
   }
 
   Map<String, dynamic> toFirestore() => {
-        'roleId': roleId,
-        'roleDisplayName': roleDisplayName,
-        'roleLevel': roleLevel,
-        'status': status,
-        'permissionOverrides': {
-          'added': permissionOverridesAdded,
-          'removed': permissionOverridesRemoved,
-        },
-        'createdBy': createdBy,
-        'createdByName': createdByName,
-        'createdAt': Timestamp.fromDate(createdAt),
-        if (updatedAt != null) 'updatedAt': Timestamp.fromDate(updatedAt!),
-        if (updatedBy != null) 'updatedBy': updatedBy,
-      };
+    'roleId': roleId,
+    'roleDisplayName': roleDisplayName,
+    'roleLevel': roleLevel,
+    'roleIds': roleIds,
+    'status': status,
+    'permissionOverrides': {
+      'added': permissionOverridesAdded,
+      'removed': permissionOverridesRemoved,
+    },
+    'createdBy': createdBy,
+    'createdByName': createdByName,
+    'createdAt': Timestamp.fromDate(createdAt),
+    if (updatedAt != null) 'updatedAt': Timestamp.fromDate(updatedAt!),
+    if (updatedBy != null) 'updatedBy': updatedBy,
+    if (webAuthUid != null) 'webAuthUid': webAuthUid,
+    if (webEmail != null) 'webEmail': webEmail,
+  };
 
-  static String _toDisplay(String roleId) =>
-      roleId.split('_').map((w) => w[0].toUpperCase() + w.substring(1)).join(' ');
+  static String _toDisplay(String roleId) => roleId
+      .split('_')
+      .map((w) => w[0].toUpperCase() + w.substring(1))
+      .join(' ');
 
   static Map<String, List<String>> _castPermMap(Map<String, dynamic> raw) =>
-      raw.map((k, v) => MapEntry(
-            k,
-            (v as List<dynamic>? ?? []).map((e) => e.toString()).toList(),
-          ));
+      raw.map(
+        (k, v) => MapEntry(
+          k,
+          (v as List<dynamic>? ?? []).map((e) => e.toString()).toList(),
+        ),
+      );
 }
 
 // ===========================================================================
@@ -304,10 +335,13 @@ class RoleDefinition {
   final String name; // Display, e.g. "Admin"
   final int level;
   final String description;
+
   /// Active | Disabled
   final String status;
+
   /// Base permissions for this role
   final Map<String, List<String>> permissions;
+
   /// If true, users with this role can assign roles below their level.
   /// Provides flexibility beyond simple level comparison.
   final bool canAssignBelow;
@@ -333,26 +367,29 @@ class RoleDefinition {
       level: d['level'] as int? ?? RoleLevels.levelFor(doc.id),
       description: d['description'] as String? ?? '',
       status: d['status'] as String? ?? 'Active',
-      permissions: rawPerms.map((k, v) => MapEntry(
-            k,
-            (v as List<dynamic>? ?? []).map((e) => e.toString()).toList(),
-          )),
+      permissions: rawPerms.map(
+        (k, v) => MapEntry(
+          k,
+          (v as List<dynamic>? ?? []).map((e) => e.toString()).toList(),
+        ),
+      ),
       canAssignBelow: d['canAssignBelow'] as bool? ?? true,
       createdAt: (d['createdAt'] as Timestamp?)?.toDate(),
     );
   }
 
   Map<String, dynamic> toFirestore() => {
-        'name': name,
-        'level': level,
-        'description': description,
-        'status': status,
-        'permissions': permissions,
-        'canAssignBelow': canAssignBelow,
-        'createdAt': createdAt != null
+    'name': name,
+    'level': level,
+    'description': description,
+    'status': status,
+    'permissions': permissions,
+    'canAssignBelow': canAssignBelow,
+    'createdAt':
+        createdAt != null
             ? Timestamp.fromDate(createdAt!)
             : FieldValue.serverTimestamp(),
-      };
+  };
 
   bool get isActive => status == 'Active';
 }
@@ -382,14 +419,14 @@ class AuditLogModel {
   });
 
   Map<String, dynamic> toFirestore() => {
-        'action': action,
-        'performedBy': performedBy,
-        'performedByName': performedByName,
-        'performedTo': performedTo,
-        'performedToName': performedToName,
-        'details': details.toMap(),
-        'timestamp': Timestamp.fromDate(timestamp),
-      };
+    'action': action,
+    'performedBy': performedBy,
+    'performedByName': performedByName,
+    'performedTo': performedTo,
+    'performedToName': performedToName,
+    'details': details.toMap(),
+    'timestamp': Timestamp.fromDate(timestamp),
+  };
 
   factory AuditLogModel.fromFirestore(DocumentSnapshot doc) {
     final d = doc.data() as Map<String, dynamic>? ?? {};
@@ -399,7 +436,9 @@ class AuditLogModel {
       performedByName: d['performedByName'] as String? ?? '',
       performedTo: d['performedTo'] as String? ?? '',
       performedToName: d['performedToName'] as String? ?? '',
-      details: AuditDetails.fromMap(d['details'] as Map<String, dynamic>? ?? {}),
+      details: AuditDetails.fromMap(
+        d['details'] as Map<String, dynamic>? ?? {},
+      ),
       timestamp: (d['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
@@ -430,35 +469,35 @@ class AuditDetails {
   });
 
   Map<String, dynamic> toMap() => {
-        if (oldRole != null) 'oldRole': oldRole,
-        if (newRole != null) 'newRole': newRole,
-        if (oldPermissions != null) 'oldPermissions': oldPermissions,
-        if (newPermissions != null) 'newPermissions': newPermissions,
-        if (oldStatus != null) 'oldStatus': oldStatus,
-        if (newStatus != null) 'newStatus': newStatus,
-        if (platform != null) 'platform': platform,
-        if (appVersion != null) 'appVersion': appVersion,
-        if (extra != null) 'extra': extra,
-      };
+    if (oldRole != null) 'oldRole': oldRole,
+    if (newRole != null) 'newRole': newRole,
+    if (oldPermissions != null) 'oldPermissions': oldPermissions,
+    if (newPermissions != null) 'newPermissions': newPermissions,
+    if (oldStatus != null) 'oldStatus': oldStatus,
+    if (newStatus != null) 'newStatus': newStatus,
+    if (platform != null) 'platform': platform,
+    if (appVersion != null) 'appVersion': appVersion,
+    if (extra != null) 'extra': extra,
+  };
 
   factory AuditDetails.fromMap(Map<String, dynamic> m) => AuditDetails(
-        oldRole: m['oldRole'] as String?,
-        newRole: m['newRole'] as String?,
-        oldPermissions: _castMap(m['oldPermissions']),
-        newPermissions: _castMap(m['newPermissions']),
-        oldStatus: m['oldStatus'] as String?,
-        newStatus: m['newStatus'] as String?,
-        platform: m['platform'] as String?,
-        appVersion: m['appVersion'] as String?,
-        extra: m['extra'] as String?,
-      );
+    oldRole: m['oldRole'] as String?,
+    newRole: m['newRole'] as String?,
+    oldPermissions: _castMap(m['oldPermissions']),
+    newPermissions: _castMap(m['newPermissions']),
+    oldStatus: m['oldStatus'] as String?,
+    newStatus: m['newStatus'] as String?,
+    platform: m['platform'] as String?,
+    appVersion: m['appVersion'] as String?,
+    extra: m['extra'] as String?,
+  );
 
   static Map<String, List<String>>? _castMap(dynamic raw) {
     if (raw == null) return null;
     final m = raw as Map<String, dynamic>;
-    return m.map((k, v) => MapEntry(
-          k,
-          (v as List<dynamic>).map((e) => e.toString()).toList(),
-        ));
+    return m.map(
+      (k, v) =>
+          MapEntry(k, (v as List<dynamic>).map((e) => e.toString()).toList()),
+    );
   }
 }

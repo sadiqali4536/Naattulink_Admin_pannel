@@ -1,13 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-/// Helper utility to create/ensure the default Developer account exists.
+/// Helper utility to create/ensure the default Super Admin account exists.
 ///
 /// This will:
-/// 1. Create a Firebase Auth account for `developer@naattulink.com` if it doesn't exist.
-/// 2. Write/ensure `users/{uid}` exists with username `developer`.
-/// 3. Write/ensure `admin_users/{uid}` exists with role `developer` (level 100).
-Future<void> ensureDeveloperAccountCreated() async {
+/// 1. Create a Firebase Auth account for `superadmin@naattulink.com` if it doesn't exist.
+/// 2. Write/ensure `users/{uid}` exists with username `SuperAdmin`.
+/// 3. Write/ensure `admin_users/{uid}` exists with role `super_admin` (level 100).
+Future<void> ensureSuperAdminAccountCreated() async {
   const email = 'superadmin@naattulink.com';
   const password = 'SuperAdmin#V9!xQ7@Lm2-Kr8^Np4&Hy5*Zw';
   const username = 'SuperAdmin';
@@ -39,25 +39,26 @@ Future<void> ensureDeveloperAccountCreated() async {
       await db.collection('users').doc(uid).set({
         'email': email,
         'username': username,
-        'fullName': 'SuperAdmin',
+        'fullName': 'Super Admin',
         'createdAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
       // 2. Create/update the admin_users/{uid} document
       await db.collection('admin_users').doc(uid).set({
-        'roleId': 'admin',
-        'roleDisplayName': 'Admin',
+        'roleId': 'super_admin',
+        'roleDisplayName': 'Super Admin',
         'roleLevel': 100,
+        'roleIds': ['super_admin'],
         'status': 'Active',
         'createdAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
-      print('RBAC SETUP: admin Firestore documents created/verified.');
+      print('RBAC SETUP: Super Admin Firestore documents created/verified.');
 
       // Sign out only since this was a new registration and we want to start clean
       await auth.signOut();
     }
   } catch (e) {
-    print('RBAC SETUP: Error ensuring admin account: $e');
+    print('RBAC SETUP: Error ensuring Super Admin account: $e');
   }
 }
