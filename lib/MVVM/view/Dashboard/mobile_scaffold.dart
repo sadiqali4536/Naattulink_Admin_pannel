@@ -104,7 +104,9 @@ class _MobileScaffoldState extends State<MobileScaffold> {
       case "User Profile":
         return const ProfileUser();
       case "User Roles":
-        return const UserRolesPage();
+        return UserRolesPage(
+          onTabChanged: (tab) => setState(() => selectedTile = tab),
+        );
       case "Banned Users":
         return const BannedUsersPage();
       case "Services":

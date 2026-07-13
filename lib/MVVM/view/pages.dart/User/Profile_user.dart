@@ -1,7 +1,11 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:swiftclean_admin/MVVM/utils/rbac_session.dart';
+import 'package:swiftclean_admin/MVVM/utils/printer_helper.dart';
 
 class UserModel {
   final String no;
@@ -14,6 +18,7 @@ class UserModel {
   final String joinedDate;
   final int points;
   final String userId;
+  final String role;
 
   UserModel({
     required this.no,
@@ -26,6 +31,7 @@ class UserModel {
     required this.joinedDate,
     required this.points,
     required this.userId,
+    required this.role,
   });
 
   factory UserModel.fromMap(Map<String, dynamic> map, String id, int index) {
@@ -81,6 +87,7 @@ class UserModel {
 
     final String joinedDate = map['joinedDate'] ?? "May 18, 2024";
     final String userId = map['userId'] ?? "#USR12${58 - index}";
+    final String role = map['role'] ?? "Customer";
 
     return UserModel(
       no: id,
@@ -93,6 +100,7 @@ class UserModel {
       joinedDate: joinedDate,
       points: points,
       userId: userId,
+      role: role,
     );
   }
 }
@@ -118,128 +126,314 @@ class _ProfileUserState extends State<ProfileUser> {
   int _currentPage = 1;
   int _pageSize = 10;
 
-  final List<UserModel> _mockUsers = [
-    UserModel(
-      no: "1",
-      name: "Arun Kumar",
-      phone: "+91 98765 43210",
-      email: "arun.kumar@email.com",
-      address: "Kochi, Kerala",
-      userType: "Customer",
-      status: "Active",
-      joinedDate: "May 18, 2024",
-      points: 1250,
-      userId: "#USR1258",
-    ),
-    UserModel(
-      no: "2",
-      name: "Fathima Ali",
-      phone: "+91 98765 43211",
-      email: "fathima.ali@email.com",
-      address: "Trivandrum, Kerala",
-      userType: "Customer",
-      status: "Active",
-      joinedDate: "May 18, 2024",
-      points: 850,
-      userId: "#USR1257",
-    ),
-    UserModel(
-      no: "3",
-      name: "Ramesh Babu",
-      phone: "+91 98765 43212",
-      email: "ramesh.babu@email.com",
-      address: "Calicut, Kerala",
-      userType: "Customer",
-      status: "Suspended",
-      joinedDate: "May 18, 2024",
-      points: 1500,
-      userId: "#USR1256",
-    ),
-    UserModel(
-      no: "4",
-      name: "Neha Nair",
-      phone: "+91 98765 43213",
-      email: "neha.nair@email.com",
-      address: "Ernakulam, Kerala",
-      userType: "Customer",
-      status: "Active",
-      joinedDate: "May 18, 2024",
-      points: 700,
-      userId: "#USR1255",
-    ),
-    UserModel(
-      no: "5",
-      name: "Sujith K",
-      phone: "+91 98765 43214",
-      email: "sujith.k@email.com",
-      address: "Thrissur, Kerala",
-      userType: "Customer",
-      status: "Inactive",
-      joinedDate: "May 17, 2024",
-      points: 1100,
-      userId: "#USR1254",
-    ),
-    UserModel(
-      no: "6",
-      name: "Aisha Rahman",
-      phone: "+91 98765 43215",
-      email: "aisha.rahman@email.com",
-      address: "Palakkad, Kerala",
-      userType: "Customer",
-      status: "Active",
-      joinedDate: "May 17, 2024",
-      points: 2300,
-      userId: "#USR1253",
-    ),
-    UserModel(
-      no: "7",
-      name: "Muhammed Shakeel",
-      phone: "+91 98765 43216",
-      email: "shakeel@email.com",
-      address: "Kannur, Kerala",
-      userType: "Customer",
-      status: "Active",
-      joinedDate: "May 17, 2024",
-      points: 1450,
-      userId: "#USR1252",
-    ),
-    UserModel(
-      no: "8",
-      name: "Anjana P",
-      phone: "+91 98765 43217",
-      email: "anjana.p@email.com",
-      address: "Kollam, Kerala",
-      userType: "Customer",
-      status: "Suspended",
-      joinedDate: "May 16, 2024",
-      points: 600,
-      userId: "#USR1251",
-    ),
-    UserModel(
-      no: "9",
-      name: "Vivek R",
-      phone: "+91 98765 43218",
-      email: "vivek.r@email.com",
-      address: "Alappuzha, Kerala",
-      userType: "Customer",
-      status: "Active",
-      joinedDate: "May 16, 2024",
-      points: 950,
-      userId: "#USR1250",
-    ),
-    UserModel(
-      no: "10",
-      name: "Sreelakshmi",
-      phone: "+91 98765 43219",
-      email: "sreelakshmir@email.com",
-      address: "Kottayam, Kerala",
-      userType: "Customer",
-      status: "Active",
-      joinedDate: "May 16, 2024",
-      points: 1300,
-      userId: "#USR1249",
-    ),
-  ];
+  List<DocumentSnapshot> _allFetchedDocs = [];
+  bool _isFetching = false;
+  bool _hasMore = true;
+  int _totalCount = 0;
+  int _statTotalUsers = 0;
+  int _statActiveUsers = 0;
+  int _statSuspendedUsers = 0;
+  int _statNewUsersThisWeek = 0;
+  final ScrollController _scrollController = ScrollController();
+  final TextEditingController _searchController = TextEditingController();
+  Map<String, String> _userRoles = {};
+  StreamSubscription<QuerySnapshot>? _adminUsersSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_scrollListener);
+    _refreshData();
+
+    _adminUsersSub = FirebaseFirestore.instance
+        .collection("admin_users")
+        .snapshots()
+        .listen((snapshot) {
+          final Map<String, String> updatedRoles = {};
+          for (var doc in snapshot.docs) {
+            final data = doc.data() as Map<String, dynamic>?;
+            final role = data?['roleDisplayName'] ?? '';
+            if (role.isNotEmpty) {
+              updatedRoles[doc.id] = role.toString();
+            }
+          }
+          if (mounted) {
+            setState(() {
+              _userRoles = updatedRoles;
+            });
+          }
+        });
+  }
+
+  Timer? _searchDebounce;
+
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    _scrollController.dispose();
+    _searchController.dispose();
+    _adminUsersSub?.cancel();
+    super.dispose();
+  }
+
+  void _onSearchChanged(String val) {
+    if (_searchDebounce?.isActive ?? false) _searchDebounce!.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 500), () {
+      setState(() {
+        _searchQuery = val;
+      });
+      _refreshData();
+    });
+  }
+
+  void _onFilterChanged() {
+    _refreshData();
+  }
+
+  void _scrollListener() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
+      final totalLoadedPages = (_allFetchedDocs.length / _pageSize).ceil();
+      if (_currentPage == totalLoadedPages && _hasMore) {
+        _fetchNextBatch();
+      }
+    }
+  }
+
+  Future<void> _refreshData() async {
+    if (_isFetching) return;
+    _allFetchedDocs.clear();
+    _hasMore = true;
+    _currentPage = 1;
+    await _fetchNextBatch();
+    _fetchTotalCount();
+    _fetchStats();
+  }
+
+  Future<void> _fetchNextBatch() async {
+    if (_isFetching || !_hasMore) return;
+    setState(() {
+      _isFetching = true;
+    });
+
+    try {
+      Query query = FirebaseFirestore.instance.collection("users");
+
+      if (_selectedStatus != "All Status") {
+        query = query.where("status", isEqualTo: _selectedStatus);
+      }
+      if (_selectedType != "All Types") {
+        query = query.where("userType", isEqualTo: _selectedType);
+      }
+      if (_selectedDateRange != null) {
+        query = query
+            .where(
+              "createdAt",
+              isGreaterThanOrEqualTo: Timestamp.fromDate(
+                _selectedDateRange!.start,
+              ),
+            )
+            .where(
+              "createdAt",
+              isLessThanOrEqualTo: Timestamp.fromDate(
+                _selectedDateRange!.end.add(const Duration(days: 1)),
+              ),
+            );
+      }
+
+      if (_searchQuery.isNotEmpty) {
+        query = query
+            .where("username", isGreaterThanOrEqualTo: _searchQuery)
+            .where("username", isLessThanOrEqualTo: _searchQuery + '\uf8ff');
+      } else {
+        query = query.orderBy(FieldPath.documentId);
+      }
+
+      if (_allFetchedDocs.isNotEmpty) {
+        query = query.startAfterDocument(_allFetchedDocs.last);
+      }
+
+      query = query.limit(_pageSize);
+
+      final snapshot = await query.get();
+      if (snapshot.docs.length < _pageSize) {
+        _hasMore = false;
+      }
+      setState(() {
+        _allFetchedDocs.addAll(snapshot.docs);
+      });
+    } catch (e) {
+      print("Error fetching users batch: $e");
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isFetching = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _fetchTotalCount() async {
+    try {
+      Query query = FirebaseFirestore.instance.collection("users");
+      if (_selectedStatus != "All Status") {
+        query = query.where("status", isEqualTo: _selectedStatus);
+      }
+      if (_selectedType != "All Types") {
+        query = query.where("userType", isEqualTo: _selectedType);
+      }
+      if (_selectedDateRange != null) {
+        query = query
+            .where(
+              "createdAt",
+              isGreaterThanOrEqualTo: Timestamp.fromDate(
+                _selectedDateRange!.start,
+              ),
+            )
+            .where(
+              "createdAt",
+              isLessThanOrEqualTo: Timestamp.fromDate(
+                _selectedDateRange!.end.add(const Duration(days: 1)),
+              ),
+            );
+      }
+      if (_searchQuery.isNotEmpty) {
+        query = query
+            .where("username", isGreaterThanOrEqualTo: _searchQuery)
+            .where("username", isLessThanOrEqualTo: _searchQuery + '\uf8ff');
+      }
+      final countSnapshot = await query.count().get();
+      if (mounted) {
+        setState(() {
+          _totalCount = countSnapshot.count ?? 0;
+        });
+      }
+    } catch (e) {
+      print("Error fetching total count: $e");
+    }
+  }
+
+  Future<void> _fetchStats() async {
+    try {
+      final db = FirebaseFirestore.instance;
+
+      final totalSnap = await db.collection("users").count().get();
+      final activeSnap =
+          await db
+              .collection("users")
+              .where("status", isEqualTo: "Active")
+              .count()
+              .get();
+      final suspendedSnap =
+          await db
+              .collection("users")
+              .where("status", isEqualTo: "Suspended")
+              .count()
+              .get();
+
+      final now = DateTime.now();
+      final weekStart = now.subtract(Duration(days: now.weekday - 1));
+      final newUsersSnap =
+          await db
+              .collection("users")
+              .where(
+                "createdAt",
+                isGreaterThanOrEqualTo: Timestamp.fromDate(weekStart),
+              )
+              .count()
+              .get();
+
+      int total = totalSnap.count ?? 0;
+      int active = activeSnap.count ?? 0;
+      int suspended = suspendedSnap.count ?? 0;
+      int newUsers = newUsersSnap.count ?? 0;
+
+      if (total > 0) total--;
+      if (active > 0) active--;
+
+      if (mounted) {
+        setState(() {
+          _statTotalUsers = total;
+          _statActiveUsers = active;
+          _statSuspendedUsers = suspended;
+          _statNewUsersThisWeek = newUsers;
+        });
+      }
+    } catch (e) {
+      print("Error fetching stats: $e");
+    }
+  }
+
+  void _changePage(int page) {
+    if (page < 1) return;
+
+    final totalLoadedPages = (_allFetchedDocs.length / _pageSize).ceil();
+    if (page > totalLoadedPages && _hasMore) {
+      _fetchNextBatch().then((_) {
+        setState(() {
+          _currentPage = page;
+        });
+      });
+    } else {
+      setState(() {
+        _currentPage = page;
+      });
+    }
+  }
+
+  List<UserModel> get paginatedUsers {
+    final startIndex = (_currentPage - 1) * _pageSize;
+    if (startIndex >= _allFetchedDocs.length) return [];
+    final endIndex =
+        startIndex + _pageSize > _allFetchedDocs.length
+            ? _allFetchedDocs.length
+            : startIndex + _pageSize;
+
+    return _allFetchedDocs
+        .sublist(startIndex, endIndex)
+        .asMap()
+        .entries
+        .map((entry) {
+          final doc = entry.value;
+          final data = doc.data() as Map<String, dynamic>;
+          final rawUser = UserModel.fromMap(data, doc.id, startIndex + entry.key);
+          final role = _userRoles[rawUser.id];
+          final finalUserType = (role != null && role.isNotEmpty) ? role : "Customer";
+          return UserModel(
+            id: rawUser.id,
+            name: rawUser.name,
+            phone: rawUser.phone,
+            email: rawUser.email,
+            userType: finalUserType,
+            status: rawUser.status,
+            joinedDate: rawUser.joinedDate,
+            points: rawUser.points,
+            address: rawUser.address,
+            index: rawUser.index,
+            avatarUrl: rawUser.avatarUrl,
+          );
+        })
+        .where((user) {
+          final email = user.email.toLowerCase();
+          final name = user.name.toLowerCase();
+          final userType = user.userType.toLowerCase();
+
+          final isDeveloper =
+              email.contains('developer') ||
+              name == 'developer' ||
+              userType == 'developer';
+          final isSuperAdmin =
+              email.contains('superadmin') ||
+              name == 'superadmin' ||
+              userType == 'superadmin';
+          final isAdmin = email == 'admin@naattulink.com' || name == 'admin';
+
+          return !isDeveloper && !isSuperAdmin && !isAdmin;
+        })
+        .toList();
+  }
+
+  // No mock data - all users are loaded live from Firestore
 
   Widget _buildBreadcrumbs() {
     return Row(
@@ -285,362 +479,546 @@ class _ProfileUserState extends State<ProfileUser> {
   void _showAddUserDialog() {
     final formKey = GlobalKey<FormState>();
     String name = "";
+    String username = "";
     String email = "";
+    String password = "";
     String phone = "";
     String address = "";
-    String userType = "Customer";
     String status = "Active";
     int points = 0;
+    String? selectedRole;
+    bool obscurePassword = true;
+    List<String> availableRoles = [];
+    bool rolesLoading = true;
+
+    // Pre-fetch roles
+    FirebaseFirestore.instance.collection("roles").get().then((snap) {
+      // filtered in dialog state
+    });
 
     showDialog(
       context: context,
       builder:
-          (dialogContext) => Dialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            elevation: 0,
-            backgroundColor: Colors.transparent,
-            child: Container(
-              width: 480,
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.rectangle,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x14000000),
-                    blurRadius: 20,
-                    offset: Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: Form(
-                key: formKey,
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            "Add New User",
-                            style: GoogleFonts.inter(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: const Color(0xFF0F172A),
-                            ),
-                          ),
-                          IconButton(
-                            onPressed: () => Navigator.pop(dialogContext),
-                            icon: const Icon(
-                              Icons.close_rounded,
-                              color: Color(0xFF64748B),
-                              size: 20,
-                            ),
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                            splashRadius: 18,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      Container(height: 1, color: const Color(0xFFE2E8F0)),
-                      const SizedBox(height: 20),
-                      Text(
-                        "Full Name",
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFF475569),
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      TextFormField(
-                        decoration: _inputDecoration(
-                          "Enter full name",
-                          Icons.person_outline_rounded,
-                        ),
-                        style: GoogleFonts.inter(
-                          fontSize: 13,
-                          color: const Color(0xFF1E293B),
-                        ),
-                        validator:
-                            (v) =>
-                                v == null || v.isEmpty
-                                    ? "Name is required"
-                                    : null,
-                        onSaved: (v) => name = v!,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        "Email Address",
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFF475569),
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      TextFormField(
-                        decoration: _inputDecoration(
-                          "Enter email address",
-                          Icons.mail_outline_rounded,
-                        ),
-                        style: GoogleFonts.inter(
-                          fontSize: 13,
-                          color: const Color(0xFF1E293B),
-                        ),
-                        validator: (v) {
-                          if (v == null || v.isEmpty)
-                            return "Email is required";
-                          if (!RegExp(
-                            r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
-                          ).hasMatch(v)) {
-                            return "Enter a valid email address";
-                          }
-                          return null;
-                        },
-                        onSaved: (v) => email = v!,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        "Phone Number",
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFF475569),
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      TextFormField(
-                        decoration: _inputDecoration(
-                          "+91 XXXXX XXXXX",
-                          Icons.phone_outlined,
-                        ),
-                        style: GoogleFonts.inter(
-                          fontSize: 13,
-                          color: const Color(0xFF1E293B),
-                        ),
-                        validator:
-                            (v) =>
-                                v == null || v.isEmpty
-                                    ? "Phone number is required"
-                                    : null,
-                        onSaved: (v) => phone = v!,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        "Address",
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFF475569),
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      TextFormField(
-                        decoration: _inputDecoration(
-                          "Enter address",
-                          Icons.location_on_outlined,
-                        ),
-                        style: GoogleFonts.inter(
-                          fontSize: 13,
-                          color: const Color(0xFF1E293B),
-                        ),
-                        validator:
-                            (v) =>
-                                v == null || v.isEmpty
-                                    ? "Address is required"
-                                    : null,
-                        onSaved: (v) => address = v!,
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  "User Type",
-                                  style: GoogleFonts.inter(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: const Color(0xFF475569),
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                DropdownButtonFormField<String>(
-                                  initialValue: userType,
-                                  decoration: _inputDecoration("", null),
-                                  items:
-                                      ["Customer", "Admin"]
-                                          .map(
-                                            (type) => DropdownMenuItem(
-                                              value: type,
-                                              child: Text(type),
-                                            ),
-                                          )
-                                          .toList(),
-                                  onChanged: (v) => userType = v!,
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  "Status",
-                                  style: GoogleFonts.inter(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: const Color(0xFF475569),
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                DropdownButtonFormField<String>(
-                                  initialValue: status,
-                                  decoration: _inputDecoration("", null),
-                                  items:
-                                      ["Active", "Suspended", "Inactive"]
-                                          .map(
-                                            (st) => DropdownMenuItem(
-                                              value: st,
-                                              child: Text(st),
-                                            ),
-                                          )
-                                          .toList(),
-                                  onChanged: (v) => status = v!,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        "Initial Loyalty Points",
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFF475569),
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      TextFormField(
-                        decoration: _inputDecoration(
-                          "e.g. 100",
-                          Icons.star_border_rounded,
-                        ),
-                        style: GoogleFonts.inter(
-                          fontSize: 13,
-                          color: const Color(0xFF1E293B),
-                        ),
-                        keyboardType: TextInputType.number,
-                        onSaved: (v) => points = int.tryParse(v ?? "0") ?? 0,
-                      ),
-                      const SizedBox(height: 24),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          OutlinedButton(
-                            onPressed: () => Navigator.pop(dialogContext),
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 20,
-                                vertical: 14,
-                              ),
-                              side: const BorderSide(color: Color(0xFFE2E8F0)),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                            child: Text(
-                              "Cancel",
-                              style: GoogleFonts.inter(
-                                color: const Color(0xFF475569),
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          ElevatedButton(
-                            onPressed: () async {
-                              if (formKey.currentState!.validate()) {
-                                formKey.currentState!.save();
-                                Navigator.pop(dialogContext);
-                                try {
-                                  final newUser = {
-                                    'username': name,
-                                    'email': email,
-                                    'phone': phone,
-                                    'address': address,
-                                    'role': 'user',
-                                    'status': status,
-                                    'userType': userType,
-                                    'points': points,
-                                    'joinedDate': _formatDate(DateTime.now()),
-                                    'createdAt': FieldValue.serverTimestamp(),
-                                    'userId':
-                                        '#USR12' +
-                                        DateTime.now().millisecond
-                                            .toString()
-                                            .padLeft(2, '0'),
-                                  };
-                                  await FirebaseFirestore.instance
-                                      .collection("users")
-                                      .add(newUser);
-                                  if (!mounted) return;
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text("User added successfully."),
-                                    ),
-                                  );
-                                } catch (e) {
-                                  if (!mounted) return;
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text("Error adding user: $e"),
-                                    ),
-                                  );
-                                }
-                              }
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF10B981),
-                              foregroundColor: Colors.white,
-                              elevation: 0,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 20,
-                                vertical: 14,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                            child: Text(
-                              "Add User",
-                              style: GoogleFonts.inter(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ),
-                        ],
+          (dialogContext) => StatefulBuilder(
+            builder: (context, setDialogState) {
+              // Fetch roles once
+              if (rolesLoading) {
+                rolesLoading = false;
+                FirebaseFirestore.instance.collection("roles").get().then((
+                  snap,
+                ) {
+                  final roles =
+                      snap.docs
+                          .map((d) => d.data()['name'] as String? ?? '')
+                          .where((n) => n.isNotEmpty)
+                          .toList();
+
+                  // Hide Super Admin unless current user is Developer
+                  final filtered =
+                      RbacSession().isDev
+                          ? roles
+                          : roles.where((r) => r != "Super Admin").toList();
+
+                  setDialogState(() {
+                    availableRoles = filtered;
+                    if (filtered.isNotEmpty) selectedRole = filtered.first;
+                  });
+                });
+              }
+
+              return Dialog(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                elevation: 0,
+                backgroundColor: Colors.transparent,
+                child: Container(
+                  width: 520,
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.rectangle,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x14000000),
+                        blurRadius: 20,
+                        offset: Offset(0, 8),
                       ),
                     ],
                   ),
+                  child: Form(
+                    key: formKey,
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                "Add New User",
+                                style: GoogleFonts.inter(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  color: const Color(0xFF0F172A),
+                                ),
+                              ),
+                              IconButton(
+                                onPressed: () => Navigator.pop(dialogContext),
+                                icon: const Icon(
+                                  Icons.close_rounded,
+                                  color: Color(0xFF64748B),
+                                  size: 20,
+                                ),
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                                splashRadius: 18,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          Container(height: 1, color: const Color(0xFFE2E8F0)),
+                          const SizedBox(height: 20),
+
+                          // Full Name
+                          Text(
+                            "Full Name",
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFF475569),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          TextFormField(
+                            decoration: _inputDecoration(
+                              "Enter full name",
+                              Icons.person_outline_rounded,
+                            ),
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              color: const Color(0xFF1E293B),
+                            ),
+                            validator:
+                                (v) =>
+                                    v == null || v.isEmpty
+                                        ? "Name is required"
+                                        : null,
+                            onSaved: (v) => name = v!,
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Username
+                          Text(
+                            "Username",
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFF475569),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          TextFormField(
+                            decoration: _inputDecoration(
+                              "Enter username",
+                              Icons.alternate_email_rounded,
+                            ),
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              color: const Color(0xFF1E293B),
+                            ),
+                            validator:
+                                (v) =>
+                                    v == null || v.isEmpty
+                                        ? "Username is required"
+                                        : null,
+                            onSaved: (v) => username = v!,
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Email Address
+                          Text(
+                            "Email Address",
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFF475569),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          TextFormField(
+                            decoration: _inputDecoration(
+                              "Enter email address",
+                              Icons.mail_outline_rounded,
+                            ),
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              color: const Color(0xFF1E293B),
+                            ),
+                            validator: (v) {
+                              if (v == null || v.isEmpty)
+                                return "Email is required";
+                              if (!RegExp(
+                                r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
+                              ).hasMatch(v)) {
+                                return "Enter a valid email address";
+                              }
+                              return null;
+                            },
+                            onSaved: (v) => email = v!,
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Password
+                          Text(
+                            "Password",
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFF475569),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          TextFormField(
+                            obscureText: obscurePassword,
+                            decoration: _inputDecoration(
+                              "Enter password",
+                              Icons.lock_outline_rounded,
+                            ).copyWith(
+                              suffixIcon: IconButton(
+                                icon: Icon(
+                                  obscurePassword
+                                      ? Icons.visibility_off_outlined
+                                      : Icons.visibility_outlined,
+                                  size: 18,
+                                  color: const Color(0xFF94A3B8),
+                                ),
+                                onPressed: () {
+                                  setDialogState(
+                                    () => obscurePassword = !obscurePassword,
+                                  );
+                                },
+                              ),
+                            ),
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              color: const Color(0xFF1E293B),
+                            ),
+                            validator: (v) {
+                              if (v == null || v.isEmpty)
+                                return "Password is required";
+                              if (v.length < 6)
+                                return "Password must be at least 6 characters";
+                              return null;
+                            },
+                            onSaved: (v) => password = v!,
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Phone Number
+                          Text(
+                            "Phone Number",
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFF475569),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          TextFormField(
+                            decoration: _inputDecoration(
+                              "+91 XXXXX XXXXX",
+                              Icons.phone_outlined,
+                            ),
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              color: const Color(0xFF1E293B),
+                            ),
+                            validator:
+                                (v) =>
+                                    v == null || v.isEmpty
+                                        ? "Phone number is required"
+                                        : null,
+                            onSaved: (v) => phone = v!,
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Address
+                          Text(
+                            "Address",
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFF475569),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          TextFormField(
+                            decoration: _inputDecoration(
+                              "Enter address",
+                              Icons.location_on_outlined,
+                            ),
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              color: const Color(0xFF1E293B),
+                            ),
+                            validator:
+                                (v) =>
+                                    v == null || v.isEmpty
+                                        ? "Address is required"
+                                        : null,
+                            onSaved: (v) => address = v!,
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Assign Role + Status row
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      "Assign Role",
+                                      style: GoogleFonts.inter(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: const Color(0xFF475569),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    availableRoles.isEmpty
+                                        ? const SizedBox(
+                                          height: 48,
+                                          child: Center(
+                                            child: SizedBox(
+                                              width: 20,
+                                              height: 20,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                                color: Color(0xFF10B981),
+                                              ),
+                                            ),
+                                          ),
+                                        )
+                                        : DropdownButtonFormField<String>(
+                                          value: selectedRole,
+                                          decoration: _inputDecoration(
+                                            "",
+                                            null,
+                                          ),
+                                          items:
+                                              availableRoles
+                                                  .map(
+                                                    (r) => DropdownMenuItem(
+                                                      value: r,
+                                                      child: Text(
+                                                        r,
+                                                        style:
+                                                            GoogleFonts.inter(
+                                                              fontSize: 13,
+                                                            ),
+                                                      ),
+                                                    ),
+                                                  )
+                                                  .toList(),
+                                          onChanged: (v) {
+                                            setDialogState(
+                                              () => selectedRole = v,
+                                            );
+                                          },
+                                          validator:
+                                              (v) =>
+                                                  v == null || v.isEmpty
+                                                      ? "Role is required"
+                                                      : null,
+                                        ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      "Status",
+                                      style: GoogleFonts.inter(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: const Color(0xFF475569),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    DropdownButtonFormField<String>(
+                                      initialValue: status,
+                                      decoration: _inputDecoration("", null),
+                                      items:
+                                          ["Active", "Inactive"]
+                                              .map(
+                                                (st) => DropdownMenuItem(
+                                                  value: st,
+                                                  child: Text(st),
+                                                ),
+                                              )
+                                              .toList(),
+                                      onChanged: (v) => status = v!,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Initial Loyalty Points
+                          Text(
+                            "Initial Loyalty Points",
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFF475569),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          TextFormField(
+                            decoration: _inputDecoration(
+                              "e.g. 100",
+                              Icons.star_border_rounded,
+                            ),
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              color: const Color(0xFF1E293B),
+                            ),
+                            keyboardType: TextInputType.number,
+                            onSaved:
+                                (v) => points = int.tryParse(v ?? "0") ?? 0,
+                          ),
+                          const SizedBox(height: 24),
+
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              OutlinedButton(
+                                onPressed: () => Navigator.pop(dialogContext),
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 20,
+                                    vertical: 14,
+                                  ),
+                                  side: const BorderSide(
+                                    color: Color(0xFFE2E8F0),
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                                child: Text(
+                                  "Cancel",
+                                  style: GoogleFonts.inter(
+                                    color: const Color(0xFF475569),
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              ElevatedButton(
+                                onPressed: () async {
+                                  if (formKey.currentState!.validate()) {
+                                    formKey.currentState!.save();
+                                    Navigator.pop(dialogContext);
+                                    try {
+                                      // Create Firebase Auth account
+                                      final credential = await FirebaseAuth
+                                          .instance
+                                          .createUserWithEmailAndPassword(
+                                            email: email,
+                                            password: password,
+                                          );
+                                      final uid = credential.user!.uid;
+
+                                      // Save user profile in Firestore
+                                      await FirebaseFirestore.instance
+                                          .collection("users")
+                                          .doc(uid)
+                                          .set({
+                                            'username': username,
+                                            'name': name,
+                                            'email': email,
+                                            'phone': phone,
+                                            'address': address,
+                                            'role': selectedRole ?? 'Customer',
+                                            'status': status,
+                                            'userType': 'Admin',
+                                            'points': points,
+                                            'joinedDate': _formatDate(
+                                              DateTime.now(),
+                                            ),
+                                            'createdAt':
+                                                FieldValue.serverTimestamp(),
+                                            'userId':
+                                                '#USR12' +
+                                                DateTime.now().millisecond
+                                                    .toString()
+                                                    .padLeft(2, '0'),
+                                          });
+
+                                      if (!mounted) return;
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            "User added successfully.",
+                                          ),
+                                        ),
+                                      );
+                                    } catch (e) {
+                                      if (!mounted) return;
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            "Error adding user: $e",
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                  }
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF10B981),
+                                  foregroundColor: Colors.white,
+                                  elevation: 0,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 20,
+                                    vertical: 14,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                                child: Text(
+                                  "Add User",
+                                  style: GoogleFonts.inter(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-            ),
+              );
+            },
           ),
     );
   }
@@ -1384,109 +1762,77 @@ class _ProfileUserState extends State<ProfileUser> {
       builder: (context, constraints) {
         final double width = constraints.maxWidth;
 
-        return StreamBuilder<QuerySnapshot>(
-          stream:
-              FirebaseFirestore.instance
-                  .collection("users")
-                  .where("role", isEqualTo: 'user')
-                  .snapshots(),
-          builder: (context, snapshot) {
-            List<UserModel> users = [];
-            if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
-              users =
-                  snapshot.data!.docs.asMap().entries.map((entry) {
-                    return UserModel.fromMap(
-                      entry.value.data() as Map<String, dynamic>,
-                      entry.value.id,
-                      entry.key,
-                    );
-                  }).toList();
-            } else {
-              // Fallback to mock users if Firestore is empty/loading/error
-              users = _mockUsers;
-            }
+        final List<UserModel> currentPageUsers = paginatedUsers;
+        final int totalItems = _totalCount;
+        final int startIndex = (_currentPage - 1) * _pageSize;
+        final int endIndex = startIndex + currentPageUsers.length;
 
-            // Apply Filters
-            List<UserModel> filteredUsers =
-                users.where((user) {
-                  final matchesSearch =
-                      user.name.toLowerCase().contains(
-                        _searchQuery.toLowerCase(),
-                      ) ||
-                      user.email.toLowerCase().contains(
-                        _searchQuery.toLowerCase(),
-                      ) ||
-                      user.phone.contains(_searchQuery);
+        return SingleChildScrollView(
+          controller: _scrollController,
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (selectedUser != null)
+                _buildUserProfile(selectedUser!)
+              else ...[
+                // Breadcrumbs
+                _buildBreadcrumbs(),
+                const SizedBox(height: 8),
 
-                  final matchesStatus =
-                      _selectedStatus == "All Status" ||
-                      user.status == _selectedStatus;
-                  final matchesType =
-                      _selectedType == "All Types" ||
-                      user.userType == _selectedType;
+                // Title
+                Text(
+                  "User Management",
+                  style: GoogleFonts.inter(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF1E293B),
+                  ),
+                ),
+                const SizedBox(height: 24),
 
-                  return matchesSearch && matchesStatus && matchesType;
-                }).toList();
+                // Bulk Action Bar (only visible when users are selected)
+                if (_selectedUserIds.isNotEmpty)
+                  _buildBulkActionBar(currentPageUsers),
 
-            // Pagination
-            final int totalItems = filteredUsers.length;
-            final int startIndex = (_currentPage - 1) * _pageSize;
-            final int endIndex =
-                startIndex + _pageSize < totalItems
-                    ? startIndex + _pageSize
-                    : totalItems;
-            final List<UserModel> paginatedUsers =
-                totalItems > 0
-                    ? filteredUsers.sublist(startIndex, endIndex)
-                    : [];
+                if (_selectedUserIds.isNotEmpty) const SizedBox(height: 16),
 
-            return SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (selectedUser != null)
-                    _buildUserProfile(selectedUser!)
-                  else ...[
-                    // Breadcrumbs
-                    _buildBreadcrumbs(),
-                    const SizedBox(height: 8),
+                // Stats Cards Grid
+                _buildStatsCardsGrid(width, currentPageUsers),
+                const SizedBox(height: 24),
 
-                    // Title
-                    Text(
-                      "User Management",
-                      style: GoogleFonts.inter(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: const Color(0xFF1E293B),
+                // Filter Row
+                _buildFilterRow(context, width, currentPageUsers),
+                const SizedBox(height: 24),
+
+                // Users Table
+                _isFetching && _allFetchedDocs.isEmpty
+                    ? const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 60),
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          color: Color(0xFF10B981),
+                        ),
+                      ),
+                    )
+                    : _buildUsersTable(currentPageUsers),
+                const SizedBox(height: 16),
+
+                // Pagination Footer
+                _buildPaginationFooter(totalItems, startIndex, endIndex),
+
+                if (_isFetching && _allFetchedDocs.isNotEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        color: Color(0xFF10B981),
                       ),
                     ),
-                    const SizedBox(height: 24),
-
-                    // Bulk Action Bar (only visible when users are selected)
-                    if (_selectedUserIds.isNotEmpty) _buildBulkActionBar(users),
-
-                    if (_selectedUserIds.isNotEmpty) const SizedBox(height: 16),
-
-                    // Stats Cards Grid
-                    _buildStatsCardsGrid(width),
-                    const SizedBox(height: 24),
-
-                    // Filter Row
-                    _buildFilterRow(context, width),
-                    const SizedBox(height: 24),
-
-                    // Users Table
-                    _buildUsersTable(paginatedUsers),
-                    const SizedBox(height: 16),
-
-                    // Pagination Footer
-                    _buildPaginationFooter(totalItems, startIndex, endIndex),
-                  ],
-                ],
-              ),
-            );
-          },
+                  ),
+              ],
+            ],
+          ),
         );
       },
     );
@@ -1673,7 +2019,7 @@ class _ProfileUserState extends State<ProfileUser> {
     );
   }
 
-  Widget _buildStatsCardsGrid(double width) {
+  Widget _buildStatsCardsGrid(double width, [List<UserModel>? users]) {
     int crossAxisCount = 4;
     if (width < 600) {
       crossAxisCount = 1;
@@ -1686,6 +2032,11 @@ class _ProfileUserState extends State<ProfileUser> {
     const double itemHeight = 115;
     final double aspectRatio = itemWidth / itemHeight;
 
+    final int totalUsers = _statTotalUsers;
+    final int activeUsers = _statActiveUsers;
+    final int suspendedUsers = _statSuspendedUsers;
+    final int newUsersThisWeek = _statNewUsersThisWeek;
+
     return GridView.count(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -1693,63 +2044,64 @@ class _ProfileUserState extends State<ProfileUser> {
       crossAxisSpacing: 16,
       mainAxisSpacing: 16,
       childAspectRatio: aspectRatio > 0 ? aspectRatio : 2.0,
-      children: const [
+      children: [
         StatsCard(
           title: "Total Users",
-          value: "12,458",
-          trendPercentage: "12.5%",
-          trendPeriod: "from last week",
+          value: totalUsers.toString(),
+          trendPercentage: "",
+          trendPeriod: "All registered users",
           isPositiveTrend: true,
           icon: Icons.people_alt_rounded,
-          iconColor: Color(0xFF3B82F6),
-          iconBgColor: Color(0xFFEFF6FF),
+          iconColor: const Color(0xFF3B82F6),
+          iconBgColor: const Color(0xFFEFF6FF),
         ),
         StatsCard(
           title: "Active Users",
-          value: "11,236",
-          trendPercentage: "10.3%",
-          trendPeriod: "from last week",
+          value: activeUsers.toString(),
+          trendPercentage: "",
+          trendPeriod: "Currently active",
           isPositiveTrend: true,
           icon: Icons.group_add_rounded,
-          iconColor: Color(0xFF10B981),
-          iconBgColor: Color(0xFFECFDF5),
+          iconColor: const Color(0xFF10B981),
+          iconBgColor: const Color(0xFFECFDF5),
         ),
         StatsCard(
           title: "Suspended Users",
-          value: "156",
-          trendPercentage: "2.4%",
-          trendPeriod: "from last week",
+          value: suspendedUsers.toString(),
+          trendPercentage: "",
+          trendPeriod: "Accounts suspended",
           isPositiveTrend: false,
           icon: Icons.block_rounded,
-          iconColor: Color(0xFFF59E0B),
-          iconBgColor: Color(0xFFFEF3C7),
+          iconColor: const Color(0xFFF59E0B),
+          iconBgColor: const Color(0xFFFEF3C7),
         ),
         StatsCard(
           title: "New Users (This Week)",
-          value: "342",
-          trendPercentage: "8.7%",
-          trendPeriod: "from last week",
+          value: newUsersThisWeek.toString(),
+          trendPercentage: "",
+          trendPeriod: "Joined this week",
           isPositiveTrend: true,
           icon: Icons.person_add_rounded,
-          iconColor: Color(0xFF8B5CF6),
-          iconBgColor: Color(0xFFF5F3FF),
+          iconColor: const Color(0xFF8B5CF6),
+          iconBgColor: const Color(0xFFF5F3FF),
         ),
       ],
     );
   }
 
-  Widget _buildFilterRow(BuildContext context, double width) {
+  Widget _buildFilterRow(
+    BuildContext context,
+    double width,
+    List<UserModel> filteredUsers,
+  ) {
     final bool isSmall = width < 850;
 
     final searchField = SizedBox(
       width: isSmall ? double.infinity : 260,
       height: 38,
       child: TextFormField(
-        onChanged:
-            (val) => setState(() {
-              _searchQuery = val;
-              _currentPage = 1;
-            }),
+        controller: _searchController,
+        onChanged: _onSearchChanged,
         decoration: InputDecoration(
           isDense: true,
           contentPadding: const EdgeInsets.symmetric(
@@ -1811,11 +2163,12 @@ class _ProfileUserState extends State<ProfileUser> {
                       DropdownMenuItem(value: status, child: Text(status)),
                 )
                 .toList(),
-        onChanged:
-            (val) => setState(() {
-              _selectedStatus = val!;
-              _currentPage = 1;
-            }),
+        onChanged: (val) {
+          setState(() {
+            _selectedStatus = val!;
+          });
+          _onFilterChanged();
+        },
       ),
     );
 
@@ -1846,11 +2199,12 @@ class _ProfileUserState extends State<ProfileUser> {
             ["All Types", "Customer", "Admin"]
                 .map((type) => DropdownMenuItem(value: type, child: Text(type)))
                 .toList(),
-        onChanged:
-            (val) => setState(() {
-              _selectedType = val!;
-              _currentPage = 1;
-            }),
+        onChanged: (val) {
+          setState(() {
+            _selectedType = val!;
+          });
+          _onFilterChanged();
+        },
       ),
     );
 
@@ -1866,6 +2220,7 @@ class _ProfileUserState extends State<ProfileUser> {
           setState(() {
             _selectedDateRange = picked;
           });
+          _onFilterChanged();
         }
       },
       child: Container(
@@ -1903,7 +2258,9 @@ class _ProfileUserState extends State<ProfileUser> {
     );
 
     final exportButton = ElevatedButton.icon(
-      onPressed: () {},
+      onPressed: () {
+        printUsersList(filteredUsers);
+      },
       icon: const Icon(Icons.download_rounded, size: 14),
       label: Text(
         "Export",
@@ -2473,15 +2830,13 @@ class _ProfileUserState extends State<ProfileUser> {
             IconButton(
               icon: const Icon(Icons.chevron_left_rounded, size: 18),
               onPressed:
-                  _currentPage > 1
-                      ? () => setState(() => _currentPage--)
-                      : null,
+                  _currentPage > 1 ? () => _changePage(_currentPage - 1) : null,
             ),
             ...List.generate(totalPages, (index) {
               final int page = index + 1;
               final bool isSelected = page == _currentPage;
               return InkWell(
-                onTap: () => setState(() => _currentPage = page),
+                onTap: () => _changePage(page),
                 borderRadius: BorderRadius.circular(6),
                 child: Container(
                   width: 28,
@@ -2512,8 +2867,8 @@ class _ProfileUserState extends State<ProfileUser> {
             IconButton(
               icon: const Icon(Icons.chevron_right_rounded, size: 18),
               onPressed:
-                  _currentPage < totalPages
-                      ? () => setState(() => _currentPage++)
+                  _currentPage < totalPages || _hasMore
+                      ? () => _changePage(_currentPage + 1)
                       : null,
             ),
           ],
@@ -2555,11 +2910,13 @@ class _ProfileUserState extends State<ProfileUser> {
                       ),
                     )
                     .toList(),
-            onChanged:
-                (val) => setState(() {
-                  _pageSize = val!;
-                  _currentPage = 1;
-                }),
+            onChanged: (val) {
+              setState(() {
+                _pageSize = val!;
+                _currentPage = 1;
+              });
+              _refreshData();
+            },
           ),
         ),
       ],

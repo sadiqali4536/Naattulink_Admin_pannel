@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:swiftclean_admin/MVVM/model/models/admin_model.dart';
+import 'package:swiftclean_admin/MVVM/model/services/firebaseauthservices.dart';
+import 'package:swiftclean_admin/MVVM/utils/permission_guard.dart';
+import 'package:swiftclean_admin/MVVM/utils/rbac_session.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/Ads%20Promotion/Ads%20Promotion.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/Bookings/Bookings.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/Dashboard/Dashboard.dart';
@@ -12,9 +16,11 @@ import 'package:swiftclean_admin/MVVM/view/pages.dart/Services/Categories.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/User/Profile_user.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/User/User_roles.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/User/Banned_users.dart';
+import 'package:swiftclean_admin/MVVM/view/pages.dart/User/Grant_access.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/worker/All_workers.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/worker/Verification_Worker.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/worker/profile_Worker.dart';
+import 'package:swiftclean_admin/MVVM/view/loginpage.dart';
 
 class NotificationItem {
   final String message;
@@ -41,10 +47,12 @@ class _TabletScaffoldState extends State<TabletScaffold> {
   String selectedTile = "Dashboard";
   List<NotificationItem> notifications = [];
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  final _session = RbacSession();
 
   @override
   void initState() {
     super.initState();
+    _loadSession();
     notifications = [
       NotificationItem(
         message: "User Alex booked a service",
@@ -67,104 +75,70 @@ class _TabletScaffoldState extends State<TabletScaffold> {
     ];
   }
 
+  Future<void> _loadSession() async {
+    if (!_session.isActive) await _session.loadSession();
+    if (mounted) setState(() {});
+  }
+
+  bool _can(String module, String action) => _session.hasPermission(module, action);
+
   Widget getSelectedPage() {
     switch (selectedTile) {
       case "Dashboard":
         return const Dashboard();
       case "Worker Profile":
-        return const ProfileWorker();
+        return PermissionGuard(module: Modules.workerManagement, action: Perms.view, child: const ProfileWorker());
       case "Verification":
-        return const VerificationWorker();
+        return PermissionGuard(module: Modules.workerManagement, action: Perms.view, child: const VerificationWorker());
       case "All Workers":
-        return AllWorkersPage(
-          initialFilter: "All",
-          onTabChanged: (tab) => setState(() => selectedTile = tab),
-        );
+        return PermissionGuard(module: Modules.workerManagement, action: Perms.view, child: AllWorkersPage(initialFilter: "All", onTabChanged: (tab) => setState(() => selectedTile = tab)));
       case "Pending Approvals":
-        return AllWorkersPage(
-          initialFilter: "Pending",
-          onTabChanged: (tab) => setState(() => selectedTile = tab),
-        );
+        return PermissionGuard(module: Modules.workerManagement, action: Perms.view, child: AllWorkersPage(initialFilter: "Pending", onTabChanged: (tab) => setState(() => selectedTile = tab)));
       case "Approved Workers":
-        return AllWorkersPage(
-          initialFilter: "Approved",
-          onTabChanged: (tab) => setState(() => selectedTile = tab),
-        );
+        return PermissionGuard(module: Modules.workerManagement, action: Perms.view, child: AllWorkersPage(initialFilter: "Approved", onTabChanged: (tab) => setState(() => selectedTile = tab)));
       case "Rejected Workers":
-        return AllWorkersPage(
-          initialFilter: "Rejected",
-          onTabChanged: (tab) => setState(() => selectedTile = tab),
-        );
+        return PermissionGuard(module: Modules.workerManagement, action: Perms.view, child: AllWorkersPage(initialFilter: "Rejected", onTabChanged: (tab) => setState(() => selectedTile = tab)));
       case "Suspended Workers":
-        return AllWorkersPage(
-          initialFilter: "Suspended",
-          onTabChanged: (tab) => setState(() => selectedTile = tab),
-        );
+        return PermissionGuard(module: Modules.workerManagement, action: Perms.view, child: AllWorkersPage(initialFilter: "Suspended", onTabChanged: (tab) => setState(() => selectedTile = tab)));
       case "User Profile":
-        return const ProfileUser();
+        return PermissionGuard(module: Modules.userManagement, action: Perms.view, child: const ProfileUser());
       case "User Roles":
-        return const UserRolesPage();
+        return PermissionGuard(
+            module: Modules.roles,
+            action: Perms.view,
+            child: UserRolesPage(
+                onTabChanged: (tab) => setState(() => selectedTile = tab)));
       case "Banned Users":
-        return const BannedUsersPage();
+        return PermissionGuard(module: Modules.userManagement, action: Perms.view, child: const BannedUsersPage());
+      case "Grant Access":
+        return PermissionGuard(module: Modules.grantAccess, action: Perms.view, child: const GrantAccessPage());
       case "Services":
       case "All Services":
-        return const Services();
+        return PermissionGuard(module: Modules.advertisement, action: Perms.view, child: const Services());
       case "Categories":
-        return const ServiceCategoriesPage();
+        return PermissionGuard(module: Modules.advertisement, action: Perms.view, child: const ServiceCategoriesPage());
       case "Service Reviews":
         return _buildPlaceholderPage("Service Reviews", Icons.rate_review_rounded);
       case "Payments":
-        return PaymentPage();
+        return PermissionGuard(module: Modules.payments, action: Perms.view, child: PaymentPage());
       case "All Bookings":
-        return Bookings(
-          initialFilter: "All",
-          onTabChanged: (tab) => setState(() => selectedTile = tab),
-        );
+        return PermissionGuard(module: Modules.bookings, action: Perms.view, child: Bookings(initialFilter: "All", onTabChanged: (tab) => setState(() => selectedTile = tab)));
       case "Pending Bookings":
-        return Bookings(
-          initialFilter: "Pending",
-          onTabChanged: (tab) => setState(() => selectedTile = tab),
-        );
+        return PermissionGuard(module: Modules.bookings, action: Perms.view, child: Bookings(initialFilter: "Pending", onTabChanged: (tab) => setState(() => selectedTile = tab)));
       case "Confirmed Bookings":
-        return Bookings(
-          initialFilter: "Confirmed",
-          onTabChanged: (tab) => setState(() => selectedTile = tab),
-        );
+        return PermissionGuard(module: Modules.bookings, action: Perms.view, child: Bookings(initialFilter: "Confirmed", onTabChanged: (tab) => setState(() => selectedTile = tab)));
       case "Completed Bookings":
-        return Bookings(
-          initialFilter: "Completed",
-          onTabChanged: (tab) => setState(() => selectedTile = tab),
-        );
+        return PermissionGuard(module: Modules.bookings, action: Perms.view, child: Bookings(initialFilter: "Completed", onTabChanged: (tab) => setState(() => selectedTile = tab)));
       case "Cancelled Bookings":
-        return Bookings(
-          initialFilter: "Cancelled",
-          onTabChanged: (tab) => setState(() => selectedTile = tab),
-        );
+        return PermissionGuard(module: Modules.bookings, action: Perms.view, child: Bookings(initialFilter: "Cancelled", onTabChanged: (tab) => setState(() => selectedTile = tab)));
       case "Loyalty Points":
         return const Loyaltypoints();
       case "Notifications":
-        return const Notifications();
+        return PermissionGuard(module: Modules.notifications, action: Perms.view, child: const Notifications());
       case "Ads Promotion":
-        return const Adspromotion();
-      case "Products":
-        return _buildPlaceholderPage("Products Catalog", Icons.shopping_bag_rounded);
-      case "Orders":
-        return _buildPlaceholderPage("Orders Management", Icons.shopping_cart_rounded);
-      case "Bus Routes":
-        return _buildPlaceholderPage("Bus Routes", Icons.directions_bus_rounded);
-      case "Taxi Drivers":
-        return _buildPlaceholderPage("Taxi Drivers", Icons.local_taxi_rounded);
-      case "Coupons":
-        return _buildPlaceholderPage("Coupons & Offers", Icons.local_offer_rounded);
-      case "Profile":
-        return _buildPlaceholderPage("Admin Profile", Icons.person_rounded);
+        return PermissionGuard(module: Modules.advertisement, action: Perms.view, child: const Adspromotion());
       default:
-        return Center(
-          child: Text(
-            "Selected: $selectedTile",
-            style: GoogleFonts.inter(fontSize: 16, color: const Color(0xFF64748B)),
-          ),
-        );
+        return Center(child: Text("Selected: $selectedTile", style: GoogleFonts.inter(fontSize: 16, color: const Color(0xFF64748B))));
     }
   }
 

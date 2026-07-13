@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -65,11 +66,285 @@ class _AllWorkersPageState extends State<AllWorkersPage> {
   final ScrollController _verticalScrollController = ScrollController();
   final ScrollController _horizontalScrollController = ScrollController();
 
+  int _currentPage = 1;
+  int _pageSize = 10;
+
+  List<DocumentSnapshot> _allFetchedDocs = [];
+  bool _isFetching = false;
+  bool _hasMore = true;
+  int _totalCount = 0;
+
+  // Stats counts
+  int _statTotalWorkers = 0;
+  int _statPendingWorkers = 0;
+  int _statApprovedWorkers = 0;
+  int _statRejectedWorkers = 0;
+  int _statSuspendedWorkers = 0;
+
+  Timer? _searchDebounce;
+  final TextEditingController _searchController = TextEditingController();
+
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _verticalScrollController.dispose();
     _horizontalScrollController.dispose();
+    _searchController.dispose();
     super.dispose();
+  }
+
+  void _onSearchChanged(String val) {
+    if (_searchDebounce?.isActive ?? false) _searchDebounce!.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 500), () {
+      setState(() {
+        _searchQuery = val;
+      });
+      _refreshData();
+    });
+  }
+
+  void _onFilterChanged() {
+    _refreshData();
+  }
+
+  Future<void> _refreshData() async {
+    if (_isFetching) return;
+    _allFetchedDocs.clear();
+    _hasMore = true;
+    _currentPage = 1;
+    await _fetchNextBatch();
+    _fetchTotalCount();
+    _fetchStats();
+  }
+
+  Future<void> _fetchNextBatch() async {
+    if (_isFetching || !_hasMore) return;
+    setState(() {
+      _isFetching = true;
+    });
+
+    try {
+      Query query = FirebaseFirestore.instance.collection("workers");
+
+      String? queryStatus;
+      if (_selectedTabIndex == 1)
+        queryStatus = "Pending";
+      else if (_selectedTabIndex == 2)
+        queryStatus = "Approved";
+      else if (_selectedTabIndex == 3)
+        queryStatus = "Rejected";
+      else if (_selectedTabIndex == 4)
+        queryStatus = "Suspended";
+
+      if (_selectedStatus != "All Status") {
+        queryStatus = _selectedStatus;
+      }
+
+      if (queryStatus != null) {
+        if (queryStatus == "Approved") {
+          query = query.where("isVerified", isEqualTo: 1);
+        } else if (queryStatus == "Pending") {
+          query = query.where("isVerified", isEqualTo: 0);
+        } else if (queryStatus == "Rejected") {
+          query = query.where("isVerified", isEqualTo: -1);
+        } else if (queryStatus == "Suspended") {
+          query = query.where("isVerified", isEqualTo: -2);
+        }
+      }
+
+      if (_selectedCategory != "All Categories") {
+        query = query.where("category", isEqualTo: _selectedCategory);
+      }
+
+      if (_selectedVerification != "All Verification") {
+        String verificationVal = _selectedVerification;
+        if (verificationVal == "Verified") {
+          query = query.where("isVerified", isEqualTo: 1);
+        } else if (verificationVal == "Pending") {
+          query = query.where("isVerified", isEqualTo: 0);
+        } else if (verificationVal == "Not Verified") {
+          query = query.where("isVerified", isEqualTo: -1);
+        }
+      }
+
+      if (_selectedRating == "4.5+ Ratings") {
+        query = query.where("rating", isGreaterThanOrEqualTo: 4.5);
+      } else if (_selectedRating == "4.8+ Ratings") {
+        query = query.where("rating", isGreaterThanOrEqualTo: 4.8);
+      }
+
+      if (_searchQuery.isNotEmpty) {
+        query = query
+            .where("name", isGreaterThanOrEqualTo: _searchQuery)
+            .where("name", isLessThanOrEqualTo: _searchQuery + '\uf8ff');
+      } else {
+        query = query.orderBy(FieldPath.documentId);
+      }
+
+      if (_allFetchedDocs.isNotEmpty) {
+        query = query.startAfterDocument(_allFetchedDocs.last);
+      }
+
+      query = query.limit(_pageSize);
+
+      final snapshot = await query.get();
+      if (snapshot.docs.length < _pageSize) {
+        _hasMore = false;
+      }
+      setState(() {
+        _allFetchedDocs.addAll(snapshot.docs);
+      });
+    } catch (e) {
+      print("Error fetching workers batch: $e");
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isFetching = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _fetchTotalCount() async {
+    try {
+      Query query = FirebaseFirestore.instance.collection("workers");
+
+      String? queryStatus;
+      if (_selectedTabIndex == 1)
+        queryStatus = "Pending";
+      else if (_selectedTabIndex == 2)
+        queryStatus = "Approved";
+      else if (_selectedTabIndex == 3)
+        queryStatus = "Rejected";
+      else if (_selectedTabIndex == 4)
+        queryStatus = "Suspended";
+
+      if (_selectedStatus != "All Status") {
+        queryStatus = _selectedStatus;
+      }
+
+      if (queryStatus != null) {
+        if (queryStatus == "Approved") {
+          query = query.where("isVerified", isEqualTo: 1);
+        } else if (queryStatus == "Pending") {
+          query = query.where("isVerified", isEqualTo: 0);
+        } else if (queryStatus == "Rejected") {
+          query = query.where("isVerified", isEqualTo: -1);
+        } else if (queryStatus == "Suspended") {
+          query = query.where("isVerified", isEqualTo: -2);
+        }
+      }
+
+      if (_selectedCategory != "All Categories") {
+        query = query.where("category", isEqualTo: _selectedCategory);
+      }
+
+      if (_selectedVerification != "All Verification") {
+        String verificationVal = _selectedVerification;
+        if (verificationVal == "Verified") {
+          query = query.where("isVerified", isEqualTo: 1);
+        } else if (verificationVal == "Pending") {
+          query = query.where("isVerified", isEqualTo: 0);
+        } else if (verificationVal == "Not Verified") {
+          query = query.where("isVerified", isEqualTo: -1);
+        }
+      }
+
+      if (_selectedRating == "4.5+ Ratings") {
+        query = query.where("rating", isGreaterThanOrEqualTo: 4.5);
+      } else if (_selectedRating == "4.8+ Ratings") {
+        query = query.where("rating", isGreaterThanOrEqualTo: 4.8);
+      }
+
+      if (_searchQuery.isNotEmpty) {
+        query = query
+            .where("name", isGreaterThanOrEqualTo: _searchQuery)
+            .where("name", isLessThanOrEqualTo: _searchQuery + '\uf8ff');
+      }
+
+      final countSnapshot = await query.count().get();
+      if (mounted) {
+        setState(() {
+          _totalCount = countSnapshot.count ?? 0;
+        });
+      }
+    } catch (e) {
+      print("Error fetching workers total count: $e");
+    }
+  }
+
+  Future<void> _fetchStats() async {
+    try {
+      final db = FirebaseFirestore.instance;
+      final totalSnap = await db.collection("workers").count().get();
+      final pendingSnap =
+          await db
+              .collection("workers")
+              .where("isVerified", isEqualTo: 0)
+              .count()
+              .get();
+      final approvedSnap =
+          await db
+              .collection("workers")
+              .where("isVerified", isEqualTo: 1)
+              .count()
+              .get();
+      final rejectedSnap =
+          await db
+              .collection("workers")
+              .where("isVerified", isEqualTo: -1)
+              .count()
+              .get();
+      final suspendedSnap =
+          await db
+              .collection("workers")
+              .where("isVerified", isEqualTo: -2)
+              .count()
+              .get();
+
+      if (mounted) {
+        setState(() {
+          _statTotalWorkers = totalSnap.count ?? 0;
+          _statPendingWorkers = pendingSnap.count ?? 0;
+          _statApprovedWorkers = approvedSnap.count ?? 0;
+          _statRejectedWorkers = rejectedSnap.count ?? 0;
+          _statSuspendedWorkers = suspendedSnap.count ?? 0;
+        });
+      }
+    } catch (e) {
+      print("Error fetching worker stats: $e");
+    }
+  }
+
+  void _changePage(int page) {
+    if (page < 1) return;
+
+    final totalLoadedPages = (_allFetchedDocs.length / _pageSize).ceil();
+    if (page > totalLoadedPages && _hasMore) {
+      _fetchNextBatch().then((_) {
+        setState(() {
+          _currentPage = page;
+        });
+      });
+    } else {
+      setState(() {
+        _currentPage = page;
+      });
+    }
+  }
+
+  List<WorkerModel> get paginatedWorkers {
+    final startIndex = (_currentPage - 1) * _pageSize;
+    if (startIndex >= _allFetchedDocs.length) return [];
+    final endIndex =
+        startIndex + _pageSize > _allFetchedDocs.length
+            ? _allFetchedDocs.length
+            : startIndex + _pageSize;
+
+    return _allFetchedDocs
+        .sublist(startIndex, endIndex)
+        .map((doc) => _parseWorker(doc))
+        .toList();
   }
 
   final List<WorkerModel> _dummyWorkersToSeed = [
@@ -250,52 +525,50 @@ class _AllWorkersPageState extends State<AllWorkersPage> {
     return "${months[now.month - 1]} ${now.day}, ${now.year}";
   }
 
-  void _checkAndSeed(List<WorkerModel> workers) {
-    if (workers.isEmpty && !_seeding) {
+  Future<void> _checkAndSeed() async {
+    if (!_seeding) {
       _seeding = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) async {
-        try {
-          final collection = FirebaseFirestore.instance.collection("workers");
-          final snapshot = await collection.limit(1).get();
-          if (snapshot.docs.isEmpty) {
-            final batch = FirebaseFirestore.instance.batch();
-            for (var dummy in _dummyWorkersToSeed) {
-              final docRef = collection.doc();
-              final seedDate = _parseJoinedOn(dummy.joinedOn) ?? DateTime.now();
-              batch.set(docRef, {
-                'username': dummy.name,
-                'phone': dummy.phone,
-                'email': dummy.email,
-                'category': dummy.category,
-                'experience': dummy.experience,
-                'rating': dummy.rating,
-                'ratingsCount': dummy.ratingsCount,
-                'jobsCompleted': dummy.jobsCompleted,
-                'status': dummy.status,
-                'verification': dummy.verification,
-                'isVerified':
-                    dummy.status == "Approved"
-                        ? 1
-                        : dummy.status == "Pending"
-                        ? 0
-                        : dummy.status == "Rejected"
-                        ? -1
-                        : -2,
-                'role': 'worker',
-                'joinedOn': dummy.joinedOn,
-                'avatarUrl': dummy.avatarUrl,
-                'address': dummy.address,
-                'createdAt': Timestamp.fromDate(seedDate),
-              });
-            }
-            await batch.commit();
+      try {
+        final collection = FirebaseFirestore.instance.collection("workers");
+        final snapshot = await collection.limit(1).get();
+        if (snapshot.docs.isEmpty) {
+          final batch = FirebaseFirestore.instance.batch();
+          for (var dummy in _dummyWorkersToSeed) {
+            final docRef = collection.doc();
+            final seedDate = _parseJoinedOn(dummy.joinedOn) ?? DateTime.now();
+            batch.set(docRef, {
+              'username': dummy.name,
+              'phone': dummy.phone,
+              'email': dummy.email,
+              'category': dummy.category,
+              'experience': dummy.experience,
+              'rating': dummy.rating,
+              'ratingsCount': dummy.ratingsCount,
+              'jobsCompleted': dummy.jobsCompleted,
+              'status': dummy.status,
+              'verification': dummy.verification,
+              'isVerified':
+                  dummy.status == "Approved"
+                      ? 1
+                      : dummy.status == "Pending"
+                      ? 0
+                      : dummy.status == "Rejected"
+                      ? -1
+                      : -2,
+              'role': 'worker',
+              'joinedOn': dummy.joinedOn,
+              'avatarUrl': dummy.avatarUrl,
+              'address': dummy.address,
+              'createdAt': Timestamp.fromDate(seedDate),
+            });
           }
-        } catch (e) {
-          debugPrint("Error seeding dummy data: $e");
-        } finally {
-          _seeding = false;
+          await batch.commit();
         }
-      });
+      } catch (e) {
+        debugPrint("Error seeding dummy data: $e");
+      } finally {
+        _seeding = false;
+      }
     }
   }
 
@@ -1791,7 +2064,6 @@ class _AllWorkersPageState extends State<AllWorkersPage> {
   @override
   void initState() {
     super.initState();
-    // Set active tab based on router request
     switch (widget.initialFilter) {
       case "Pending":
         _selectedTabIndex = 1;
@@ -1810,6 +2082,20 @@ class _AllWorkersPageState extends State<AllWorkersPage> {
         _selectedTabIndex = 0;
         break;
     }
+
+    _verticalScrollController.addListener(() {
+      if (_verticalScrollController.position.pixels >=
+          _verticalScrollController.position.maxScrollExtent - 200) {
+        final totalLoadedPages = (_allFetchedDocs.length / _pageSize).ceil();
+        if (_currentPage == totalLoadedPages && _hasMore) {
+          _fetchNextBatch();
+        }
+      }
+    });
+
+    _checkAndSeed().then((_) {
+      _refreshData();
+    });
   }
 
   @override
@@ -1836,6 +2122,7 @@ class _AllWorkersPageState extends State<AllWorkersPage> {
             break;
         }
       });
+      _refreshData();
     }
   }
 
@@ -1988,186 +2275,118 @@ class _AllWorkersPageState extends State<AllWorkersPage> {
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance.collection("workers").snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: CircularProgressIndicator(color: Color(0xFF10B981)),
-          );
-        }
+    if (_seeding) {
+      return const Center(
+        child: CircularProgressIndicator(color: Color(0xFF10B981)),
+      );
+    }
 
-        if (snapshot.hasError) {
-          return Center(
-            child: Text("Error fetching workers: ${snapshot.error}"),
-          );
-        }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final double width = constraints.maxWidth;
 
-        final List<WorkerModel> allWorkers =
-            snapshot.data!.docs.map((doc) => _parseWorker(doc)).toList();
+        final currentPageWorkers = paginatedWorkers;
+        final int totalFiltered = _totalCount;
+        final int totalAll = _statTotalWorkers;
 
-        // Sort in memory: newly added data at top
-        final now = DateTime.now();
-        allWorkers.sort((a, b) {
-          final timeA =
-              a.createdAt ??
-              (a.joinedOn.contains("2024")
-                  ? _parseJoinedOn(a.joinedOn)
-                  : null) ??
-              now;
-          final timeB =
-              b.createdAt ??
-              (b.joinedOn.contains("2024")
-                  ? _parseJoinedOn(b.joinedOn)
-                  : null) ??
-              now;
-          return timeB.compareTo(timeA);
-        });
+        return Scrollbar(
+          controller: _verticalScrollController,
+          thumbVisibility: true,
+          child: SingleChildScrollView(
+            controller: _verticalScrollController,
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Breadcrumbs
+                _buildBreadcrumbs(),
+                const SizedBox(height: 8),
 
-        // Seed initial dummy data if empty
-        _checkAndSeed(allWorkers);
-
-        return LayoutBuilder(
-          builder: (context, constraints) {
-            final double width = constraints.maxWidth;
-
-            // Filtering logic
-            final filteredWorkers =
-                allWorkers.where((worker) {
-                  // Tab selection filter
-                  if (_selectedTabIndex == 1 && worker.status != "Pending") {
-                    return false;
-                  }
-                  if (_selectedTabIndex == 2 && worker.status != "Approved") {
-                    return false;
-                  }
-                  if (_selectedTabIndex == 3 && worker.status != "Rejected") {
-                    return false;
-                  }
-                  if (_selectedTabIndex == 4 && worker.status != "Suspended") {
-                    return false;
-                  }
-
-                  // Dropdown filters
-                  final matchesSearch =
-                      worker.name.toLowerCase().contains(
-                        _searchQuery.toLowerCase(),
-                      ) ||
-                      worker.email.toLowerCase().contains(
-                        _searchQuery.toLowerCase(),
-                      ) ||
-                      worker.phone.contains(_searchQuery) ||
-                      worker.category.toLowerCase().contains(
-                        _searchQuery.toLowerCase(),
-                      );
-
-                  final matchesCategory =
-                      _selectedCategory == "All Categories" ||
-                      worker.category == _selectedCategory;
-                  final matchesStatus =
-                      _selectedStatus == "All Status" ||
-                      worker.status == _selectedStatus;
-                  final matchesVerification =
-                      _selectedVerification == "All Verification" ||
-                      worker.verification == _selectedVerification;
-                  final matchesRating =
-                      _selectedRating == "All Ratings" ||
-                      (_selectedRating == "4.5+ Ratings" &&
-                          worker.rating >= 4.5) ||
-                      (_selectedRating == "4.8+ Ratings" &&
-                          worker.rating >= 4.8);
-
-                  return matchesSearch &&
-                      matchesCategory &&
-                      matchesStatus &&
-                      matchesVerification &&
-                      matchesRating;
-                }).toList();
-
-            return Scrollbar(
-              controller: _verticalScrollController,
-              thumbVisibility: true,
-              child: SingleChildScrollView(
-                controller: _verticalScrollController,
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                // Title Row
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    // Breadcrumbs
-                    _buildBreadcrumbs(),
-                    const SizedBox(height: 8),
-
-                    // Title Row
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          "Worker Management",
-                          style: GoogleFonts.inter(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            color: const Color(0xFF1E293B),
-                          ),
-                        ),
-                        ElevatedButton.icon(
-                          onPressed: () => _showAddWorkerDialog(),
-                          icon: const Icon(Icons.add, size: 14),
-                          label: Text(
-                            "Add New Worker",
-                            style: GoogleFonts.inter(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
-                            ),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF10B981),
-                            foregroundColor: Colors.white,
-                            elevation: 0,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 10,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                        ),
-                      ],
+                    Text(
+                      "Worker Management",
+                      style: GoogleFonts.inter(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF1E293B),
+                      ),
                     ),
-                    const SizedBox(height: 24),
-
-                    // 5 Statistics Cards
-                    _buildStatsGrid(width, allWorkers),
-                    const SizedBox(height: 24),
-
-                    // Filter controls Row
-                    _buildFilterRow(context, width),
-                    const SizedBox(height: 24),
-
-                    // Tab bar selectors
-                    _buildCustomTabBar(allWorkers),
-                    const SizedBox(height: 16),
-
-                    // Worker list data table
-                    _buildWorkersTable(filteredWorkers),
-                    const SizedBox(height: 16),
-
-                    // Bottom Pagination footer
-                    _buildTableFooter(
-                      filteredWorkers.length,
-                      allWorkers.length,
+                    ElevatedButton.icon(
+                      onPressed: () => _showAddWorkerDialog(),
+                      icon: const Icon(Icons.add, size: 14),
+                      label: Text(
+                        "Add New Worker",
+                        style: GoogleFonts.inter(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF10B981),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
                     ),
                   ],
                 ),
-              ),
-            );
-          },
+                const SizedBox(height: 24),
+
+                // 5 Statistics Cards
+                _buildStatsGrid(width),
+                const SizedBox(height: 24),
+
+                // Filter controls Row
+                _buildFilterRow(context, width),
+                const SizedBox(height: 24),
+
+                // Tab bar selectors
+                _buildCustomTabBar(),
+                const SizedBox(height: 16),
+
+                // Worker list data table
+                _isFetching && _allFetchedDocs.isEmpty
+                    ? const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 60),
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          color: Color(0xFF10B981),
+                        ),
+                      ),
+                    )
+                    : _buildWorkersTable(currentPageWorkers),
+                const SizedBox(height: 16),
+
+                // Bottom Pagination footer
+                _buildTableFooter(totalFiltered, totalAll),
+
+                if (_isFetching && _allFetchedDocs.isNotEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        color: Color(0xFF10B981),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
         );
       },
     );
   }
 
-  Widget _buildStatsGrid(double width, List<WorkerModel> allWorkers) {
+  Widget _buildStatsGrid(double width, [List<WorkerModel>? allWorkers]) {
     int crossAxisCount = 5;
     if (width < 600) {
       crossAxisCount = 1;
@@ -2182,12 +2401,11 @@ class _AllWorkersPageState extends State<AllWorkersPage> {
     const double itemHeight = 115;
     final double aspectRatio = itemWidth / itemHeight;
 
-    final int total = allWorkers.length;
-    final int pending = allWorkers.where((w) => w.status == "Pending").length;
-    final int approved = allWorkers.where((w) => w.status == "Approved").length;
-    final int rejected = allWorkers.where((w) => w.status == "Rejected").length;
-    final int suspended =
-        allWorkers.where((w) => w.status == "Suspended").length;
+    final int total = _statTotalWorkers;
+    final int pending = _statPendingWorkers;
+    final int approved = _statApprovedWorkers;
+    final int rejected = _statRejectedWorkers;
+    final int suspended = _statSuspendedWorkers;
 
     return GridView.count(
       shrinkWrap: true,
@@ -2248,10 +2466,8 @@ class _AllWorkersPageState extends State<AllWorkersPage> {
       width: isSmall ? double.infinity : 240,
       height: 38,
       child: TextFormField(
-        onChanged:
-            (val) => setState(() {
-              _searchQuery = val;
-            }),
+        controller: _searchController,
+        onChanged: _onSearchChanged,
         decoration: InputDecoration(
           isDense: true,
           contentPadding: const EdgeInsets.symmetric(
@@ -2328,10 +2544,12 @@ class _AllWorkersPageState extends State<AllWorkersPage> {
                   ),
                 )
                 .toList(),
-        onChanged:
-            (val) => setState(() {
-              _selectedCategory = val!;
-            }),
+        onChanged: (val) {
+          setState(() {
+            _selectedCategory = val!;
+          });
+          _onFilterChanged();
+        },
       ),
     );
 
@@ -2372,10 +2590,12 @@ class _AllWorkersPageState extends State<AllWorkersPage> {
                   ),
                 )
                 .toList(),
-        onChanged:
-            (val) => setState(() {
-              _selectedStatus = val!;
-            }),
+        onChanged: (val) {
+          setState(() {
+            _selectedStatus = val!;
+          });
+          _onFilterChanged();
+        },
       ),
     );
 
@@ -2416,10 +2636,12 @@ class _AllWorkersPageState extends State<AllWorkersPage> {
                   ),
                 )
                 .toList(),
-        onChanged:
-            (val) => setState(() {
-              _selectedVerification = val!;
-            }),
+        onChanged: (val) {
+          setState(() {
+            _selectedVerification = val!;
+          });
+          _onFilterChanged();
+        },
       ),
     );
 
@@ -2460,10 +2682,12 @@ class _AllWorkersPageState extends State<AllWorkersPage> {
                   ),
                 )
                 .toList(),
-        onChanged:
-            (val) => setState(() {
-              _selectedRating = val!;
-            }),
+        onChanged: (val) {
+          setState(() {
+            _selectedRating = val!;
+          });
+          _onFilterChanged();
+        },
       ),
     );
 
@@ -2549,13 +2773,12 @@ class _AllWorkersPageState extends State<AllWorkersPage> {
     }
   }
 
-  Widget _buildCustomTabBar(List<WorkerModel> allWorkers) {
-    final int total = allWorkers.length;
-    final int pending = allWorkers.where((w) => w.status == "Pending").length;
-    final int approved = allWorkers.where((w) => w.status == "Approved").length;
-    final int rejected = allWorkers.where((w) => w.status == "Rejected").length;
-    final int suspended =
-        allWorkers.where((w) => w.status == "Suspended").length;
+  Widget _buildCustomTabBar([List<WorkerModel>? allWorkers]) {
+    final int total = _statTotalWorkers;
+    final int pending = _statPendingWorkers;
+    final int approved = _statApprovedWorkers;
+    final int rejected = _statRejectedWorkers;
+    final int suspended = _statSuspendedWorkers;
 
     final List<Map<String, dynamic>> tabs = [
       {"label": "All Workers", "count": total},
@@ -2580,7 +2803,10 @@ class _AllWorkersPageState extends State<AllWorkersPage> {
 
             return InkWell(
               onTap: () {
-                setState(() => _selectedTabIndex = index);
+                setState(() {
+                  _selectedTabIndex = index;
+                });
+                _onFilterChanged();
                 if (widget.onTabChanged != null) {
                   String tabName;
                   switch (index) {
@@ -3191,10 +3417,15 @@ class _AllWorkersPageState extends State<AllWorkersPage> {
   }
 
   Widget _buildTableFooter(int totalFiltered, int totalAll) {
+    final int totalPages = (totalFiltered / _pageSize).ceil();
+    final int startIndex =
+        totalFiltered == 0 ? 0 : (_currentPage - 1) * _pageSize;
+    final int endIndex = startIndex + paginatedWorkers.length;
+
     return Row(
       children: [
         Text(
-          "Showing 1 to $totalFiltered of $totalAll workers",
+          "Showing ${totalFiltered == 0 ? 0 : startIndex + 1} to $endIndex of $totalFiltered workers",
           style: GoogleFonts.inter(
             fontSize: 12,
             color: const Color(0xFF64748B),
@@ -3203,14 +3434,16 @@ class _AllWorkersPageState extends State<AllWorkersPage> {
         const Spacer(),
         Row(
           children: [
-            const IconButton(
-              icon: Icon(Icons.chevron_left_rounded, size: 18),
-              onPressed: null,
+            IconButton(
+              icon: const Icon(Icons.chevron_left_rounded, size: 18),
+              onPressed:
+                  _currentPage > 1 ? () => _changePage(_currentPage - 1) : null,
             ),
-            ...[1, 2, 3, 4, 5].map((page) {
-              final bool isSelected = page == 1;
+            ...List.generate(totalPages, (index) {
+              final int page = index + 1;
+              final bool isSelected = page == _currentPage;
               return InkWell(
-                onTap: () {},
+                onTap: () => _changePage(page),
                 borderRadius: BorderRadius.circular(6),
                 child: Container(
                   width: 28,
@@ -3240,7 +3473,10 @@ class _AllWorkersPageState extends State<AllWorkersPage> {
             }),
             IconButton(
               icon: const Icon(Icons.chevron_right_rounded, size: 18),
-              onPressed: () {},
+              onPressed:
+                  _currentPage < totalPages || _hasMore
+                      ? () => _changePage(_currentPage + 1)
+                      : null,
             ),
           ],
         ),
@@ -3250,7 +3486,7 @@ class _AllWorkersPageState extends State<AllWorkersPage> {
           height: 32,
           child: DropdownButtonFormField<int>(
             isExpanded: true,
-            initialValue: 10,
+            initialValue: _pageSize,
             decoration: InputDecoration(
               isDense: true,
               contentPadding: const EdgeInsets.symmetric(
@@ -3272,10 +3508,22 @@ class _AllWorkersPageState extends State<AllWorkersPage> {
               color: const Color(0xFF1E293B),
               fontSize: 11,
             ),
-            items: const [
-              DropdownMenuItem(value: 10, child: Text("10 / page")),
-            ],
-            onChanged: (val) {},
+            items:
+                [10, 20, 50]
+                    .map(
+                      (size) => DropdownMenuItem(
+                        value: size,
+                        child: Text("$size / page"),
+                      ),
+                    )
+                    .toList(),
+            onChanged: (val) {
+              setState(() {
+                _pageSize = val!;
+                _currentPage = 1;
+              });
+              _refreshData();
+            },
           ),
         ),
       ],

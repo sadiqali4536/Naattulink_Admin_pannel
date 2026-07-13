@@ -7,11 +7,16 @@ import 'package:swiftclean_admin/MVVM/Responsive/responsive_layput.dart';
 import 'package:swiftclean_admin/MVVM/view/Dashboard/tablet_scaffold.dart';
 import 'package:swiftclean_admin/MVVM/view/loginpage.dart';
 import 'package:swiftclean_admin/firebase_options.dart';
+import 'package:swiftclean_admin/MVVM/utils/developer_setup.dart';
 
 
-void main() async{
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  
+  // Ensure the developer account exists in Firebase Auth and Firestore
+  await ensureDeveloperAccountCreated();
+  
   runApp(const MyApp());
 }
 

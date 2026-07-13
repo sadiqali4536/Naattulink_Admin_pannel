@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:swiftclean_admin/MVVM/model/models/admin_model.dart';
+import 'package:swiftclean_admin/MVVM/model/services/firebaseauthservices.dart';
+import 'package:swiftclean_admin/MVVM/utils/permission_guard.dart';
+import 'package:swiftclean_admin/MVVM/utils/rbac_session.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/Ads%20Promotion/Ads%20Promotion.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/Bookings/Bookings.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/Dashboard/Dashboard.dart';
@@ -12,9 +16,11 @@ import 'package:swiftclean_admin/MVVM/view/pages.dart/Services/Categories.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/User/Profile_user.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/User/User_roles.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/User/Banned_users.dart';
+import 'package:swiftclean_admin/MVVM/view/pages.dart/User/Grant_access.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/worker/All_workers.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/worker/Verification_Worker.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/worker/profile_Worker.dart';
+import 'package:swiftclean_admin/MVVM/view/loginpage.dart';
 
 class NotificationItem {
   final String message;
@@ -40,10 +46,13 @@ class DesktopScaffold extends StatefulWidget {
 class _DesktopScaffoldState extends State<DesktopScaffold> {
   String selectedTile = "Dashboard";
   List<NotificationItem> notifications = [];
+  bool _sessionLoaded = false;
+  final _session = RbacSession();
 
   @override
   void initState() {
     super.initState();
+    _loadSession();
     notifications = [
       NotificationItem(
         message: "User Alex booked a service",
@@ -66,88 +75,186 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
     ];
   }
 
+  Future<void> _loadSession() async {
+    if (!_session.isActive) {
+      await _session.loadSession();
+    }
+    if (mounted) setState(() => _sessionLoaded = true);
+  }
+
+  bool _can(String module, String action) =>
+      _session.hasPermission(module, action);
+
   Widget getSelectedPage() {
     switch (selectedTile) {
       case "Dashboard":
         return const Dashboard();
       case "Worker Profile":
-        return const ProfileWorker();
+        return PermissionGuard(
+          module: Modules.workerManagement,
+          action: Perms.view,
+          child: const ProfileWorker(),
+        );
       case "Verification":
-        return const VerificationWorker();
+        return PermissionGuard(
+          module: Modules.workerManagement,
+          action: Perms.view,
+          child: const VerificationWorker(),
+        );
       case "All Workers":
-        return AllWorkersPage(
-          initialFilter: "All",
-          onTabChanged: (tab) => setState(() => selectedTile = tab),
+        return PermissionGuard(
+          module: Modules.workerManagement,
+          action: Perms.view,
+          child: AllWorkersPage(
+            initialFilter: "All",
+            onTabChanged: (tab) => setState(() => selectedTile = tab),
+          ),
         );
       case "Pending Approvals":
-        return AllWorkersPage(
-          initialFilter: "Pending",
-          onTabChanged: (tab) => setState(() => selectedTile = tab),
+        return PermissionGuard(
+          module: Modules.workerManagement,
+          action: Perms.view,
+          child: AllWorkersPage(
+            initialFilter: "Pending",
+            onTabChanged: (tab) => setState(() => selectedTile = tab),
+          ),
         );
       case "Approved Workers":
-        return AllWorkersPage(
-          initialFilter: "Approved",
-          onTabChanged: (tab) => setState(() => selectedTile = tab),
+        return PermissionGuard(
+          module: Modules.workerManagement,
+          action: Perms.view,
+          child: AllWorkersPage(
+            initialFilter: "Approved",
+            onTabChanged: (tab) => setState(() => selectedTile = tab),
+          ),
         );
       case "Rejected Workers":
-        return AllWorkersPage(
-          initialFilter: "Rejected",
-          onTabChanged: (tab) => setState(() => selectedTile = tab),
+        return PermissionGuard(
+          module: Modules.workerManagement,
+          action: Perms.view,
+          child: AllWorkersPage(
+            initialFilter: "Rejected",
+            onTabChanged: (tab) => setState(() => selectedTile = tab),
+          ),
         );
       case "Suspended Workers":
-        return AllWorkersPage(
-          initialFilter: "Suspended",
-          onTabChanged: (tab) => setState(() => selectedTile = tab),
+        return PermissionGuard(
+          module: Modules.workerManagement,
+          action: Perms.view,
+          child: AllWorkersPage(
+            initialFilter: "Suspended",
+            onTabChanged: (tab) => setState(() => selectedTile = tab),
+          ),
         );
       case "User Profile":
-        return const ProfileUser();
+        return PermissionGuard(
+          module: Modules.userManagement,
+          action: Perms.view,
+          child: const ProfileUser(),
+        );
       case "User Roles":
-        return const UserRolesPage();
+        return PermissionGuard(
+          module: Modules.roles,
+          action: Perms.view,
+          child: UserRolesPage(
+            onTabChanged: (tab) => setState(() => selectedTile = tab),
+          ),
+        );
       case "Banned Users":
-        return const BannedUsersPage();
+        return PermissionGuard(
+          module: Modules.userManagement,
+          action: Perms.view,
+          child: const BannedUsersPage(),
+        );
+      case "Grant Access":
+        return PermissionGuard(
+          module: Modules.grantAccess,
+          action: Perms.view,
+          child: const GrantAccessPage(),
+        );
       case "Services":
       case "All Services":
-        return const Services();
+        return PermissionGuard(
+          module: Modules.advertisement,
+          action: Perms.view,
+          child: const Services(),
+        );
       case "Categories":
-        return const ServiceCategoriesPage();
+        return PermissionGuard(
+          module: Modules.advertisement,
+          action: Perms.view,
+          child: const ServiceCategoriesPage(),
+        );
       case "Service Reviews":
         return _buildPlaceholderPage(
           "Service Reviews",
           Icons.rate_review_rounded,
         );
       case "Payments":
-        return PaymentPage();
+        return PermissionGuard(
+          module: Modules.payments,
+          action: Perms.view,
+          child: PaymentPage(),
+        );
       case "All Bookings":
-        return Bookings(
-          initialFilter: "All",
-          onTabChanged: (tab) => setState(() => selectedTile = tab),
+        return PermissionGuard(
+          module: Modules.bookings,
+          action: Perms.view,
+          child: Bookings(
+            initialFilter: "All",
+            onTabChanged: (tab) => setState(() => selectedTile = tab),
+          ),
         );
       case "Pending Bookings":
-        return Bookings(
-          initialFilter: "Pending",
-          onTabChanged: (tab) => setState(() => selectedTile = tab),
+        return PermissionGuard(
+          module: Modules.bookings,
+          action: Perms.view,
+          child: Bookings(
+            initialFilter: "Pending",
+            onTabChanged: (tab) => setState(() => selectedTile = tab),
+          ),
         );
       case "Confirmed Bookings":
-        return Bookings(
-          initialFilter: "Confirmed",
-          onTabChanged: (tab) => setState(() => selectedTile = tab),
+        return PermissionGuard(
+          module: Modules.bookings,
+          action: Perms.view,
+          child: Bookings(
+            initialFilter: "Confirmed",
+            onTabChanged: (tab) => setState(() => selectedTile = tab),
+          ),
         );
       case "Completed Bookings":
-        return Bookings(
-          initialFilter: "Completed",
-          onTabChanged: (tab) => setState(() => selectedTile = tab),
+        return PermissionGuard(
+          module: Modules.bookings,
+          action: Perms.view,
+          child: Bookings(
+            initialFilter: "Completed",
+            onTabChanged: (tab) => setState(() => selectedTile = tab),
+          ),
         );
       case "Cancelled Bookings":
-        return Bookings(
-          initialFilter: "Cancelled",
-          onTabChanged: (tab) => setState(() => selectedTile = tab),
+        return PermissionGuard(
+          module: Modules.bookings,
+          action: Perms.view,
+          child: Bookings(
+            initialFilter: "Cancelled",
+            onTabChanged: (tab) => setState(() => selectedTile = tab),
+          ),
         );
       case "Loyalty Points":
         return const Loyaltypoints();
       case "Notifications":
-        return const Notifications();
+        return PermissionGuard(
+          module: Modules.notifications,
+          action: Perms.view,
+          child: const Notifications(),
+        );
       case "Ads Promotion":
-        return const Adspromotion();
+        return PermissionGuard(
+          module: Modules.advertisement,
+          action: Perms.view,
+          child: const Adspromotion(),
+        );
       case "Products":
         return _buildPlaceholderPage(
           "Products Catalog",
@@ -245,310 +352,318 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
                                 () =>
                                     setState(() => selectedTile = "Dashboard"),
                           ),
-                          SidebarExpansionTile(
-                            title: "User Management",
-                            icon: Icons.people_alt_rounded,
-                            isInitiallyExpanded:
-                                selectedTile == "User Profile" ||
-                                selectedTile == "User Roles" ||
-                                selectedTile == "Banned Users",
-                            onTap:
-                                () => setState(
-                                  () => selectedTile = "User Profile",
-                                ),
-                            children: [
-                              SidebarTile(
-                                title: "Users",
-                                icon: Icons.person_outline_rounded,
-                                isSelected: selectedTile == "User Profile",
-                                onTap:
-                                    () => setState(
-                                      () => selectedTile = "User Profile",
-                                    ),
-                              ),
-                              SidebarTile(
-                                title: "User Roles",
-                                icon: Icons.shield_outlined,
-                                isSelected: selectedTile == "User Roles",
-                                onTap:
-                                    () => setState(
-                                      () => selectedTile = "User Roles",
-                                    ),
-                              ),
-                              SidebarTile(
-                                title: "Banned Users",
-                                icon: Icons.block_flipped,
-                                isSelected: selectedTile == "Banned Users",
-                                onTap:
-                                    () => setState(
-                                      () => selectedTile = "Banned Users",
-                                    ),
-                              ),
-                            ],
-                          ),
-                          SidebarExpansionTile(
-                            title: "Worker Management",
-                            icon: Icons.engineering_rounded,
-                            isInitiallyExpanded:
-                                selectedTile == "All Workers" ||
-                                selectedTile == "Pending Approvals" ||
-                                selectedTile == "Approved Workers" ||
-                                selectedTile == "Rejected Workers" ||
-                                selectedTile == "Suspended Workers",
-                            onTap:
-                                () => setState(
-                                  () => selectedTile = "All Workers",
-                                ),
-                            children: [
-                              SidebarTile(
-                                title: "All Workers",
-                                icon: Icons.group_outlined,
-                                isSelected: selectedTile == "All Workers",
-                                onTap:
-                                    () => setState(
-                                      () => selectedTile = "All Workers",
-                                    ),
-                              ),
-                              SidebarTile(
-                                title: "Pending Approvals",
-                                icon: Icons.hourglass_empty_rounded,
-                                isSelected: selectedTile == "Pending Approvals",
-                                onTap:
-                                    () => setState(
-                                      () => selectedTile = "Pending Approvals",
-                                    ),
-                                trailing: StreamBuilder<QuerySnapshot>(
-                                  stream:
-                                      FirebaseFirestore.instance
-                                          .collection("workers")
-                                          .where("isVerified", isEqualTo: 0)
-                                          .snapshots(),
-                                  builder: (context, snapshot) {
-                                    int count = 0;
-                                    if (snapshot.hasData) {
-                                      count = snapshot.data!.docs.length;
-                                    }
-                                    return Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 6,
-                                        vertical: 2,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFFF59E0B),
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                      child: Text(
-                                        count.toString(),
-                                        style: GoogleFonts.inter(
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.white,
+                          // ── User Management ──────────────────────────────────────
+                          if (_can(Modules.userManagement, Perms.view) ||
+                              _can(Modules.roles, Perms.view) ||
+                              _can(Modules.grantAccess, Perms.view))
+                            SidebarExpansionTile(
+                              title: "User Management",
+                              icon: Icons.people_alt_rounded,
+                              isInitiallyExpanded:
+                                  selectedTile == "User Profile" ||
+                                  selectedTile == "User Roles" ||
+                                  selectedTile == "Banned Users" ||
+                                  selectedTile == "Grant Access",
+                              onTap:
+                                  () => setState(
+                                    () => selectedTile = "User Profile",
+                                  ),
+                              children: [
+                                if (_can(Modules.userManagement, Perms.view))
+                                  SidebarTile(
+                                    title: "Users",
+                                    icon: Icons.person_outline_rounded,
+                                    isSelected: selectedTile == "User Profile",
+                                    onTap:
+                                        () => setState(
+                                          () => selectedTile = "User Profile",
                                         ),
+                                  ),
+                                if (_can(Modules.roles, Perms.view))
+                                  SidebarTile(
+                                    title: "User Roles",
+                                    icon: Icons.shield_outlined,
+                                    isSelected: selectedTile == "User Roles",
+                                    onTap:
+                                        () => setState(
+                                          () => selectedTile = "User Roles",
+                                        ),
+                                  ),
+                                if (_can(Modules.userManagement, Perms.view))
+                                  SidebarTile(
+                                    title: "Banned Users",
+                                    icon: Icons.block_flipped,
+                                    isSelected: selectedTile == "Banned Users",
+                                    onTap:
+                                        () => setState(
+                                          () => selectedTile = "Banned Users",
+                                        ),
+                                  ),
+                                if (_can(Modules.grantAccess, Perms.view))
+                                  SidebarTile(
+                                    title: "Grant Access",
+                                    icon: Icons.admin_panel_settings_rounded,
+                                    isSelected: selectedTile == "Grant Access",
+                                    onTap:
+                                        () => setState(
+                                          () => selectedTile = "Grant Access",
+                                        ),
+                                  ),
+                              ],
+                            ),
+                          // ── Worker Management ─────────────────────────────────────
+                          if (_can(Modules.workerManagement, Perms.view))
+                            SidebarExpansionTile(
+                              title: "Worker Management",
+                              icon: Icons.engineering_rounded,
+                              isInitiallyExpanded:
+                                  selectedTile == "All Workers" ||
+                                  selectedTile == "Pending Approvals" ||
+                                  selectedTile == "Approved Workers" ||
+                                  selectedTile == "Rejected Workers" ||
+                                  selectedTile == "Suspended Workers",
+                              onTap:
+                                  () => setState(
+                                    () => selectedTile = "All Workers",
+                                  ),
+                              children: [
+                                SidebarTile(
+                                  title: "All Workers",
+                                  icon: Icons.group_outlined,
+                                  isSelected: selectedTile == "All Workers",
+                                  onTap:
+                                      () => setState(
+                                        () => selectedTile = "All Workers",
                                       ),
-                                    );
-                                  },
                                 ),
-                              ),
-                              SidebarTile(
-                                title: "Approved Workers",
-                                icon: Icons.check_circle_outline_rounded,
-                                isSelected: selectedTile == "Approved Workers",
-                                onTap:
-                                    () => setState(
-                                      () => selectedTile = "Approved Workers",
-                                    ),
-                              ),
-                              SidebarTile(
-                                title: "Rejected Workers",
-                                icon: Icons.cancel_outlined,
-                                isSelected: selectedTile == "Rejected Workers",
-                                onTap:
-                                    () => setState(
-                                      () => selectedTile = "Rejected Workers",
-                                    ),
-                              ),
-                              SidebarTile(
-                                title: "Suspended Workers",
-                                icon: Icons.pause_circle_outline_rounded,
-                                isSelected: selectedTile == "Suspended Workers",
-                                onTap:
-                                    () => setState(
-                                      () => selectedTile = "Suspended Workers",
-                                    ),
-                              ),
-                            ],
-                          ),
-                          SidebarExpansionTile(
-                            title: "Bookings",
-                            icon: Icons.book_online_rounded,
-                            isInitiallyExpanded:
-                                selectedTile == "All Bookings" ||
-                                selectedTile == "Pending Bookings" ||
-                                selectedTile == "Confirmed Bookings" ||
-                                selectedTile == "Completed Bookings" ||
-                                selectedTile == "Cancelled Bookings",
-                            onTap:
-                                () => setState(
-                                  () => selectedTile = "All Bookings",
-                                ),
-                            children: [
-                              SidebarTile(
-                                title: "All Bookings",
-                                icon: Icons.list_alt_rounded,
-                                isSelected: selectedTile == "All Bookings",
-                                onTap:
-                                    () => setState(
-                                      () => selectedTile = "All Bookings",
-                                    ),
-                              ),
-                              SidebarTile(
-                                title: "Pending Bookings",
-                                icon: Icons.hourglass_empty_rounded,
-                                isSelected: selectedTile == "Pending Bookings",
-                                onTap:
-                                    () => setState(
-                                      () => selectedTile = "Pending Bookings",
-                                    ),
-                                trailing: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 6,
-                                    vertical: 2,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFF59E0B),
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: Text(
-                                    "18",
-                                    style: GoogleFonts.inter(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                    ),
+                                SidebarTile(
+                                  title: "Pending Approvals",
+                                  icon: Icons.hourglass_empty_rounded,
+                                  isSelected:
+                                      selectedTile == "Pending Approvals",
+                                  onTap:
+                                      () => setState(
+                                        () =>
+                                            selectedTile = "Pending Approvals",
+                                      ),
+                                  trailing: StreamBuilder<QuerySnapshot>(
+                                    stream:
+                                        FirebaseFirestore.instance
+                                            .collection("workers")
+                                            .where("isVerified", isEqualTo: 0)
+                                            .snapshots(),
+                                    builder: (context, snapshot) {
+                                      int count = 0;
+                                      if (snapshot.hasData) {
+                                        count = snapshot.data!.docs.length;
+                                      }
+                                      return Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFF59E0B),
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          count.toString(),
+                                          style: GoogleFonts.inter(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      );
+                                    },
                                   ),
                                 ),
-                              ),
-                              SidebarTile(
-                                title: "Confirmed Bookings",
-                                icon: Icons.check_circle_outline_rounded,
-                                isSelected:
-                                    selectedTile == "Confirmed Bookings",
-                                onTap:
-                                    () => setState(
-                                      () => selectedTile = "Confirmed Bookings",
-                                    ),
-                              ),
-                              SidebarTile(
-                                title: "Completed Bookings",
-                                icon: Icons.assignment_turned_in_outlined,
-                                isSelected:
-                                    selectedTile == "Completed Bookings",
-                                onTap:
-                                    () => setState(
-                                      () => selectedTile = "Completed Bookings",
-                                    ),
-                              ),
-                              SidebarTile(
-                                title: "Cancelled Bookings",
-                                icon: Icons.cancel_outlined,
-                                isSelected:
-                                    selectedTile == "Cancelled Bookings",
-                                onTap:
-                                    () => setState(
-                                      () => selectedTile = "Cancelled Bookings",
-                                    ),
-                              ),
-                            ],
-                          ),
-                          SidebarExpansionTile(
-                            title: "Services",
-                            icon: Icons.home_repair_service_rounded,
-                            isInitiallyExpanded:
-                                selectedTile == "All Services" ||
-                                selectedTile == "Categories" ||
-                                selectedTile == "Service Reviews",
-                            onTap:
-                                () => setState(
-                                  () => selectedTile = "All Services",
+                                SidebarTile(
+                                  title: "Approved Workers",
+                                  icon: Icons.check_circle_outline_rounded,
+                                  isSelected:
+                                      selectedTile == "Approved Workers",
+                                  onTap:
+                                      () => setState(
+                                        () => selectedTile = "Approved Workers",
+                                      ),
                                 ),
-                            children: [
-                              SidebarTile(
-                                title: "All Services",
-                                icon: Icons.list_alt_rounded,
-                                isSelected: selectedTile == "All Services",
-                                onTap:
-                                    () => setState(
-                                      () => selectedTile = "All Services",
-                                    ),
-                              ),
-                              SidebarTile(
-                                title: "Categories",
-                                icon: Icons.category_rounded,
-                                isSelected: selectedTile == "Categories",
-                                onTap:
-                                    () => setState(
-                                      () => selectedTile = "Categories",
-                                    ),
-                              ),
-                              SidebarTile(
-                                title: "Service Reviews",
-                                icon: Icons.rate_review_rounded,
-                                isSelected: selectedTile == "Service Reviews",
-                                onTap:
-                                    () => setState(
-                                      () => selectedTile = "Service Reviews",
-                                    ),
-                              ),
-                            ],
-                          ),
-                          SidebarExpansionTile(
-                            title: "Products",
-                            icon: Icons.shopping_bag_rounded,
-                            isInitiallyExpanded: selectedTile == "Products",
-                            children: [
-                              SidebarTile(
-                                title: "Products List",
-                                icon: Icons.list_alt_rounded,
-                                isSelected: selectedTile == "Products",
-                                onTap:
-                                    () => setState(
-                                      () => selectedTile = "Products",
-                                    ),
-                              ),
-                            ],
-                          ),
-                          SidebarTile(
-                            title: "Orders",
-                            icon: Icons.shopping_cart_rounded,
-                            isSelected: selectedTile == "Orders",
-                            onTap:
-                                () => setState(() => selectedTile = "Orders"),
-                          ),
-                          SidebarTile(
-                            title: "Advertisements",
-                            icon: Icons.campaign_rounded,
-                            isSelected: selectedTile == "Ads Promotion",
-                            onTap:
-                                () => setState(
-                                  () => selectedTile = "Ads Promotion",
+                                SidebarTile(
+                                  title: "Rejected Workers",
+                                  icon: Icons.cancel_outlined,
+                                  isSelected:
+                                      selectedTile == "Rejected Workers",
+                                  onTap:
+                                      () => setState(
+                                        () => selectedTile = "Rejected Workers",
+                                      ),
                                 ),
-                          ),
-                          SidebarExpansionTile(
-                            title: "Transport",
-                            icon: Icons.local_shipping_rounded,
-                            children: [
-                              SidebarTile(
-                                title: "Overview",
-                                icon: Icons.map_outlined,
-                                isSelected:
-                                    selectedTile == "Transport Overview",
-                                onTap:
-                                    () => setState(
-                                      () => selectedTile = "Transport Overview",
+                                SidebarTile(
+                                  title: "Suspended Workers",
+                                  icon: Icons.pause_circle_outline_rounded,
+                                  isSelected:
+                                      selectedTile == "Suspended Workers",
+                                  onTap:
+                                      () => setState(
+                                        () =>
+                                            selectedTile = "Suspended Workers",
+                                      ),
+                                ),
+                              ],
+                            ),
+                          // ── Bookings ───────────────────────────────────────────────
+                          if (_can(Modules.bookings, Perms.view))
+                            SidebarExpansionTile(
+                              title: "Bookings",
+                              icon: Icons.book_online_rounded,
+                              isInitiallyExpanded:
+                                  selectedTile == "All Bookings" ||
+                                  selectedTile == "Pending Bookings" ||
+                                  selectedTile == "Confirmed Bookings" ||
+                                  selectedTile == "Completed Bookings" ||
+                                  selectedTile == "Cancelled Bookings",
+                              onTap:
+                                  () => setState(
+                                    () => selectedTile = "All Bookings",
+                                  ),
+                              children: [
+                                SidebarTile(
+                                  title: "All Bookings",
+                                  icon: Icons.list_alt_rounded,
+                                  isSelected: selectedTile == "All Bookings",
+                                  onTap:
+                                      () => setState(
+                                        () => selectedTile = "All Bookings",
+                                      ),
+                                ),
+                                SidebarTile(
+                                  title: "Pending Bookings",
+                                  icon: Icons.hourglass_empty_rounded,
+                                  isSelected:
+                                      selectedTile == "Pending Bookings",
+                                  onTap:
+                                      () => setState(
+                                        () => selectedTile = "Pending Bookings",
+                                      ),
+                                  trailing: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
                                     ),
-                              ),
-                            ],
-                          ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF59E0B),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Text(
+                                      "18",
+                                      style: GoogleFonts.inter(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                SidebarTile(
+                                  title: "Confirmed Bookings",
+                                  icon: Icons.check_circle_outline_rounded,
+                                  isSelected:
+                                      selectedTile == "Confirmed Bookings",
+                                  onTap:
+                                      () => setState(
+                                        () =>
+                                            selectedTile = "Confirmed Bookings",
+                                      ),
+                                ),
+                                SidebarTile(
+                                  title: "Completed Bookings",
+                                  icon: Icons.assignment_turned_in_outlined,
+                                  isSelected:
+                                      selectedTile == "Completed Bookings",
+                                  onTap:
+                                      () => setState(
+                                        () =>
+                                            selectedTile = "Completed Bookings",
+                                      ),
+                                ),
+                                SidebarTile(
+                                  title: "Cancelled Bookings",
+                                  icon: Icons.cancel_outlined,
+                                  isSelected:
+                                      selectedTile == "Cancelled Bookings",
+                                  onTap:
+                                      () => setState(
+                                        () =>
+                                            selectedTile = "Cancelled Bookings",
+                                      ),
+                                ),
+                              ],
+                            ),
+                          // ── Services ───────────────────────────────────────────────
+                          if (_can(Modules.advertisement, Perms.view))
+                            SidebarExpansionTile(
+                              title: "Services",
+                              icon: Icons.home_repair_service_rounded,
+                              isInitiallyExpanded:
+                                  selectedTile == "All Services" ||
+                                  selectedTile == "Categories" ||
+                                  selectedTile == "Service Reviews",
+                              onTap:
+                                  () => setState(
+                                    () => selectedTile = "All Services",
+                                  ),
+                              children: [
+                                SidebarTile(
+                                  title: "All Services",
+                                  icon: Icons.list_alt_rounded,
+                                  isSelected: selectedTile == "All Services",
+                                  onTap:
+                                      () => setState(
+                                        () => selectedTile = "All Services",
+                                      ),
+                                ),
+                                SidebarTile(
+                                  title: "Categories",
+                                  icon: Icons.category_rounded,
+                                  isSelected: selectedTile == "Categories",
+                                  onTap:
+                                      () => setState(
+                                        () => selectedTile = "Categories",
+                                      ),
+                                ),
+                                SidebarTile(
+                                  title: "Service Reviews",
+                                  icon: Icons.rate_review_rounded,
+                                  isSelected: selectedTile == "Service Reviews",
+                                  onTap:
+                                      () => setState(
+                                        () => selectedTile = "Service Reviews",
+                                      ),
+                                ),
+                              ],
+                            ),
+                          // ── Ads / Payments / Reports / Settings ────────────────────
+                          if (_can(Modules.advertisement, Perms.view))
+                            SidebarTile(
+                              title: "Advertisements",
+                              icon: Icons.campaign_rounded,
+                              isSelected: selectedTile == "Ads Promotion",
+                              onTap:
+                                  () => setState(
+                                    () => selectedTile = "Ads Promotion",
+                                  ),
+                            ),
+                          if (_can(Modules.payments, Perms.view))
+                            SidebarTile(
+                              title: "Payments",
+                              icon: Icons.payments_outlined,
+                              isSelected: selectedTile == "Payments",
+                              onTap:
+                                  () =>
+                                      setState(() => selectedTile = "Payments"),
+                            ),
                           SidebarTile(
                             title: "Bus Routes",
                             icon: Icons.directions_bus_rounded,
@@ -566,52 +681,49 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
                                   () => selectedTile = "Taxi Drivers",
                                 ),
                           ),
-                          SidebarTile(
-                            title: "Coupons",
-                            icon: Icons.local_offer_rounded,
-                            isSelected: selectedTile == "Coupons",
-                            onTap:
-                                () => setState(() => selectedTile = "Coupons"),
-                          ),
-                          SidebarTile(
-                            title: "Notifications",
-                            icon: Icons.notifications_rounded,
-                            isSelected: selectedTile == "Notifications",
-                            onTap:
-                                () => setState(
-                                  () => selectedTile = "Notifications",
+                          if (_can(Modules.notifications, Perms.view))
+                            SidebarTile(
+                              title: "Notifications",
+                              icon: Icons.notifications_rounded,
+                              isSelected: selectedTile == "Notifications",
+                              onTap:
+                                  () => setState(
+                                    () => selectedTile = "Notifications",
+                                  ),
+                            ),
+                          if (_can(Modules.reports, Perms.view))
+                            SidebarExpansionTile(
+                              title: "Reports",
+                              icon: Icons.bar_chart_rounded,
+                              children: [
+                                SidebarTile(
+                                  title: "Overview",
+                                  icon: Icons.trending_up_rounded,
+                                  isSelected:
+                                      selectedTile == "Reports Overview",
+                                  onTap:
+                                      () => setState(
+                                        () => selectedTile = "Reports Overview",
+                                      ),
                                 ),
-                          ),
-                          SidebarExpansionTile(
-                            title: "Reports",
-                            icon: Icons.bar_chart_rounded,
-                            children: [
-                              SidebarTile(
-                                title: "Overview",
-                                icon: Icons.trending_up_rounded,
-                                isSelected: selectedTile == "Reports Overview",
-                                onTap:
-                                    () => setState(
-                                      () => selectedTile = "Reports Overview",
-                                    ),
-                              ),
-                            ],
-                          ),
-                          SidebarExpansionTile(
-                            title: "Settings",
-                            icon: Icons.settings_rounded,
-                            children: [
-                              SidebarTile(
-                                title: "Preferences",
-                                icon: Icons.tune_rounded,
-                                isSelected: selectedTile == "Preferences",
-                                onTap:
-                                    () => setState(
-                                      () => selectedTile = "Preferences",
-                                    ),
-                              ),
-                            ],
-                          ),
+                              ],
+                            ),
+                          if (_can(Modules.settings, Perms.view))
+                            SidebarExpansionTile(
+                              title: "Settings",
+                              icon: Icons.settings_rounded,
+                              children: [
+                                SidebarTile(
+                                  title: "Preferences",
+                                  icon: Icons.tune_rounded,
+                                  isSelected: selectedTile == "Preferences",
+                                  onTap:
+                                      () => setState(
+                                        () => selectedTile = "Preferences",
+                                      ),
+                                ),
+                              ],
+                            ),
                           SidebarTile(
                             title: "Profile",
                             icon: Icons.person_rounded,
@@ -743,25 +855,18 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
           // User Profile Info
           Row(
             children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(20),
-                child: Image.network(
-                  'https://randomuser.me/api/portraits/men/32.jpg',
-                  width: 40,
-                  height: 40,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) {
-                    return Container(
-                      width: 40,
-                      height: 40,
-                      color: const Color(0xFFE2E8F0),
-                      child: const Icon(
-                        Icons.person,
-                        color: Color(0xFF64748B),
-                        size: 20,
-                      ),
-                    );
-                  },
+              CircleAvatar(
+                radius: 18,
+                backgroundColor: const Color(0xFFF0FDF4),
+                child: Text(
+                  (_session.fullName?.isNotEmpty == true)
+                      ? _session.fullName![0].toUpperCase()
+                      : 'A',
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF059669),
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -770,7 +875,7 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    "Admin",
+                    _session.fullName ?? 'Admin',
                     style: GoogleFonts.inter(
                       fontSize: 13,
                       fontWeight: FontWeight.bold,
@@ -778,7 +883,7 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
                     ),
                   ),
                   Text(
-                    "Super Admin",
+                    _session.roleDisplayName ?? 'Admin',
                     style: GoogleFonts.inter(
                       fontSize: 11,
                       color: const Color(0xFF64748B),
@@ -925,7 +1030,7 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
     showDialog(
       context: context,
       builder:
-          (context) => AlertDialog(
+          (ctx) => AlertDialog(
             title: Text(
               "Logout",
               style: GoogleFonts.inter(fontWeight: FontWeight.bold),
@@ -936,16 +1041,23 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.pop(context),
+                onPressed: () => Navigator.pop(ctx),
                 child: Text(
                   "Cancel",
                   style: GoogleFonts.inter(color: const Color(0xFF64748B)),
                 ),
               ),
               ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  // Perform actual logout logic or redirect
+                onPressed: () async {
+                  Navigator.pop(ctx);
+                  await FirebaseAuthService.instance.signOut();
+                  if (context.mounted) {
+                    Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(builder: (_) => const Loginpage()),
+                      (route) => false,
+                    );
+                  }
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFEF4444),
