@@ -80,65 +80,191 @@ class _TabletScaffoldState extends State<TabletScaffold> {
     if (mounted) setState(() {});
   }
 
-  bool _can(String module, String action) => _session.hasPermission(module, action);
+  bool _can(String module, String action) =>
+      _session.hasPermission(module, action);
 
   Widget getSelectedPage() {
     switch (selectedTile) {
       case "Dashboard":
         return const Dashboard();
       case "Worker Profile":
-        return PermissionGuard(module: Modules.workerManagement, action: Perms.view, child: const ProfileWorker());
+        return PermissionGuard(
+          module: Modules.workerManagement,
+          action: Perms.view,
+          child: const ProfileWorker(),
+        );
       case "Verification":
-        return PermissionGuard(module: Modules.workerManagement, action: Perms.view, child: const VerificationWorker());
+        return PermissionGuard(
+          module: Modules.workerManagement,
+          action: Perms.view,
+          child: const VerificationWorker(),
+        );
       case "All Workers":
-        return PermissionGuard(module: Modules.workerManagement, action: Perms.view, child: AllWorkersPage(initialFilter: "All", onTabChanged: (tab) => setState(() => selectedTile = tab)));
+        return PermissionGuard(
+          module: Modules.workerManagement,
+          action: Perms.view,
+          child: AllWorkersPage(
+            initialFilter: "All",
+            onTabChanged: (tab) => setState(() => selectedTile = tab),
+          ),
+        );
       case "Pending Approvals":
-        return PermissionGuard(module: Modules.workerManagement, action: Perms.view, child: AllWorkersPage(initialFilter: "Pending", onTabChanged: (tab) => setState(() => selectedTile = tab)));
+        return PermissionGuard(
+          module: Modules.workerManagement,
+          action: Perms.view,
+          child: AllWorkersPage(
+            initialFilter: "Pending",
+            onTabChanged: (tab) => setState(() => selectedTile = tab),
+          ),
+        );
       case "Approved Workers":
-        return PermissionGuard(module: Modules.workerManagement, action: Perms.view, child: AllWorkersPage(initialFilter: "Approved", onTabChanged: (tab) => setState(() => selectedTile = tab)));
+        return PermissionGuard(
+          module: Modules.workerManagement,
+          action: Perms.view,
+          child: AllWorkersPage(
+            initialFilter: "Approved",
+            onTabChanged: (tab) => setState(() => selectedTile = tab),
+          ),
+        );
       case "Rejected Workers":
-        return PermissionGuard(module: Modules.workerManagement, action: Perms.view, child: AllWorkersPage(initialFilter: "Rejected", onTabChanged: (tab) => setState(() => selectedTile = tab)));
+        return PermissionGuard(
+          module: Modules.workerManagement,
+          action: Perms.view,
+          child: AllWorkersPage(
+            initialFilter: "Rejected",
+            onTabChanged: (tab) => setState(() => selectedTile = tab),
+          ),
+        );
       case "Suspended Workers":
-        return PermissionGuard(module: Modules.workerManagement, action: Perms.view, child: AllWorkersPage(initialFilter: "Suspended", onTabChanged: (tab) => setState(() => selectedTile = tab)));
+        return PermissionGuard(
+          module: Modules.workerManagement,
+          action: Perms.view,
+          child: AllWorkersPage(
+            initialFilter: "Suspended",
+            onTabChanged: (tab) => setState(() => selectedTile = tab),
+          ),
+        );
       case "User Profile":
-        return PermissionGuard(module: Modules.userManagement, action: Perms.view, child: const ProfileUser());
+        return PermissionGuard(
+          module: Modules.userManagement,
+          action: Perms.view,
+          child: const ProfileUser(),
+        );
       case "User Roles":
         return PermissionGuard(
-            module: Modules.roles,
-            action: Perms.view,
-            child: UserRolesPage(
-                onTabChanged: (tab) => setState(() => selectedTile = tab)));
+          module: Modules.roles,
+          action: Perms.view,
+          child: UserRolesPage(
+            onTabChanged: (tab) => setState(() => selectedTile = tab),
+          ),
+        );
       case "Banned Users":
-        return PermissionGuard(module: Modules.userManagement, action: Perms.view, child: const BannedUsersPage());
+        return PermissionGuard(
+          module: Modules.userManagement,
+          action: Perms.view,
+          child: const BannedUsersPage(),
+        );
       case "Grant Access":
-        return PermissionGuard(module: Modules.grantAccess, action: Perms.view, child: const GrantAccessPage());
+        return PermissionGuard(
+          module: Modules.grantAccess,
+          action: Perms.view,
+          child: GrantAccessPage(
+            onTabChanged: (tab) => setState(() => selectedTile = tab),
+          ),
+        );
       case "Services":
       case "All Services":
-        return PermissionGuard(module: Modules.advertisement, action: Perms.view, child: const Services());
+        return PermissionGuard(
+          module: Modules.advertisement,
+          action: Perms.view,
+          child: const Services(),
+        );
       case "Categories":
-        return PermissionGuard(module: Modules.advertisement, action: Perms.view, child: const ServiceCategoriesPage());
+        return PermissionGuard(
+          module: Modules.advertisement,
+          action: Perms.view,
+          child: const ServiceCategoriesPage(),
+        );
       case "Service Reviews":
-        return _buildPlaceholderPage("Service Reviews", Icons.rate_review_rounded);
+        return _buildPlaceholderPage(
+          "Service Reviews",
+          Icons.rate_review_rounded,
+        );
       case "Payments":
-        return PermissionGuard(module: Modules.payments, action: Perms.view, child: PaymentPage());
+        return PermissionGuard(
+          module: Modules.payments,
+          action: Perms.view,
+          child: PaymentPage(),
+        );
       case "All Bookings":
-        return PermissionGuard(module: Modules.bookings, action: Perms.view, child: Bookings(initialFilter: "All", onTabChanged: (tab) => setState(() => selectedTile = tab)));
+        return PermissionGuard(
+          module: Modules.bookings,
+          action: Perms.view,
+          child: Bookings(
+            initialFilter: "All",
+            onTabChanged: (tab) => setState(() => selectedTile = tab),
+          ),
+        );
       case "Pending Bookings":
-        return PermissionGuard(module: Modules.bookings, action: Perms.view, child: Bookings(initialFilter: "Pending", onTabChanged: (tab) => setState(() => selectedTile = tab)));
+        return PermissionGuard(
+          module: Modules.bookings,
+          action: Perms.view,
+          child: Bookings(
+            initialFilter: "Pending",
+            onTabChanged: (tab) => setState(() => selectedTile = tab),
+          ),
+        );
       case "Confirmed Bookings":
-        return PermissionGuard(module: Modules.bookings, action: Perms.view, child: Bookings(initialFilter: "Confirmed", onTabChanged: (tab) => setState(() => selectedTile = tab)));
+        return PermissionGuard(
+          module: Modules.bookings,
+          action: Perms.view,
+          child: Bookings(
+            initialFilter: "Confirmed",
+            onTabChanged: (tab) => setState(() => selectedTile = tab),
+          ),
+        );
       case "Completed Bookings":
-        return PermissionGuard(module: Modules.bookings, action: Perms.view, child: Bookings(initialFilter: "Completed", onTabChanged: (tab) => setState(() => selectedTile = tab)));
+        return PermissionGuard(
+          module: Modules.bookings,
+          action: Perms.view,
+          child: Bookings(
+            initialFilter: "Completed",
+            onTabChanged: (tab) => setState(() => selectedTile = tab),
+          ),
+        );
       case "Cancelled Bookings":
-        return PermissionGuard(module: Modules.bookings, action: Perms.view, child: Bookings(initialFilter: "Cancelled", onTabChanged: (tab) => setState(() => selectedTile = tab)));
+        return PermissionGuard(
+          module: Modules.bookings,
+          action: Perms.view,
+          child: Bookings(
+            initialFilter: "Cancelled",
+            onTabChanged: (tab) => setState(() => selectedTile = tab),
+          ),
+        );
       case "Loyalty Points":
         return const Loyaltypoints();
       case "Notifications":
-        return PermissionGuard(module: Modules.notifications, action: Perms.view, child: const Notifications());
+        return PermissionGuard(
+          module: Modules.notifications,
+          action: Perms.view,
+          child: const Notifications(),
+        );
       case "Ads Promotion":
-        return PermissionGuard(module: Modules.advertisement, action: Perms.view, child: const Adspromotion());
+        return PermissionGuard(
+          module: Modules.advertisement,
+          action: Perms.view,
+          child: const Adspromotion(),
+        );
       default:
-        return Center(child: Text("Selected: $selectedTile", style: GoogleFonts.inter(fontSize: 16, color: const Color(0xFF64748B))));
+        return Center(
+          child: Text(
+            "Selected: $selectedTile",
+            style: GoogleFonts.inter(
+              fontSize: 16,
+              color: const Color(0xFF64748B),
+            ),
+          ),
+        );
     }
   }
 
@@ -213,7 +339,11 @@ class _TabletScaffoldState extends State<TabletScaffold> {
                   width: 32,
                   height: 32,
                   color: const Color(0xFFE2E8F0),
-                  child: const Icon(Icons.person, color: Color(0xFF64748B), size: 16),
+                  child: const Icon(
+                    Icons.person,
+                    color: Color(0xFF64748B),
+                    size: 16,
+                  ),
                 );
               },
             ),
@@ -248,8 +378,12 @@ class _TabletScaffoldState extends State<TabletScaffold> {
                     SidebarExpansionTile(
                       title: "User Management",
                       icon: Icons.people_alt_rounded,
-                      isInitiallyExpanded: selectedTile == "User Profile" || selectedTile == "User Roles" || selectedTile == "Banned Users",
-                      onTap: () => setState(() => selectedTile = "User Profile"),
+                      isInitiallyExpanded:
+                          selectedTile == "User Profile" ||
+                          selectedTile == "User Roles" ||
+                          selectedTile == "Banned Users",
+                      onTap:
+                          () => setState(() => selectedTile = "User Profile"),
                       children: [
                         SidebarTile(
                           title: "Users",
@@ -283,7 +417,12 @@ class _TabletScaffoldState extends State<TabletScaffold> {
                     SidebarExpansionTile(
                       title: "Worker Management",
                       icon: Icons.engineering_rounded,
-                      isInitiallyExpanded: selectedTile == "All Workers" || selectedTile == "Pending Approvals" || selectedTile == "Approved Workers" || selectedTile == "Rejected Workers" || selectedTile == "Suspended Workers",
+                      isInitiallyExpanded:
+                          selectedTile == "All Workers" ||
+                          selectedTile == "Pending Approvals" ||
+                          selectedTile == "Approved Workers" ||
+                          selectedTile == "Rejected Workers" ||
+                          selectedTile == "Suspended Workers",
                       onTap: () => setState(() => selectedTile = "All Workers"),
                       children: [
                         SidebarTile(
@@ -304,17 +443,21 @@ class _TabletScaffoldState extends State<TabletScaffold> {
                             _scaffoldKey.currentState?.closeDrawer();
                           },
                           trailing: StreamBuilder<QuerySnapshot>(
-                            stream: FirebaseFirestore.instance
-                                .collection("workers")
-                                .where("isVerified", isEqualTo: 0)
-                                .snapshots(),
+                            stream:
+                                FirebaseFirestore.instance
+                                    .collection("workers")
+                                    .where("isVerified", isEqualTo: 0)
+                                    .snapshots(),
                             builder: (context, snapshot) {
                               int count = 0;
                               if (snapshot.hasData) {
                                 count = snapshot.data!.docs.length;
                               }
                               return Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
                                 decoration: BoxDecoration(
                                   color: const Color(0xFFF59E0B),
                                   borderRadius: BorderRadius.circular(10),
@@ -363,8 +506,14 @@ class _TabletScaffoldState extends State<TabletScaffold> {
                     SidebarExpansionTile(
                       title: "Bookings",
                       icon: Icons.book_online_rounded,
-                      isInitiallyExpanded: selectedTile == "All Bookings" || selectedTile == "Pending Bookings" || selectedTile == "Confirmed Bookings" || selectedTile == "Completed Bookings" || selectedTile == "Cancelled Bookings",
-                      onTap: () => setState(() => selectedTile = "All Bookings"),
+                      isInitiallyExpanded:
+                          selectedTile == "All Bookings" ||
+                          selectedTile == "Pending Bookings" ||
+                          selectedTile == "Confirmed Bookings" ||
+                          selectedTile == "Completed Bookings" ||
+                          selectedTile == "Cancelled Bookings",
+                      onTap:
+                          () => setState(() => selectedTile = "All Bookings"),
                       children: [
                         SidebarTile(
                           title: "All Bookings",
@@ -384,7 +533,10 @@ class _TabletScaffoldState extends State<TabletScaffold> {
                             _scaffoldKey.currentState?.closeDrawer();
                           },
                           trailing: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
                               color: const Color(0xFFF59E0B),
                               borderRadius: BorderRadius.circular(10),
@@ -431,8 +583,12 @@ class _TabletScaffoldState extends State<TabletScaffold> {
                     SidebarExpansionTile(
                       title: "Services",
                       icon: Icons.home_repair_service_rounded,
-                      isInitiallyExpanded: selectedTile == "All Services" || selectedTile == "Categories" || selectedTile == "Service Reviews",
-                      onTap: () => setState(() => selectedTile = "All Services"),
+                      isInitiallyExpanded:
+                          selectedTile == "All Services" ||
+                          selectedTile == "Categories" ||
+                          selectedTile == "Service Reviews",
+                      onTap:
+                          () => setState(() => selectedTile = "All Services"),
                       children: [
                         SidebarTile(
                           title: "All Services",
@@ -618,11 +774,7 @@ class _TabletScaffoldState extends State<TabletScaffold> {
               shape: BoxShape.circle,
             ),
             child: const Center(
-              child: Icon(
-                Icons.spa_rounded,
-                color: Colors.white,
-                size: 18,
-              ),
+              child: Icon(Icons.spa_rounded, color: Colors.white, size: 18),
             ),
           ),
           const SizedBox(width: 12),
@@ -655,111 +807,164 @@ class _TabletScaffoldState extends State<TabletScaffold> {
     showDialog(
       context: context,
       barrierColor: Colors.black26,
-      builder: (context) => Stack(
-        children: [
-          Positioned(
-            top: 70,
-            right: 100,
-            child: Material(
-              color: Colors.transparent,
-              child: Container(
-                width: 300,
-                constraints: const BoxConstraints(maxHeight: 385),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: const [
-                    BoxShadow(blurRadius: 16, color: Colors.black12, offset: Offset(0, 8)),
-                  ],
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.all(14.0),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            "Notifications",
-                            style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 14, color: const Color(0xFF1E293B)),
+      builder:
+          (context) => Stack(
+            children: [
+              Positioned(
+                top: 70,
+                right: 100,
+                child: Material(
+                  color: Colors.transparent,
+                  child: Container(
+                    width: 300,
+                    constraints: const BoxConstraints(maxHeight: 385),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: const [
+                        BoxShadow(
+                          blurRadius: 16,
+                          color: Colors.black12,
+                          offset: Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.all(14.0),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                "Notifications",
+                                style: GoogleFonts.inter(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                  color: const Color(0xFF1E293B),
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF1F5F9),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(
+                                  "New",
+                                  style: GoogleFonts.inter(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: const Color(0xFF475569),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF1F5F9),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
+                        ),
+                        const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                        if (notifications.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.all(18.0),
                             child: Text(
-                              "New",
-                              style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: const Color(0xFF475569)),
+                              "No new notifications",
+                              style: GoogleFonts.inter(
+                                color: const Color(0xFF64748B),
+                                fontSize: 12,
+                              ),
                             ),
                           )
-                        ],
-                      ),
-                    ),
-                    const Divider(height: 1, color: Color(0xFFF1F5F9)),
-                    if (notifications.isEmpty)
-                      Padding(
-                        padding: const EdgeInsets.all(18.0),
-                        child: Text("No new notifications", style: GoogleFonts.inter(color: const Color(0xFF64748B), fontSize: 12)),
-                      )
-                    else
-                      Flexible(
-                        child: ListView(
-                          shrinkWrap: true,
-                          padding: EdgeInsets.zero,
-                          children: notifications.map((note) => ListTile(
-                            leading: Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: note.color.withValues(alpha: 0.1),
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(note.icon, color: note.color, size: 14),
+                        else
+                          Flexible(
+                            child: ListView(
+                              shrinkWrap: true,
+                              padding: EdgeInsets.zero,
+                              children:
+                                  notifications
+                                      .map(
+                                        (note) => ListTile(
+                                          leading: Container(
+                                            padding: const EdgeInsets.all(8),
+                                            decoration: BoxDecoration(
+                                              color: note.color.withValues(
+                                                alpha: 0.1,
+                                              ),
+                                              shape: BoxShape.circle,
+                                            ),
+                                            child: Icon(
+                                              note.icon,
+                                              color: note.color,
+                                              size: 14,
+                                            ),
+                                          ),
+                                          title: Text(
+                                            note.message,
+                                            style: GoogleFonts.inter(
+                                              fontSize: 12,
+                                              color: const Color(0xFF1E293B),
+                                            ),
+                                          ),
+                                          contentPadding:
+                                              const EdgeInsets.symmetric(
+                                                horizontal: 14,
+                                                vertical: 3,
+                                              ),
+                                          onTap: () {
+                                            Navigator.pop(context);
+                                            note.onTap();
+                                          },
+                                        ),
+                                      )
+                                      .toList(),
                             ),
-                            title: Text(note.message, style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF1E293B))),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 3),
-                            onTap: () {
-                              Navigator.pop(context);
-                              note.onTap();
-                            },
-                          )).toList(),
-                        ),
-                      ),
-                  ],
+                          ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
-            ),
+            ],
           ),
-        ],
-      ),
     );
   }
 
   void _showLogoutDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text("Logout", style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
-        content: Text("Are you sure you want to logout?", style: GoogleFonts.inter()),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text("Cancel", style: GoogleFonts.inter(color: const Color(0xFF64748B))),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFEF4444),
-              foregroundColor: Colors.white,
+      builder:
+          (context) => AlertDialog(
+            title: Text(
+              "Logout",
+              style: GoogleFonts.inter(fontWeight: FontWeight.bold),
             ),
-            child: Text("Logout", style: GoogleFonts.inter()),
+            content: Text(
+              "Are you sure you want to logout?",
+              style: GoogleFonts.inter(),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(
+                  "Cancel",
+                  style: GoogleFonts.inter(color: const Color(0xFF64748B)),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFEF4444),
+                  foregroundColor: Colors.white,
+                ),
+                child: Text("Logout", style: GoogleFonts.inter()),
+              ),
+            ],
           ),
-        ],
-      ),
     );
   }
 }
@@ -797,7 +1002,10 @@ class SidebarTile extends StatelessWidget {
             children: [
               Icon(
                 icon,
-                color: isSelected ? const Color(0xFF10B981) : const Color(0xFF94A3B8),
+                color:
+                    isSelected
+                        ? const Color(0xFF10B981)
+                        : const Color(0xFF94A3B8),
                 size: 18,
               ),
               const SizedBox(width: 12),
@@ -877,11 +1085,7 @@ class _SidebarExpansionTileState extends State<SidebarExpansionTile> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               child: Row(
                 children: [
-                  Icon(
-                    widget.icon,
-                    color: const Color(0xFF94A3B8),
-                    size: 18,
-                  ),
+                  Icon(widget.icon, color: const Color(0xFF94A3B8), size: 18),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
@@ -894,7 +1098,9 @@ class _SidebarExpansionTileState extends State<SidebarExpansionTile> {
                     ),
                   ),
                   Icon(
-                    _isExpanded ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
+                    _isExpanded
+                        ? Icons.keyboard_arrow_up_rounded
+                        : Icons.keyboard_arrow_down_rounded,
                     color: const Color(0xFF94A3B8),
                     size: 16,
                   ),
@@ -905,9 +1111,7 @@ class _SidebarExpansionTileState extends State<SidebarExpansionTile> {
           if (_isExpanded)
             Padding(
               padding: const EdgeInsets.only(left: 12.0),
-              child: Column(
-                children: widget.children,
-              ),
+              child: Column(children: widget.children),
             ),
         ],
       ),
@@ -918,10 +1122,7 @@ class _SidebarExpansionTileState extends State<SidebarExpansionTile> {
 class SidebarLogoutTile extends StatelessWidget {
   final VoidCallback onTap;
 
-  const SidebarLogoutTile({
-    super.key,
-    required this.onTap,
-  });
+  const SidebarLogoutTile({super.key, required this.onTap});
 
   @override
   Widget build(BuildContext context) {

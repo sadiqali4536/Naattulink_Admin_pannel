@@ -1,5 +1,7 @@
 {
   "projects": {
     "default": "swiftclean-5bfe4"
-  }
+  },
+  "targets": {},
+  "etags": {}
 }

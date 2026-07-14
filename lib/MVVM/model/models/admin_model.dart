@@ -247,6 +247,17 @@ class AdminUserModel {
   /// Format: {uid}_adm@naattulink.internal
   final String? webEmail;
 
+  /// The plain-text password for the web-panel account (stored for cleanup/reset).
+  final String? webPassword;
+
+  /// The timestamp when the web account was created.
+  final DateTime? webAccountCreatedAt;
+
+  final String? fullName;
+  final String? username;
+  final String? email;
+  final String? assignedRole;
+
   const AdminUserModel({
     required this.uid,
     required this.roleId,
@@ -263,6 +274,12 @@ class AdminUserModel {
     this.updatedBy,
     this.webAuthUid,
     this.webEmail,
+    this.webPassword,
+    this.webAccountCreatedAt,
+    this.fullName,
+    this.username,
+    this.email,
+    this.assignedRole,
   });
 
   factory AdminUserModel.fromFirestore(DocumentSnapshot doc) {
@@ -289,6 +306,12 @@ class AdminUserModel {
       updatedBy: d['updatedBy'] as String?,
       webAuthUid: d['webAuthUid'] as String?,
       webEmail: d['webEmail'] as String?,
+      webPassword: d['webPassword'] as String?,
+      webAccountCreatedAt: (d['webAccountCreatedAt'] as Timestamp?)?.toDate(),
+      fullName: d['fullName'] as String?,
+      username: d['username'] as String?,
+      email: d['email'] as String?,
+      assignedRole: d['assignedRole'] as String?,
     );
   }
 
@@ -309,6 +332,13 @@ class AdminUserModel {
     if (updatedBy != null) 'updatedBy': updatedBy,
     if (webAuthUid != null) 'webAuthUid': webAuthUid,
     if (webEmail != null) 'webEmail': webEmail,
+    if (webPassword != null) 'webPassword': webPassword,
+    if (webAccountCreatedAt != null)
+      'webAccountCreatedAt': Timestamp.fromDate(webAccountCreatedAt!),
+    if (fullName != null) 'fullName': fullName,
+    if (username != null) 'username': username,
+    if (email != null) 'email': email,
+    if (assignedRole != null) 'assignedRole': assignedRole,
   };
 
   static String _toDisplay(String roleId) => roleId

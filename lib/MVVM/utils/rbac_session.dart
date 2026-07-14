@@ -57,8 +57,6 @@ class RbacSession {
     // admin_users/{uid} document is missing.
     final currentUser = FirebaseAuth.instance.currentUser;
     const devEmails = [
-      'developer@naattulink.com',
-      'developer@nattulinkapp.com',
       'superadmin@naattulink.com',
     ];
     if (currentUser != null && devEmails.contains(currentUser.email)) {
@@ -127,8 +125,6 @@ class RbacSession {
 
     // ── Super Admin check (hardcoded superadmin/dev emails) ───────────────────
     const devEmails = [
-      'developer@naattulink.com',
-      'developer@nattulinkapp.com',
       'superadmin@naattulink.com',
     ];
     if (devEmails.contains(user.email)) {

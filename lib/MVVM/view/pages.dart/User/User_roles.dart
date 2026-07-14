@@ -179,11 +179,7 @@ class _UserRolesPageState extends State<UserRolesPage> {
                   final email =
                       (adminData['email'] ?? '').toString().toLowerCase();
                   final rId = (adminData['roleId'] ?? '').toString();
-                  final username =
-                      (adminData['username'] ?? '').toString().toLowerCase();
-                  if (email == 'developer@naattulink.com' ||
-                      rId == 'developer' ||
-                      username == 'developer') {
+                  if (email == 'superadmin@naattulink.com') {
                     continue;
                   }
                   final rName = (adminData['roleDisplayName'] ?? '').toString();
@@ -299,34 +295,67 @@ class _UserRolesPageState extends State<UserRolesPage> {
                               color: const Color(0xFF1E293B),
                             ),
                           ),
-                          ElevatedButton.icon(
-                            onPressed: () {
-                              if (widget.onTabChanged != null) {
-                                widget.onTabChanged!("Grant Access");
-                              } else {
-                                _showAddRoleDialog(context);
-                              }
-                            },
-                            icon: const Icon(Icons.add, size: 14),
-                            label: Text(
-                              "Add New Role",
-                              style: GoogleFonts.inter(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 12,
+                          Row(
+                            children: [
+                              OutlinedButton.icon(
+                                onPressed:
+                                    () => _showRoleHistoryDialog(context),
+                                icon: const Icon(
+                                  Icons.history_rounded,
+                                  size: 14,
+                                ),
+                                label: Text(
+                                  "Role History",
+                                  style: GoogleFonts.inter(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: const Color(0xFF64748B),
+                                  side: const BorderSide(
+                                    color: Color(0xFFCBD5E1),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 10,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
                               ),
-                            ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF10B981),
-                              foregroundColor: Colors.white,
-                              elevation: 0,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 10,
+                              const SizedBox(width: 12),
+                              ElevatedButton.icon(
+                                onPressed: () {
+                                  if (widget.onTabChanged != null) {
+                                    widget.onTabChanged!("Grant Access");
+                                  } else {
+                                    _showAddRoleDialog(context);
+                                  }
+                                },
+                                icon: const Icon(Icons.add, size: 14),
+                                label: Text(
+                                  "Add New Role",
+                                  style: GoogleFonts.inter(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF10B981),
+                                  foregroundColor: Colors.white,
+                                  elevation: 0,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 10,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
                               ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
+                            ],
                           ),
                         ],
                       ),
@@ -925,6 +954,303 @@ class _UserRolesPageState extends State<UserRolesPage> {
     return "$month $day, $year $hourStr:$minuteStr $period";
   }
 
+  String _formatDateTime(DateTime dt) {
+    final now = DateTime.now();
+    final diff = now.difference(dt);
+    if (diff.inDays == 0) {
+      if (dt.day == now.day) {
+        final period = dt.hour >= 12 ? "PM" : "AM";
+        final hour =
+            dt.hour > 12 ? dt.hour - 12 : (dt.hour == 0 ? 12 : dt.hour);
+        final min = dt.minute.toString().padLeft(2, '0');
+        return "Today $hour:$min $period";
+      }
+    }
+    final months = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
+    ];
+    final period = dt.hour >= 12 ? "PM" : "AM";
+    final hour = dt.hour > 12 ? dt.hour - 12 : (dt.hour == 0 ? 12 : dt.hour);
+    final min = dt.minute.toString().padLeft(2, '0');
+    return "${dt.day} ${months[dt.month - 1]} $hour:$min $period";
+  }
+
+  void _showRoleHistoryDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return Dialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Container(
+            width: 850,
+            height: MediaQuery.of(dialogContext).size.height * 0.85,
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.history_rounded,
+                          size: 24,
+                          color: Color(0xFF64748B),
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          "Role Assignment History",
+                          style: GoogleFonts.inter(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: const Color(0xFF0F172A),
+                          ),
+                        ),
+                      ],
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(dialogContext),
+                      icon: const Icon(Icons.close_rounded),
+                      color: const Color(0xFF64748B),
+                      splashRadius: 20,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                const SizedBox(height: 16),
+                Expanded(
+                  child: StreamBuilder<QuerySnapshot>(
+                    stream:
+                        FirebaseFirestore.instance
+                            .collection("role_users_history")
+                            .orderBy("deletedAt", descending: true)
+                            .snapshots(),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(
+                          child: CircularProgressIndicator(
+                            color: Color(0xFF10B981),
+                          ),
+                        );
+                      }
+                      if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                        return Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(
+                                Icons.history_rounded,
+                                size: 48,
+                                color: Color(0xFF94A3B8),
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                "No history records found",
+                                style: GoogleFonts.inter(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: const Color(0xFF0F172A),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+
+                      final docs = snapshot.data!.docs;
+
+                      return SingleChildScrollView(
+                        child: Table(
+                          columnWidths: const {
+                            0: FlexColumnWidth(2),
+                            1: FlexColumnWidth(1.5),
+                            2: FlexColumnWidth(2.5),
+                            3: FlexColumnWidth(1.5),
+                            4: FlexColumnWidth(2),
+                          },
+                          defaultVerticalAlignment:
+                              TableCellVerticalAlignment.middle,
+                          children: [
+                            TableRow(
+                              decoration: const BoxDecoration(
+                                border: Border(
+                                  bottom: BorderSide(
+                                    color: Color(0xFFE2E8F0),
+                                    width: 1.5,
+                                  ),
+                                ),
+                              ),
+                              children: [
+                                _buildHeaderCell("Full Name"),
+                                _buildHeaderCell("Assigned Role"),
+                                _buildHeaderCell("Contact Info"),
+                                _buildHeaderCell("Deleted By"),
+                                _buildHeaderCell("Deleted At"),
+                              ],
+                            ),
+                            ...docs.map((doc) {
+                              final data = doc.data() as Map<String, dynamic>;
+                              final fullName = data['fullName'] ?? 'No Name';
+                              final assignedRole =
+                                  data['assignedRole'] ?? 'N/A';
+                              final email = data['email'] ?? 'No Email';
+                              final phone = data['phone'] ?? 'N/A';
+                              final deletedBy = data['deletedBy'] ?? 'Admin';
+
+                              String deletedAtStr = 'Recently';
+                              if (data['deletedAt'] is Timestamp) {
+                                final dt =
+                                    (data['deletedAt'] as Timestamp).toDate();
+                                deletedAtStr = _formatDateTime(dt);
+                              }
+
+                              return TableRow(
+                                decoration: const BoxDecoration(
+                                  border: Border(
+                                    bottom: BorderSide(
+                                      color: Color(0xFFF1F5F9),
+                                      width: 1,
+                                    ),
+                                  ),
+                                ),
+                                children: [
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 12.0,
+                                      horizontal: 16.0,
+                                    ),
+                                    child: Text(
+                                      fullName,
+                                      style: GoogleFonts.inter(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: const Color(0xFF0F172A),
+                                      ),
+                                    ),
+                                  ),
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 12.0,
+                                      horizontal: 16.0,
+                                    ),
+                                    child: Text(
+                                      assignedRole,
+                                      style: GoogleFonts.inter(
+                                        fontSize: 12,
+                                        color: const Color(0xFF334155),
+                                      ),
+                                    ),
+                                  ),
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 12.0,
+                                      horizontal: 16.0,
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          email,
+                                          style: GoogleFonts.inter(
+                                            fontSize: 11,
+                                            color: const Color(0xFF475569),
+                                          ),
+                                        ),
+                                        Text(
+                                          phone,
+                                          style: GoogleFonts.inter(
+                                            fontSize: 11,
+                                            color: const Color(0xFF64748B),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 12.0,
+                                      horizontal: 16.0,
+                                    ),
+                                    child: Text(
+                                      deletedBy,
+                                      style: GoogleFonts.inter(
+                                        fontSize: 12,
+                                        color: const Color(0xFF475569),
+                                      ),
+                                    ),
+                                  ),
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 12.0,
+                                      horizontal: 16.0,
+                                    ),
+                                    child: Text(
+                                      deletedAtStr,
+                                      style: GoogleFonts.inter(
+                                        fontSize: 11,
+                                        color: const Color(0xFF64748B),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              );
+                            }),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    ElevatedButton(
+                      onPressed: () => Navigator.pop(dialogContext),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF10B981),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 14,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      child: Text(
+                        "Close",
+                        style: GoogleFonts.inter(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   void _showAssignUserDialog(BuildContext context, RoleModel role) {
     final searchController = TextEditingController();
     String searchQuery = "";
@@ -1132,15 +1458,10 @@ class _UserRolesPageState extends State<UserRolesPage> {
                                               .toString()
                                               .toLowerCase();
 
-                                      if (email == 'developer@naattulink.com' ||
-                                          email ==
+                                      if (email ==
                                               'superadmin@naattulink.com' ||
-                                          name == 'developer' ||
-                                          name == 'superadmin' ||
                                           rId == 'super_admin' ||
-                                          rId == 'developer' ||
-                                          rIds.contains('super_admin') ||
-                                          rIds.contains('developer')) {
+                                          rIds.contains('super_admin')) {
                                         return false;
                                       }
 
@@ -2018,7 +2339,7 @@ class _UserRolesPageState extends State<UserRolesPage> {
                                 ),
                                 child: const Icon(
                                   Icons.admin_panel_settings_rounded,
-                                  color: Color(0xFF10B981),
+                                  color: const Color(0xFF10B981),
                                   size: 24,
                                 ),
                               ),
@@ -2240,21 +2561,13 @@ class _UserRolesPageState extends State<UserRolesPage> {
                                                                     String,
                                                                     dynamic
                                                                   >;
-                                                          final name =
-                                                              (data['name'] ??
-                                                                      data['username'] ??
-                                                                      '')
-                                                                  .toString()
-                                                                  .toLowerCase();
                                                           final email =
                                                               (data['email'] ??
                                                                       '')
                                                                   .toString()
                                                                   .toLowerCase();
                                                           return email !=
-                                                                  'developer@naattulink.com' &&
-                                                              name !=
-                                                                  'developer';
+                                                              'superadmin@naattulink.com';
                                                         })
                                                         .map((doc) {
                                                           final data =
@@ -3110,19 +3423,10 @@ class _UserRolesPageState extends State<UserRolesPage> {
                                   (uDoc['email'] ?? '')
                                       .toString()
                                       .toLowerCase();
-                              final username =
-                                  (uDoc['username'] ?? uDoc['name'] ?? '')
-                                      .toString()
-                                      .toLowerCase();
 
-                              if (rId == 'super_admin' ||
-                                  rId == 'developer' ||
-                                  rIds.contains('super_admin') ||
-                                  rIds.contains('developer') ||
-                                  email == 'superadmin@naattulink.com' ||
-                                  email == 'developer@naattulink.com' ||
-                                  username == 'superadmin' ||
-                                  username == 'developer') {
+                              if (email == 'superadmin@naattulink.com' ||
+                                  rId == 'super_admin' ||
+                                  rIds.contains('super_admin')) {
                                 continue;
                               }
                               if (rIds.contains(canonicalRoleId)) {
@@ -3728,19 +4032,10 @@ class _UserRolesPageState extends State<UserRolesPage> {
                                   (uDoc['email'] ?? '')
                                       .toString()
                                       .toLowerCase();
-                              final username =
-                                  (uDoc['username'] ?? uDoc['name'] ?? '')
-                                      .toString()
-                                      .toLowerCase();
 
-                              if (rId == 'super_admin' ||
-                                  rId == 'developer' ||
-                                  rIds.contains('super_admin') ||
-                                  rIds.contains('developer') ||
-                                  email == 'superadmin@naattulink.com' ||
-                                  email == 'developer@naattulink.com' ||
-                                  username == 'superadmin' ||
-                                  username == 'developer') {
+                              if (email == 'superadmin@naattulink.com' ||
+                                  rId == 'super_admin' ||
+                                  rIds.contains('super_admin')) {
                                 continue;
                               }
                               if (rIds.contains(canonicalRoleId)) {
@@ -3753,6 +4048,12 @@ class _UserRolesPageState extends State<UserRolesPage> {
                                   'email': uDoc['email'] ?? 'No Email',
                                   'username':
                                       uDoc['username'] ?? uDoc['name'] ?? 'N/A',
+                                  'phone':
+                                      uDoc['phone'] ??
+                                      uDoc['phoneNumber'] ??
+                                      'N/A',
+                                  'roleDisplayName':
+                                      d['roleDisplayName'] ?? rId,
                                   'webEmail':
                                       d['webEmail'] ??
                                       '${doc.id}_adm@naattulink.internal',
@@ -4409,11 +4710,11 @@ class _AssignedUserCardState extends State<_AssignedUserCard> {
               borderRadius: BorderRadius.circular(16),
             ),
             title: Text(
-              'Remove User Access',
+              'Delete User Role',
               style: GoogleFonts.inter(fontWeight: FontWeight.bold),
             ),
             content: Text(
-              'Are you sure you want to revoke all admin access for "${widget.userData['fullName'] ?? 'this user'}"?',
+              'Are you sure you want to delete the role assignment for "${widget.userData['fullName'] ?? 'this user'}"? This will revoke all their admin access.',
             ),
             actions: [
               TextButton(
@@ -4427,15 +4728,25 @@ class _AssignedUserCardState extends State<_AssignedUserCard> {
                 onPressed: () async {
                   Navigator.pop(dialogContext);
                   try {
-                    await FirebaseAuthService.instance.updateAdminStatus(
+                    await FirebaseAuthService.instance.deleteAdminAccess(
                       targetUid: widget.adminData.uid,
-                      targetDisplayName: widget.userData['fullName'] ?? 'User',
-                      newStatus: 'Revoked',
+                      targetDisplayName:
+                          widget.userData['fullName'] ??
+                          widget.userData['name'] ??
+                          'No Name',
+                      assignedRole: widget.adminData.roleDisplayName,
+                      phone:
+                          widget.userData['phone'] ??
+                          widget.userData['phoneNumber'] ??
+                          'N/A',
+                      email: widget.userData['email'] ?? 'No Email',
                     );
                     if (!mounted) return;
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
-                        content: Text("User access revoked successfully."),
+                        content: Text(
+                          "User role assignment deleted successfully.",
+                        ),
                         backgroundColor: Colors.green,
                       ),
                     );
@@ -4443,7 +4754,7 @@ class _AssignedUserCardState extends State<_AssignedUserCard> {
                     if (!mounted) return;
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text("Failed to revoke access: $e"),
+                        content: Text("Failed to delete role: $e"),
                         backgroundColor: Colors.red,
                       ),
                     );
@@ -4457,7 +4768,7 @@ class _AssignedUserCardState extends State<_AssignedUserCard> {
                   ),
                 ),
                 child: Text(
-                  'Remove Access',
+                  'Delete',
                   style: GoogleFonts.inter(fontWeight: FontWeight.bold),
                 ),
               ),
@@ -5140,6 +5451,66 @@ class _ViewRoleUserCard extends StatefulWidget {
 class _ViewRoleUserCardState extends State<_ViewRoleUserCard> {
   bool _showPassword = false;
 
+  Future<void> _unassignUser(Map<String, dynamic> user) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder:
+          (dialogContext) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: Text(
+              'Delete User Role',
+              style: GoogleFonts.inter(fontWeight: FontWeight.bold),
+            ),
+            content: Text(
+              'Are you sure you want to delete the role assignment for "${user['fullName'] ?? 'this user'}"? This will revoke all their admin access.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: Text(
+                  'Cancel',
+                  style: GoogleFonts.inter(color: const Color(0xFF64748B)),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFEF4444),
+                  foregroundColor: Colors.white,
+                ),
+                child: Text('Unassign', style: GoogleFonts.inter()),
+              ),
+            ],
+          ),
+    );
+
+    if (confirmed == true) {
+      try {
+        await FirebaseAuthService.instance.deleteAdminAccess(
+          targetUid: user['uid'],
+          targetDisplayName: user['fullName'] ?? 'No Name',
+          assignedRole: user['roleDisplayName'] ?? 'Admin',
+          phone: user['phone'] ?? 'N/A',
+          email: user['email'] ?? 'No Email',
+        );
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("User role assignment deleted successfully."),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = widget.user;
@@ -5205,6 +5576,19 @@ class _ViewRoleUserCardState extends State<_ViewRoleUserCard> {
                   ],
                 ),
               ),
+              const SizedBox(width: 8),
+              IconButton(
+                icon: const Icon(
+                  Icons.person_remove_outlined,
+                  size: 18,
+                  color: Color(0xFFEF4444),
+                ),
+                onPressed: () => _unassignUser(user),
+                constraints: const BoxConstraints(),
+                padding: EdgeInsets.zero,
+                splashRadius: 18,
+                tooltip: 'Unassign User',
+              ),
             ],
           ),
           const SizedBox(height: 8),
@@ -5267,7 +5651,10 @@ class _ViewRoleUserCardState extends State<_ViewRoleUserCard> {
               ),
               Text(
                 _showPassword
-                    ? (user['webPassword'] ?? 'Not Saved')
+                    ? ((user['webPassword'] != null &&
+                            user['webPassword'].toString().isNotEmpty)
+                        ? user['webPassword'].toString()
+                        : 'Password not saved')
                     : "●●●●●●●●",
                 style: GoogleFonts.inter(
                   fontSize: 13,

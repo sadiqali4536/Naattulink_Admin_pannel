@@ -33,11 +33,7 @@ class FirebaseAuthService {
   final _db = FirebaseFirestore.instance;
 
   // Super Admin accounts bypass web-auth and sign in with their real email.
-  static const _superAdminEmails = [
-    'developer@naattulink.com',
-    'developer@nattulinkapp.com',
-    'superadmin@naattulink.com',
-  ];
+  static const _superAdminEmails = ['superadmin@naattulink.com'];
 
   // ---------------------------------------------------------------------------
   // Secondary Firebase App
@@ -71,35 +67,66 @@ class FirebaseAuthService {
   ///      the web-panel Firebase account using [password].
   ///   4. Load RBAC session (resolves webAuthUid → originalUid internally).
   Future<void> signInWithUsername(String username, String password) async {
-    // 1. Resolve username → email + uid
-    String? email;
+    print('[RBAC LOGIN] Starting authentication for: $username');
+    final trimmedUser = username.trim();
     String? uid;
-    try {
-      final query =
-          await _db
-              .collection('users')
-              .where('username', isEqualTo: username.trim())
-              .limit(1)
-              .get();
-      if (query.docs.isNotEmpty) {
-        email = query.docs.first.data()['email'] as String?;
-        uid = query.docs.first.id;
+    String? email;
+
+    // 1. Parse virtual email first to get the UID directly if possible
+    if (trimmedUser.endsWith('_adm@naattulink.internal')) {
+      final parts = trimmedUser.split('_adm@naattulink.internal');
+      if (parts.isNotEmpty) {
+        uid = parts[0];
+        print('[RBAC LOGIN] Parsed virtual email prefix to resolve UID: $uid');
       }
-    } catch (_) {
-      throw 'Unable to reach the server. Please check your connection.';
+    }
+
+    // 2. Resolve username → email + uid (if not resolved via virtual email)
+    if (uid == null) {
+      try {
+        final query =
+            await _db
+                .collection('users')
+                .where('username', isEqualTo: trimmedUser)
+                .limit(1)
+                .get();
+        if (query.docs.isNotEmpty) {
+          email = query.docs.first.data()['email'] as String?;
+          uid = query.docs.first.id;
+          print(
+            '[RBAC LOGIN] Resolved username "$trimmedUser" to UID: $uid, Email: $email',
+          );
+        }
+      } catch (_) {
+        throw 'Unable to reach the server. Please check your connection.';
+      }
+    }
+
+    if (uid != null && (email == null || email.isEmpty)) {
+      try {
+        final userDoc = await _db.collection('users').doc(uid).get();
+        if (userDoc.exists) {
+          email = userDoc.data()?['email'] as String?;
+          print('[RBAC LOGIN] Resolved customer email from UID: $email');
+        }
+      } catch (_) {}
     }
 
     if (email == null || email.isEmpty) {
-      if (username.contains('@')) {
-        email = username.trim();
+      if (trimmedUser.contains('@')) {
+        email = trimmedUser;
       } else {
         await _writeFailedLoginLog(username);
+        print(
+          '[RBAC LOGIN] Failed: No account found with username "$username"',
+        );
         throw 'No account found with username "$username".';
       }
     }
 
     // 2. Super Admin bypass
     if (_superAdminEmails.contains(email)) {
+      print('[RBAC LOGIN] Super Admin bypass triggered for email: $email');
       try {
         await _auth.signInWithEmailAndPassword(
           email: email,
@@ -107,27 +134,51 @@ class FirebaseAuthService {
         );
       } on FirebaseAuthException {
         await _writeFailedLoginLog(username);
+        print('[RBAC LOGIN] Super Admin login failed.');
         rethrow;
       }
+      print('[RBAC LOGIN] Super Admin successfully authenticated.');
       await _completeLogin(username);
       return;
     }
 
     // 3. Fetch webEmail from admin_users
-    if (uid == null) {
-      await _writeFailedLoginLog(username);
-      throw 'Invalid web admin credentials.';
-    }
-
     DocumentSnapshot? adminDoc;
-    try {
-      adminDoc = await _db.collection('admin_users').doc(uid).get();
-    } catch (_) {
-      throw 'Unable to reach the server. Please check your connection.';
+    if (uid != null) {
+      try {
+        adminDoc = await _db.collection('admin_users').doc(uid).get();
+      } catch (_) {
+        throw 'Unable to reach the server. Please check your connection.';
+      }
     }
 
-    if (!adminDoc.exists) {
+    if (uid == null || adminDoc == null || !adminDoc.exists) {
+      print(
+        '[RBAC LOGIN] No active role document found in admin_users for UID: $uid',
+      );
       await _writeFailedLoginLog(username);
+      await _auth.signOut();
+
+      // Check if they previously had their role removed
+      if (uid != null) {
+        print('[RBAC LOGIN] Checking role_users_history for UID: $uid');
+        try {
+          final historyQuery =
+              await _db
+                  .collection('role_users_history')
+                  .where('uid', isEqualTo: uid)
+                  .limit(1)
+                  .get();
+          if (historyQuery.docs.isNotEmpty) {
+            print(
+              '[RBAC LOGIN] Found revoked role history for UID: $uid. Denying access.',
+            );
+            throw 'No access found. Your admin role has been removed. Please contact the Super Admin if you believe this is an error.';
+          }
+        } catch (e) {
+          if (e.toString().contains('No access found')) rethrow;
+        }
+      }
       throw 'You do not have permission to access the Admin Panel.';
     }
 
@@ -136,11 +187,13 @@ class FirebaseAuthService {
 
     if (webEmail == null || webEmail.isEmpty) {
       await _writeFailedLoginLog(username);
+      print('[RBAC LOGIN] Failed: No web admin account set up for UID: $uid');
       throw 'No web admin account has been set up for this user.\n'
           'Please contact your Super Admin to set up web panel access.';
     }
 
     // 4. Sign in with web-panel Firebase account
+    print('[RBAC LOGIN] Authenticating webEmail: $webEmail with Firebase...');
     try {
       await _auth.signInWithEmailAndPassword(
         email: webEmail,
@@ -148,6 +201,7 @@ class FirebaseAuthService {
       );
     } on FirebaseAuthException catch (e) {
       await _writeFailedLoginLog(username);
+      print('[RBAC LOGIN] Firebase Auth failed: ${e.code}');
       if (e.code == 'wrong-password' ||
           e.code == 'invalid-credential' ||
           e.code == 'invalid-login-credentials') {
@@ -205,22 +259,83 @@ class FirebaseAuthService {
     required String targetDisplayName,
     required String webPassword,
   }) async {
+    print(
+      '[RBAC CREATE] Starting createWebAdminAccount for targetUid: $targetUid, displayName: $targetDisplayName',
+    );
     final session = RbacSession();
     if (!session.isActive)
       throw 'You must be logged in to create web accounts.';
 
-    // Check if web account already exists — preserve existing password
+    final isCallerSuperAdmin = session.email == 'superadmin@naattulink.com';
+
+    // Check if web account already exists
     final existingDoc =
         await _db.collection('admin_users').doc(targetUid).get();
+
+    bool shouldRecreate = false;
+    String? oldWebEmail;
+    String? oldWebPassword;
+    String? oldWebAuthUid;
+
     if (existingDoc.exists) {
       final data = existingDoc.data() ?? {};
       final existingWebAuthUid = data['webAuthUid'] as String?;
       if (existingWebAuthUid != null && existingWebAuthUid.isNotEmpty) {
-        return existingWebAuthUid;
+        if (isCallerSuperAdmin) {
+          shouldRecreate = true;
+          oldWebAuthUid = existingWebAuthUid;
+          oldWebEmail = data['webEmail'] as String?;
+          oldWebPassword = data['webPassword'] as String?;
+          print(
+            '[RBAC CREATE] Existing web credentials found for Super Admin recreate flow: $oldWebEmail',
+          );
+        } else {
+          print(
+            '[RBAC CREATE] Existing web credentials found, returning existing UID: $existingWebAuthUid',
+          );
+          return existingWebAuthUid;
+        }
       }
     }
 
     final webEmail = '${targetUid}_adm@naattulink.internal';
+
+    // If caller is Super Admin and old credentials exist, try to delete the old Auth user first
+    if (shouldRecreate &&
+        oldWebEmail != null &&
+        oldWebPassword != null &&
+        oldWebEmail.isNotEmpty &&
+        oldWebPassword.isNotEmpty) {
+      try {
+        print(
+          '[RBAC CREATE] Attempting to delete existing secondary Auth user "$oldWebEmail"...',
+        );
+        final secondaryApp = await _getSecondaryApp();
+        final secondaryAuth = FirebaseAuth.instanceFor(app: secondaryApp);
+        final cred = await secondaryAuth.signInWithEmailAndPassword(
+          email: oldWebEmail,
+          password: oldWebPassword,
+        );
+        if (cred.user != null) {
+          await cred.user!.delete();
+          print(
+            '[RBAC CREATE] Existing secondary Auth user deleted successfully.',
+          );
+        }
+      } catch (e) {
+        print(
+          '[RBAC CREATE] Deletion of existing secondary Auth user failed: $e',
+        );
+      } finally {
+        try {
+          final secondaryApp = await _getSecondaryApp();
+          final secondaryAuth = FirebaseAuth.instanceFor(app: secondaryApp);
+          await secondaryAuth.signOut();
+        } catch (_) {}
+      }
+    }
+
+    print('[RBAC CREATE] Creating new Firebase Auth account: $webEmail...');
     final secondaryApp = await _getSecondaryApp();
     final secondaryAuth = FirebaseAuth.instanceFor(app: secondaryApp);
 
@@ -231,9 +346,20 @@ class FirebaseAuthService {
         password: webPassword,
       );
       webAuthUid = cred.user!.uid;
+      print(
+        '[RBAC CREATE] Firebase Auth account created successfully. webAuthUid: $webAuthUid',
+      );
     } on FirebaseAuthException catch (e) {
       if (e.code == 'email-already-in-use') {
-        // Auth account exists but admin_users was missing the field — recover
+        if (isCallerSuperAdmin) {
+          print(
+            '[RBAC CREATE] Legacy web account already exists but could not be resolved automatically: $webEmail',
+          );
+          throw 'A legacy web account already exists for this user and cannot '
+              'be recreated automatically. Delete the internal account ($webEmail) '
+              'once from Firebase Authentication, then try again.';
+        }
+        // Auth account exists but admin_users was missing the field — recover (for regular admins)
         try {
           final cred = await secondaryAuth.signInWithEmailAndPassword(
             email: webEmail,
@@ -257,6 +383,9 @@ class FirebaseAuthService {
     }
 
     // Persist webAuthUid + webEmail + webPassword to admin_users/{targetUid}
+    print(
+      '[RBAC CREATE] Committing database updates to admin_users and web_auth_index...',
+    );
     await _db.collection('admin_users').doc(targetUid).update({
       'webAuthUid': webAuthUid,
       'webEmail': webEmail,
@@ -272,6 +401,18 @@ class FirebaseAuthService {
       'createdBy': session.uid,
     });
 
+    // If the old webAuthUid is different from the new one, delete the old index doc
+    if (oldWebAuthUid != null && oldWebAuthUid != webAuthUid) {
+      try {
+        await _db.collection('web_auth_index').doc(oldWebAuthUid).delete();
+        print(
+          '[RBAC CREATE] Old web_auth_index document deleted successfully.',
+        );
+      } catch (e) {
+        print('[RBAC CREATE] Failed to delete old web_auth_index doc: $e');
+      }
+    }
+
     await _writeAuditLog(
       action: AuditActions.webPasswordSet,
       performedByUid: session.uid!,
@@ -284,6 +425,7 @@ class FirebaseAuthService {
       ),
     );
 
+    print('[RBAC CREATE] createWebAdminAccount finished successfully.');
     return webAuthUid;
   }
 
@@ -319,6 +461,15 @@ class FirebaseAuthService {
       existingRecord = AdminUserModel.fromFirestore(existingDoc);
     }
 
+    final userDoc = await _db.collection('users').doc(targetUid).get();
+    final userData = userDoc.data() ?? {};
+    final fName =
+        userData['fullName'] as String? ??
+        userData['name'] as String? ??
+        targetDisplayName;
+    final uName = userData['username'] as String? ?? '';
+    final emailVal = userData['email'] as String? ?? '';
+
     final now = DateTime.now();
     final newRecord = AdminUserModel(
       uid: targetUid,
@@ -337,6 +488,12 @@ class FirebaseAuthService {
       // Preserve existing web auth fields
       webAuthUid: existingRecord?.webAuthUid,
       webEmail: existingRecord?.webEmail,
+      webPassword: existingRecord?.webPassword,
+      webAccountCreatedAt: existingRecord?.webAccountCreatedAt,
+      fullName: fName,
+      username: uName,
+      email: emailVal,
+      assignedRole: roleDisplayName,
     );
 
     await _db
@@ -413,6 +570,115 @@ class FirebaseAuthService {
     );
   }
 
+  Future<void> deleteAdminAccess({
+    required String targetUid,
+    required String targetDisplayName,
+    required String assignedRole,
+    required String phone,
+    required String email,
+  }) async {
+    print(
+      '[RBAC DELETE] Starting deleteAdminAccess for targetUid: $targetUid, displayName: $targetDisplayName, role: $assignedRole',
+    );
+    final session = RbacSession();
+    if (!session.isActive) throw 'Not authorized.';
+    if (session.isSelf(targetUid)) {
+      throw 'You cannot delete your own admin access.';
+    }
+
+    final targetDoc = await _db.collection('admin_users').doc(targetUid).get();
+    if (targetDoc.exists) {
+      final targetData = targetDoc.data() ?? {};
+      final targetRoleId = targetData['roleId'] as String? ?? '';
+      if (targetRoleId == 'super_admin') {
+        final isLast = await session.isLastSuperAdmin(targetUid);
+        if (isLast) {
+          throw 'Cannot delete the last Super Admin. '
+              'Assign another Super Admin first.';
+        }
+      }
+    }
+
+    // Try to delete Firebase Auth user from secondary app
+    if (targetDoc.exists) {
+      final webEmail = targetDoc.data()?['webEmail'] as String?;
+      final webPassword = targetDoc.data()?['webPassword'] as String?;
+      if (webEmail != null &&
+          webPassword != null &&
+          webEmail.isNotEmpty &&
+          webPassword.isNotEmpty) {
+        try {
+          print(
+            '[RBAC DELETE] Attempting to sign in and delete web email "$webEmail" via secondary Auth...',
+          );
+          final secondaryApp = await _getSecondaryApp();
+          final secondaryAuth = FirebaseAuth.instanceFor(app: secondaryApp);
+          final cred = await secondaryAuth.signInWithEmailAndPassword(
+            email: webEmail,
+            password: webPassword,
+          );
+          if (cred.user != null) {
+            await cred.user!.delete();
+            print('[RBAC DELETE] Web Auth account deleted successfully.');
+          }
+        } catch (e) {
+          print('[RBAC DELETE] Secondary Auth user deletion failed: $e');
+        } finally {
+          try {
+            final secondaryApp = await _getSecondaryApp();
+            final secondaryAuth = FirebaseAuth.instanceFor(app: secondaryApp);
+            await secondaryAuth.signOut();
+          } catch (_) {}
+        }
+      }
+    }
+
+    print(
+      '[RBAC DELETE] Committing batch delete from admin_users, web_auth_index, and archiving in role_users_history...',
+    );
+    final batch = _db.batch();
+
+    final historyRef = _db.collection('role_users_history').doc();
+    batch.set(historyRef, {
+      'uid': targetUid,
+      'fullName': targetDisplayName,
+      'assignedRole': assignedRole,
+      'phone': phone,
+      'email': email,
+      'deletedBy': session.fullName ?? session.email ?? 'Admin',
+      'deletedAt': FieldValue.serverTimestamp(),
+    });
+
+    // 2. Delete role assignment from admin_users collection
+    final adminRef = _db.collection('admin_users').doc(targetUid);
+    batch.delete(adminRef);
+
+    // 3. Delete from web_auth_index (if webAuthUid is present)
+    if (targetDoc.exists) {
+      final webAuthUid = targetDoc.data()?['webAuthUid'] as String?;
+      if (webAuthUid != null && webAuthUid.isNotEmpty) {
+        final indexRef = _db.collection('web_auth_index').doc(webAuthUid);
+        batch.delete(indexRef);
+      }
+    }
+
+    await batch.commit();
+    print('[RBAC DELETE] Admin access successfully deleted and archived.');
+
+    // 4. Audit Log
+    await _writeAuditLog(
+      action: 'Deleted Admin Access',
+      performedByUid: session.uid!,
+      performedByName: session.fullName ?? '',
+      performedToUid: targetUid,
+      performedToName: targetDisplayName,
+      details: AuditDetails(
+        platform: kIsWeb ? 'web' : 'app',
+        extra: 'Deleted role assignment: $assignedRole',
+      ),
+    );
+  }
+
   // ---------------------------------------------------------------------------
   // Password Reset
   // ---------------------------------------------------------------------------
@@ -466,20 +732,14 @@ class FirebaseAuthService {
   Future<List<Map<String, dynamic>>> fetchGrantableUsers() async {
     try {
       final adminSnap = await _db.collection('admin_users').get();
-      final superAdminUids = adminSnap.docs.where((doc) {
-        final d = doc.data();
-        final roleId = (d['roleId'] ?? '').toString().toLowerCase();
-        final roleDisplayName = (d['roleDisplayName'] ?? '').toString().toLowerCase();
-        final roleIds = (d['roleIds'] as List<dynamic>?)?.map((e) => e.toString().toLowerCase()).toList() ?? [];
-        return roleId == 'super_admin' ||
-            roleId == 'developer' ||
-            roleDisplayName == 'super admin' ||
-            roleDisplayName == 'developer' ||
-            roleIds.contains('super_admin') ||
-            roleIds.contains('developer');
-      }).map((doc) => doc.id).toSet();
+      final assignedRoleUids = adminSnap.docs.map((doc) => doc.id).toSet();
 
-      final snap = await _db.collection('users').get();
+      final snap =
+          await _db
+              .collection('users')
+              .where('status', whereIn: ['Active', 'active'])
+              .get();
+
       return snap.docs
           .map((doc) {
             final d = doc.data();
@@ -489,15 +749,25 @@ class FirebaseAuthService {
               'username': d['username'] ?? '',
               'email': d['email'] ?? '',
               'phone': d['phone'] ?? d['phoneNumber'] ?? '',
+              'userType': d['userType'] ?? 'Customer',
             };
           })
           .where((user) {
-            if (superAdminUids.contains(user['uid'])) {
+            if (assignedRoleUids.contains(user['uid'])) {
               return false;
             }
+
+            final userType = (user['userType'] ?? '').toString().toLowerCase();
+            if (userType != 'customer' &&
+                userType != 'admin' &&
+                userType.isNotEmpty) {
+              return false;
+            }
+
             final email = (user['email'] ?? '').toString().toLowerCase();
             final username = (user['username'] ?? '').toString().toLowerCase();
             final fullName = (user['fullName'] ?? '').toString().toLowerCase();
+
             return !email.contains('developer') &&
                 !username.contains('developer') &&
                 !fullName.contains('developer') &&

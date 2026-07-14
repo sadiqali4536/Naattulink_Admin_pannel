@@ -170,7 +170,9 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
         return PermissionGuard(
           module: Modules.grantAccess,
           action: Perms.view,
-          child: const GrantAccessPage(),
+          child: GrantAccessPage(
+            onTabChanged: (tab) => setState(() => selectedTile = tab),
+          ),
         );
       case "Services":
       case "All Services":

@@ -8,7 +8,9 @@ import 'package:swiftclean_admin/MVVM/model/services/firebaseauthservices.dart';
 import 'package:swiftclean_admin/MVVM/utils/rbac_session.dart';
 
 class GrantAccessPage extends StatefulWidget {
-  const GrantAccessPage({super.key});
+  final ValueChanged<String>? onTabChanged;
+
+  const GrantAccessPage({super.key, this.onTabChanged});
 
   @override
   State<GrantAccessPage> createState() => _GrantAccessPageState();
@@ -680,7 +682,31 @@ class _GrantAccessPageState extends State<GrantAccessPage> {
       }
 
       if (!mounted) return;
-      _showSuccessDialog(webAccountCreatedNew: createdNew);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '${_selectedUser!["fullName"]} now has ${roleDisplay} access.',
+            style: GoogleFonts.inter(),
+          ),
+          backgroundColor: const Color(0xFF059669),
+        ),
+      );
+
+      if (Navigator.canPop(context)) {
+        Navigator.pop(context);
+      } else if (widget.onTabChanged != null) {
+        widget.onTabChanged!("User Roles");
+      } else {
+        setState(() {
+          _currentStep = 0;
+          _selectedUser = null;
+          _selectedRoleIds.clear();
+          _selectedRoles.clear();
+          _selectedPermissions = {};
+          _existingRecord = null;
+          _webPassword = null;
+        });
+      }
     } catch (e) {
       _showError(e.toString());
     } finally {

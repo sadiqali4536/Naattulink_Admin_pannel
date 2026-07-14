@@ -118,7 +118,7 @@ class _ProfileUserState extends State<ProfileUser> {
 
   // Filter States
   String _searchQuery = "";
-  String _selectedStatus = "All Status";
+  String _selectedStatus = "Active";
   String _selectedType = "All Types";
   DateTimeRange? _selectedDateRange;
 
@@ -367,9 +367,6 @@ class _ProfileUserState extends State<ProfileUser> {
       // Adjust total to exclude banned users
       total = total - banned;
 
-      if (total > 0) total--;
-      if (active > 0) active--;
-
       if (mounted) {
         setState(() {
           _statTotalUsers = total;
@@ -432,22 +429,13 @@ class _ProfileUserState extends State<ProfileUser> {
         allUsers.where((user) {
           // Always exclude banned, super-admin, developer, admin accounts
           if (user.status.toLowerCase() == "banned") return false;
-          if (_superAdminUids.contains(user.userId)) return false;
-
-          final email = user.email.toLowerCase();
-          final name = user.name.toLowerCase();
-          final userType = user.userType.toLowerCase();
-
-          final isDeveloper =
-              email.contains('developer') ||
-              name == 'developer' ||
-              userType == 'developer';
-          final isSuperAdmin =
-              email.contains('superadmin') ||
-              name == 'superadmin' ||
-              userType == 'superadmin';
-          final isAdmin = email == 'admin@naattulink.com' || name == 'admin';
-          if (isDeveloper || isSuperAdmin || isAdmin) return false;
+          // Exclude the single hardcoded Super Admin
+          if (user.email.toLowerCase() == 'superadmin@naattulink.com')
+            return false;
+          // Exclude any user who has an assigned admin role in Firestore
+          if (_userRoles.containsKey(user.no) ||
+              _superAdminUids.contains(user.no))
+            return false;
 
           // Status filter
           if (_selectedStatus != "All Status" &&
@@ -548,20 +536,13 @@ class _ProfileUserState extends State<ProfileUser> {
           (role != null && role.isNotEmpty) ? role : "Customer";
 
       if (rawUser.status.toLowerCase() == "banned") return false;
-      if (_superAdminUids.contains(rawUser.userId)) return false;
-
-      final email = rawUser.email.toLowerCase();
-      final name = rawUser.name.toLowerCase();
-      final userType = finalUserType.toLowerCase();
-      if (email.contains('developer') ||
-          name == 'developer' ||
-          userType == 'developer')
+      // Exclude the single hardcoded Super Admin
+      if (rawUser.email.toLowerCase() == 'superadmin@naattulink.com')
         return false;
-      if (email.contains('superadmin') ||
-          name == 'superadmin' ||
-          userType == 'superadmin')
+      // Exclude any user who has an assigned admin role in Firestore
+      if (_userRoles.containsKey(rawUser.no) ||
+          _superAdminUids.contains(rawUser.no))
         return false;
-      if (email == 'admin@naattulink.com' || name == 'admin') return false;
 
       if (_selectedStatus != "All Status" &&
           rawUser.status.toLowerCase() != _selectedStatus.toLowerCase()) {
@@ -2474,7 +2455,7 @@ class _ProfileUserState extends State<ProfileUser> {
           iconBgColor: const Color(0xFFEFF6FF),
           onTap: () {
             setState(() {
-              _selectedStatus = "All Status";
+              _selectedStatus = "Active";
             });
             _onFilterChanged();
           },
@@ -2504,12 +2485,7 @@ class _ProfileUserState extends State<ProfileUser> {
           icon: Icons.block_rounded,
           iconColor: const Color(0xFFF59E0B),
           iconBgColor: const Color(0xFFFEF3C7),
-          onTap: () {
-            setState(() {
-              _selectedStatus = "Suspended";
-            });
-            _onFilterChanged();
-          },
+          onTap: null,
         ),
         StatsCard(
           title: "New Users (This Week)",
@@ -2569,44 +2545,7 @@ class _ProfileUserState extends State<ProfileUser> {
       ),
     );
 
-    final statusDropdown = SizedBox(
-      width: isSmall ? double.infinity : 140,
-      height: 38,
-      child: DropdownButtonFormField<String>(
-        initialValue: _selectedStatus,
-        decoration: InputDecoration(
-          isDense: true,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 12,
-            vertical: 8,
-          ),
-          fillColor: Colors.white,
-          filled: true,
-          border: OutlineInputBorder(
-            borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-            borderRadius: BorderRadius.circular(8),
-          ),
-        ),
-        style: GoogleFonts.inter(color: const Color(0xFF1E293B), fontSize: 12),
-        items:
-            ["All Status", "Active", "Suspended", "Inactive"]
-                .map(
-                  (status) =>
-                      DropdownMenuItem(value: status, child: Text(status)),
-                )
-                .toList(),
-        onChanged: (val) {
-          setState(() {
-            _selectedStatus = val!;
-          });
-          _onFilterChanged();
-        },
-      ),
-    );
+    // statusDropdown was removed as User Management page displays only Active users.
 
     final typeDropdown = SizedBox(
       width: isSmall ? double.infinity : 140,
@@ -2794,13 +2733,7 @@ class _ProfileUserState extends State<ProfileUser> {
         children: [
           searchField,
           const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(child: statusDropdown),
-              const SizedBox(width: 12),
-              Expanded(child: typeDropdown),
-            ],
-          ),
+          Row(children: [Expanded(child: typeDropdown)]),
           const SizedBox(height: 12),
           dateRangeButton,
           const SizedBox(height: 16),
@@ -2814,8 +2747,6 @@ class _ProfileUserState extends State<ProfileUser> {
       return Row(
         children: [
           searchField,
-          const SizedBox(width: 12),
-          statusDropdown,
           const SizedBox(width: 12),
           typeDropdown,
           const SizedBox(width: 12),
