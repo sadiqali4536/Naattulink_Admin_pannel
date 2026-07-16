@@ -140,10 +140,18 @@ class _ProfileUserState extends State<ProfileUser> {
   final Set<String> _superAdminUids = {};
   StreamSubscription<QuerySnapshot>? _adminUsersSub;
 
+  // Table scroll controllers for sticky header + scrollable body
+  final ScrollController _tableVerticalController = ScrollController();
+  final ScrollController _tableHorizontalHeaderController = ScrollController();
+  final ScrollController _tableHorizontalBodyController = ScrollController();
+  bool _isSyncingScroll = false;
+
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_scrollListener);
+    _tableHorizontalHeaderController.addListener(_onHeaderHorizontalScroll);
+    _tableHorizontalBodyController.addListener(_onBodyHorizontalScroll);
     _refreshData();
 
     _adminUsersSub = FirebaseFirestore.instance
@@ -194,7 +202,32 @@ class _ProfileUserState extends State<ProfileUser> {
     _scrollController.dispose();
     _searchController.dispose();
     _adminUsersSub?.cancel();
+    _tableVerticalController.dispose();
+    _tableHorizontalHeaderController.dispose();
+    _tableHorizontalBodyController.dispose();
     super.dispose();
+  }
+
+  void _onHeaderHorizontalScroll() {
+    if (_isSyncingScroll) return;
+    _isSyncingScroll = true;
+    if (_tableHorizontalBodyController.hasClients) {
+      _tableHorizontalBodyController.jumpTo(
+        _tableHorizontalHeaderController.offset,
+      );
+    }
+    _isSyncingScroll = false;
+  }
+
+  void _onBodyHorizontalScroll() {
+    if (_isSyncingScroll) return;
+    _isSyncingScroll = true;
+    if (_tableHorizontalHeaderController.hasClients) {
+      _tableHorizontalHeaderController.jumpTo(
+        _tableHorizontalBodyController.offset,
+      );
+    }
+    _isSyncingScroll = false;
   }
 
   void _onSearchChanged(String val) {
@@ -2782,6 +2815,19 @@ class _ProfileUserState extends State<ProfileUser> {
     final allChecked =
         users.isNotEmpty && users.every((u) => _selectedUserIds.contains(u.no));
 
+    const columnWidths = <int, TableColumnWidth>{
+      0: FixedColumnWidth(50), // Checkbox
+      1: FlexColumnWidth(2.0), // User Details (Avatar & Name/ID)
+      2: FlexColumnWidth(2.2), // Email
+      3: FlexColumnWidth(1.8), // Phone
+      4: FlexColumnWidth(1.2), // User Type badge
+      5: FlexColumnWidth(1.2), // Status dot
+      6: FlexColumnWidth(1.6), // Joined Date
+      7: FlexColumnWidth(1.2), // Points
+      8: FixedColumnWidth(380), // Actions
+    };
+    const double tableWidth = 1300;
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -2791,25 +2837,17 @@ class _ProfileUserState extends State<ProfileUser> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // ── STICKY HEADER ──
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
+            controller: _tableHorizontalHeaderController,
+            physics: const ClampingScrollPhysics(),
             child: SizedBox(
-              width: 1300,
+              width: tableWidth,
               child: Table(
-                columnWidths: const {
-                  0: FixedColumnWidth(50), // Checkbox
-                  1: FlexColumnWidth(2.0), // User Details (Avatar & Name/ID)
-                  2: FlexColumnWidth(2.2), // Email
-                  3: FlexColumnWidth(1.8), // Phone
-                  4: FlexColumnWidth(1.2), // User Type badge
-                  5: FlexColumnWidth(1.2), // Status dot
-                  6: FlexColumnWidth(1.6), // Joined Date
-                  7: FlexColumnWidth(1.2), // Points
-                  8: FixedColumnWidth(380), // Actions
-                },
+                columnWidths: columnWidths,
                 defaultVerticalAlignment: TableCellVerticalAlignment.middle,
                 children: [
-                  // Table Header
                   TableRow(
                     decoration: const BoxDecoration(
                       color: Color(0xFFF8FAFC),
@@ -2846,297 +2884,337 @@ class _ProfileUserState extends State<ProfileUser> {
                       _buildHeaderCell("Actions"),
                     ],
                   ),
+                ],
+              ),
+            ),
+          ),
 
-                  // Data Rows
-                  ...users.map((user) {
-                    final isChecked = _selectedUserIds.contains(user.no);
-                    return TableRow(
-                      decoration: const BoxDecoration(
-                        border: Border(
-                          bottom: BorderSide(
-                            color: Color(0xFFF1F5F9),
-                            width: 1,
-                          ),
-                        ),
-                      ),
-                      children: [
-                        Checkbox(
-                          value: isChecked,
-                          activeColor: const Color(0xFF10B981),
-                          onChanged: (val) {
-                            setState(() {
-                              if (val == true) {
-                                _selectedUserIds.add(user.no);
-                              } else {
-                                _selectedUserIds.remove(user.no);
-                              }
-                            });
-                          },
-                        ),
-                        // User Column (Avatar + Details)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 10.0),
-                          child: Row(
-                            children: [
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(16),
-                                child: Image.network(
-                                  'https://randomuser.me/api/portraits/men/32.jpg',
-                                  width: 32,
-                                  height: 32,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) {
-                                    return Container(
-                                      width: 32,
-                                      height: 32,
-                                      color: const Color(0xFFE2E8F0),
-                                      child: const Icon(
-                                        Icons.person,
-                                        color: Color(0xFF64748B),
-                                        size: 16,
-                                      ),
-                                    );
-                                  },
+          // ── SCROLLABLE BODY ──
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 500),
+            child: Scrollbar(
+              thumbVisibility: true,
+              controller: _tableVerticalController,
+              child: Scrollbar(
+                thumbVisibility: true,
+                controller: _tableHorizontalBodyController,
+                notificationPredicate: (notification) => notification.depth == 1,
+                child: SingleChildScrollView(
+                  controller: _tableVerticalController,
+                  physics: const ClampingScrollPhysics(),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    controller: _tableHorizontalBodyController,
+                    physics: const ClampingScrollPhysics(),
+                    child: SizedBox(
+                      width: tableWidth,
+                      child: Table(
+                        columnWidths: columnWidths,
+                        defaultVerticalAlignment:
+                            TableCellVerticalAlignment.middle,
+                        children: [
+                          ...users.map((user) {
+                            final isChecked =
+                                _selectedUserIds.contains(user.no);
+                            return TableRow(
+                              decoration: const BoxDecoration(
+                                border: Border(
+                                  bottom: BorderSide(
+                                    color: Color(0xFFF1F5F9),
+                                    width: 1,
+                                  ),
                                 ),
                               ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Checkbox(
+                                  value: isChecked,
+                                  activeColor: const Color(0xFF10B981),
+                                  onChanged: (val) {
+                                    setState(() {
+                                      if (val == true) {
+                                        _selectedUserIds.add(user.no);
+                                      } else {
+                                        _selectedUserIds.remove(user.no);
+                                      }
+                                    });
+                                  },
+                                ),
+                                // User Column (Avatar + Details)
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 10.0,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      ClipRRect(
+                                        borderRadius: BorderRadius.circular(16),
+                                        child: Image.network(
+                                          'https://randomuser.me/api/portraits/men/32.jpg',
+                                          width: 32,
+                                          height: 32,
+                                          fit: BoxFit.cover,
+                                          errorBuilder:
+                                              (context, error, stackTrace) {
+                                            return Container(
+                                              width: 32,
+                                              height: 32,
+                                              color: const Color(0xFFE2E8F0),
+                                              child: const Icon(
+                                                Icons.person,
+                                                color: Color(0xFF64748B),
+                                                size: 16,
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              user.name,
+                                              style: GoogleFonts.inter(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.bold,
+                                                color: const Color(0xFF1E293B),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              user.userId,
+                                              style: GoogleFonts.inter(
+                                                fontSize: 11,
+                                                color: const Color(0xFF94A3B8),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Text(
+                                  user.email,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 13,
+                                    color: const Color(0xFF475569),
+                                  ),
+                                ),
+                                Text(
+                                  user.phone,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 13,
+                                    color: const Color(0xFF475569),
+                                  ),
+                                ),
+                                _buildUserTypeBadge(user.userType),
+                                _buildStatusIndicator(user.status),
+                                Text(
+                                  user.joinedDate,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 13,
+                                    color: const Color(0xFF64748B),
+                                  ),
+                                ),
+                                // Points
+                                Row(
                                   children: [
+                                    const Icon(
+                                      Icons.star,
+                                      color: Color(0xFFF59E0B),
+                                      size: 14,
+                                    ),
+                                    const SizedBox(width: 4),
                                     Text(
-                                      user.name,
+                                      user.points.toString(),
                                       style: GoogleFonts.inter(
                                         fontSize: 13,
-                                        fontWeight: FontWeight.bold,
+                                        fontWeight: FontWeight.w600,
                                         color: const Color(0xFF1E293B),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      user.userId,
-                                      style: GoogleFonts.inter(
-                                        fontSize: 11,
-                                        color: const Color(0xFF94A3B8),
                                       ),
                                     ),
                                   ],
                                 ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Text(
-                          user.email,
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            color: const Color(0xFF475569),
-                          ),
-                        ),
-                        Text(
-                          user.phone,
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            color: const Color(0xFF475569),
-                          ),
-                        ),
-                        _buildUserTypeBadge(user.userType),
-                        _buildStatusIndicator(user.status),
-                        Text(
-                          user.joinedDate,
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            color: const Color(0xFF64748B),
-                          ),
-                        ),
-                        // Points
-                        Row(
-                          children: [
-                            const Icon(
-                              Icons.star,
-                              color: Color(0xFFF59E0B),
-                              size: 14,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              user.points.toString(),
-                              style: GoogleFonts.inter(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: const Color(0xFF1E293B),
-                              ),
-                            ),
-                          ],
-                        ),
-                        // Actions row
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            _buildActionButton(
-                              Icons.visibility_outlined,
-                              Colors.blue,
-                              "View",
-                              () {
-                                _showUserDetailsDialog(user);
-                              },
-                            ),
-                            const SizedBox(width: 6),
-                            _buildActionButton(
-                              Icons.edit_outlined,
-                              Colors.blue,
-                              "Edit",
-                              () {
-                                _showEditUserDialog(user);
-                              },
-                            ),
-                            const SizedBox(width: 6),
-                            if (user.status == "Suspended")
-                              _buildActionButton(
-                                Icons.lock_open_rounded,
-                                Colors.green,
-                                "Activate",
-                                () {
-                                  _showConfirmationDialog(
-                                    title: "Confirm Activation",
-                                    content:
-                                        "Are you sure you want to activate ${user.name}?",
-                                    confirmText: "Activate",
-                                    onConfirm: () async {
-                                      try {
-                                        await FirebaseFirestore.instance
-                                            .collection("users")
-                                            .doc(user.no)
-                                            .update({"status": "Active"});
-                                        if (!mounted) return;
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          SnackBar(
-                                            content: Text(
-                                              "${user.name} activated successfully.",
-                                            ),
-                                          ),
+                                // Actions row
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    _buildActionButton(
+                                      Icons.visibility_outlined,
+                                      Colors.blue,
+                                      "View",
+                                      () {
+                                        _showUserDetailsDialog(user);
+                                      },
+                                    ),
+                                    const SizedBox(width: 6),
+                                    _buildActionButton(
+                                      Icons.edit_outlined,
+                                      Colors.blue,
+                                      "Edit",
+                                      () {
+                                        _showEditUserDialog(user);
+                                      },
+                                    ),
+                                    const SizedBox(width: 6),
+                                    if (user.status == "Suspended")
+                                      _buildActionButton(
+                                        Icons.lock_open_rounded,
+                                        Colors.green,
+                                        "Activate",
+                                        () {
+                                          _showConfirmationDialog(
+                                            title: "Confirm Activation",
+                                            content:
+                                                "Are you sure you want to activate ${user.name}?",
+                                            confirmText: "Activate",
+                                            onConfirm: () async {
+                                              try {
+                                                await FirebaseFirestore.instance
+                                                    .collection("users")
+                                                    .doc(user.no)
+                                                    .update({
+                                                      "status": "Active",
+                                                    });
+                                                if (!mounted) return;
+                                                ScaffoldMessenger.of(
+                                                  context,
+                                                ).showSnackBar(
+                                                  SnackBar(
+                                                    content: Text(
+                                                      "${user.name} activated successfully.",
+                                                    ),
+                                                  ),
+                                                );
+                                                _refreshData();
+                                              } catch (e) {
+                                                if (!mounted) return;
+                                                ScaffoldMessenger.of(
+                                                  context,
+                                                ).showSnackBar(
+                                                  SnackBar(
+                                                    content: Text(
+                                                      "Error activating user: $e",
+                                                    ),
+                                                  ),
+                                                );
+                                              }
+                                            },
+                                          );
+                                        },
+                                      )
+                                    else
+                                      _buildActionButton(
+                                        Icons.lock_outline_rounded,
+                                        Colors.orange,
+                                        "Suspend",
+                                        () {
+                                          _showConfirmationDialog(
+                                            title: "Confirm Suspension",
+                                            content:
+                                                "Are you sure you want to suspend ${user.name}?",
+                                            confirmText: "Suspend",
+                                            onConfirm: () async {
+                                              try {
+                                                await FirebaseFirestore.instance
+                                                    .collection("users")
+                                                    .doc(user.no)
+                                                    .update({
+                                                      "status": "Suspended",
+                                                    });
+                                                if (!mounted) return;
+                                                ScaffoldMessenger.of(
+                                                  context,
+                                                ).showSnackBar(
+                                                  SnackBar(
+                                                    content: Text(
+                                                      "${user.name} suspended successfully.",
+                                                    ),
+                                                  ),
+                                                );
+                                                _refreshData();
+                                              } catch (e) {
+                                                if (!mounted) return;
+                                                ScaffoldMessenger.of(
+                                                  context,
+                                                ).showSnackBar(
+                                                  SnackBar(
+                                                    content: Text(
+                                                      "Error suspending user: $e",
+                                                    ),
+                                                  ),
+                                                );
+                                              }
+                                            },
+                                          );
+                                        },
+                                      ),
+                                    const SizedBox(width: 6),
+                                    _buildActionButton(
+                                      Icons.delete_outline_rounded,
+                                      Colors.red,
+                                      "Delete",
+                                      () {
+                                        _showConfirmationDialog(
+                                          title: "Confirm Delete",
+                                          content:
+                                              "Are you sure you want to delete ${user.name}?",
+                                          confirmText: "Delete",
+                                          onConfirm: () async {
+                                            try {
+                                              await FirebaseFirestore.instance
+                                                  .collection("users")
+                                                  .doc(user.no)
+                                                  .delete();
+                                              if (!mounted) return;
+                                              ScaffoldMessenger.of(
+                                                context,
+                                              ).showSnackBar(
+                                                SnackBar(
+                                                  content: Text(
+                                                    "${user.name} has been deleted.",
+                                                  ),
+                                                ),
+                                              );
+                                              _refreshData();
+                                            } catch (e) {
+                                              if (!mounted) return;
+                                              ScaffoldMessenger.of(
+                                                context,
+                                              ).showSnackBar(
+                                                SnackBar(
+                                                  content: Text(
+                                                    "Error deleting user: $e",
+                                                  ),
+                                                ),
+                                              );
+                                            }
+                                          },
                                         );
-                                        _refreshData();
-                                      } catch (e) {
-                                        if (!mounted) return;
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          SnackBar(
-                                            content: Text(
-                                              "Error activating user: $e",
-                                            ),
-                                          ),
-                                        );
-                                      }
-                                    },
-                                  );
-                                },
-                              )
-                            else
-                              _buildActionButton(
-                                Icons.lock_outline_rounded,
-                                Colors.orange,
-                                "Suspend",
-                                () {
-                                  _showConfirmationDialog(
-                                    title: "Confirm Suspension",
-                                    content:
-                                        "Are you sure you want to suspend ${user.name}?",
-                                    confirmText: "Suspend",
-                                    onConfirm: () async {
-                                      try {
-                                        await FirebaseFirestore.instance
-                                            .collection("users")
-                                            .doc(user.no)
-                                            .update({"status": "Suspended"});
-                                        if (!mounted) return;
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          SnackBar(
-                                            content: Text(
-                                              "${user.name} suspended successfully.",
-                                            ),
-                                          ),
-                                        );
-                                        _refreshData();
-                                      } catch (e) {
-                                        if (!mounted) return;
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          SnackBar(
-                                            content: Text(
-                                              "Error suspending user: $e",
-                                            ),
-                                          ),
-                                        );
-                                      }
-                                    },
-                                  );
-                                },
-                              ),
-                            const SizedBox(width: 6),
-                            _buildActionButton(
-                              Icons.delete_outline_rounded,
-                              Colors.red,
-                              "Delete",
-                              () {
-                                _showConfirmationDialog(
-                                  title: "Confirm Delete",
-                                  content:
-                                      "Are you sure you want to delete ${user.name}?",
-                                  confirmText: "Delete",
-                                  onConfirm: () async {
-                                    try {
-                                      await FirebaseFirestore.instance
-                                          .collection("users")
-                                          .doc(user.no)
-                                          .delete();
-                                      if (!mounted) return;
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        SnackBar(
-                                          content: Text(
-                                            "${user.name} has been deleted.",
-                                          ),
-                                        ),
-                                      );
-                                      _refreshData();
-                                    } catch (e) {
-                                      if (!mounted) return;
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        SnackBar(
-                                          content: Text(
-                                            "Error deleting user: $e",
-                                          ),
-                                        ),
-                                      );
-                                    }
-                                  },
-                                );
-                              },
-                            ),
-                            const SizedBox(width: 6),
-                            _buildActionButton(
-                              Icons.gavel_rounded,
-                              Colors.red,
-                              "Ban",
-                              () {
-                                _showBanUserDialog(user);
-                              },
-                            ),
-                          ],
-                        ),
-                      ],
-                    );
-                  }),
-                ],
+                                      },
+                                    ),
+                                    const SizedBox(width: 6),
+                                    _buildActionButton(
+                                      Icons.gavel_rounded,
+                                      Colors.red,
+                                      "Ban",
+                                      () {
+                                        _showBanUserDialog(user);
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            );
+                          }),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ),
           ),

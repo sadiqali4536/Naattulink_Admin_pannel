@@ -92,6 +92,16 @@ class _UserRolesPageState extends State<UserRolesPage> {
     _rolesStream = FirebaseFirestore.instance.collection("roles").snapshots();
     _adminUsersStream =
         FirebaseFirestore.instance.collection("admin_users").snapshots();
+    _rolesTableHorizontalHeaderController.addListener(_onRolesHeaderHScroll);
+    _rolesTableHorizontalBodyController.addListener(_onRolesBodyHScroll);
+  }
+
+  @override
+  void dispose() {
+    _rolesTableVerticalController.dispose();
+    _rolesTableHorizontalHeaderController.dispose();
+    _rolesTableHorizontalBodyController.dispose();
+    super.dispose();
   }
 
   String _searchQuery = "";
@@ -118,6 +128,36 @@ class _UserRolesPageState extends State<UserRolesPage> {
     "Approve",
     "Manage",
   ];
+
+  // Table scroll controllers for sticky header + scrollable body
+  final ScrollController _rolesTableVerticalController = ScrollController();
+  final ScrollController _rolesTableHorizontalHeaderController =
+      ScrollController();
+  final ScrollController _rolesTableHorizontalBodyController =
+      ScrollController();
+  bool _isRolesSyncingScroll = false;
+
+  void _onRolesHeaderHScroll() {
+    if (_isRolesSyncingScroll) return;
+    _isRolesSyncingScroll = true;
+    if (_rolesTableHorizontalBodyController.hasClients) {
+      _rolesTableHorizontalBodyController.jumpTo(
+        _rolesTableHorizontalHeaderController.offset,
+      );
+    }
+    _isRolesSyncingScroll = false;
+  }
+
+  void _onRolesBodyHScroll() {
+    if (_isRolesSyncingScroll) return;
+    _isRolesSyncingScroll = true;
+    if (_rolesTableHorizontalHeaderController.hasClients) {
+      _rolesTableHorizontalHeaderController.jumpTo(
+        _rolesTableHorizontalBodyController.offset,
+      );
+    }
+    _isRolesSyncingScroll = false;
+  }
 
   Widget _buildBreadcrumbs() {
     return Row(
@@ -581,6 +621,16 @@ class _UserRolesPageState extends State<UserRolesPage> {
   }
 
   Widget _buildRolesTable(List<RoleModel> roles) {
+    const columnWidths = <int, TableColumnWidth>{
+      0: FlexColumnWidth(2.0), // Role Name + Initials badge
+      1: FlexColumnWidth(2.0), // Description
+      2: FlexColumnWidth(0.8), // Users count
+      3: FlexColumnWidth(0.8), // Status
+      4: FlexColumnWidth(1.4), // Created At
+      5: FlexColumnWidth(4.0), // Actions
+    };
+    const double tableWidth = 1100;
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -590,19 +640,15 @@ class _UserRolesPageState extends State<UserRolesPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // ── STICKY HEADER ──
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
+            controller: _rolesTableHorizontalHeaderController,
+            physics: const ClampingScrollPhysics(),
             child: SizedBox(
-              width: 1100,
+              width: tableWidth,
               child: Table(
-                columnWidths: const {
-                  0: FlexColumnWidth(2.0), // Role Name + Initials badge
-                  1: FlexColumnWidth(2.0), // Description
-                  2: FlexColumnWidth(0.8), // Users count
-                  3: FlexColumnWidth(0.8), // Status
-                  4: FlexColumnWidth(1.4), // Created At
-                  5: FlexColumnWidth(4.0), // Actions
-                },
+                columnWidths: columnWidths,
                 defaultVerticalAlignment: TableCellVerticalAlignment.middle,
                 children: [
                   TableRow(
@@ -621,156 +667,201 @@ class _UserRolesPageState extends State<UserRolesPage> {
                       _buildHeaderCell("Actions"),
                     ],
                   ),
-                  ...roles.map((role) {
-                    return TableRow(
-                      decoration: const BoxDecoration(
-                        border: Border(
-                          bottom: BorderSide(
-                            color: Color(0xFFF1F5F9),
-                            width: 1,
-                          ),
-                        ),
-                      ),
-                      children: [
-                        // Role Name + Initials
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 12.0,
-                            horizontal: 16.0,
-                          ),
-                          child: Row(
-                            children: [
-                              CircleAvatar(
-                                radius: 16,
-                                backgroundColor: role.badgeColor,
-                                child: Text(
-                                  role.initials,
-                                  style: GoogleFonts.inter(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  role.name,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: GoogleFonts.inter(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.bold,
-                                    color: const Color(0xFF1E293B),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        // Description
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 12.0,
-                            horizontal: 16.0,
-                          ),
-                          child: Text(
-                            role.description.isEmpty ? "—" : role.description,
-                            style: GoogleFonts.inter(
-                              fontSize: 13,
-                              color: const Color(0xFF475569),
-                            ),
-                          ),
-                        ),
-                        // Users count with icon
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 12.0,
-                            horizontal: 8.0,
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(
-                                Icons.people_outline_rounded,
-                                size: 16,
-                                color: Color(0xFF64748B),
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                role.usersCount.toString(),
-                                style: GoogleFonts.inter(
-                                  fontSize: 13,
-                                  color: const Color(0xFF1E293B),
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        // Status
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 12.0,
-                            horizontal: 8.0,
-                          ),
-                          child: _buildStatusIndicator(role.status),
-                        ),
-                        // Created At
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 12.0,
-                            horizontal: 16.0,
-                          ),
-                          child: Text(
-                            role.createdAt,
-                            style: GoogleFonts.inter(
-                              fontSize: 13,
-                              color: const Color(0xFF64748B),
-                            ),
-                          ),
-                        ),
-                        // Actions
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 12.0,
-                            horizontal: 16.0,
-                          ),
-                          child: Wrap(
-                            spacing: 8,
-                            runSpacing: 6,
-                            alignment: WrapAlignment.start,
-                            crossAxisAlignment: WrapCrossAlignment.center,
-                            children: [
-                              _buildActionButton(
-                                Icons.person_add_outlined,
-                                const Color(0xFF8B5CF6),
-                                "Assign",
-                                () => _showAssignUserDialog(context, role),
-                              ),
-                              _buildActionButton(
-                                Icons.edit_outlined,
-                                Colors.blue,
-                                "Edit",
-                                () => _showEditRoleDialog(context, role),
-                              ),
-                              _buildActionButton(
-                                Icons.visibility_outlined,
-                                const Color(0xFF10B981),
-                                "View",
-                                () => _showViewRoleDialog(context, role),
-                              ),
-                              _buildActionButton(
-                                Icons.delete_outline_rounded,
-                                Colors.red,
-                                "Delete",
-                                () => _showDeleteConfirmation(context, role),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    );
-                  }),
                 ],
+              ),
+            ),
+          ),
+
+          // ── SCROLLABLE BODY ──
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 500),
+            child: Scrollbar(
+              thumbVisibility: true,
+              controller: _rolesTableVerticalController,
+              child: Scrollbar(
+                thumbVisibility: true,
+                controller: _rolesTableHorizontalBodyController,
+                notificationPredicate:
+                    (notification) => notification.depth == 1,
+                child: SingleChildScrollView(
+                  controller: _rolesTableVerticalController,
+                  physics: const ClampingScrollPhysics(),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    controller: _rolesTableHorizontalBodyController,
+                    physics: const ClampingScrollPhysics(),
+                    child: SizedBox(
+                      width: tableWidth,
+                      child: Table(
+                        columnWidths: columnWidths,
+                        defaultVerticalAlignment:
+                            TableCellVerticalAlignment.middle,
+                        children: [
+                          ...roles.map((role) {
+                            return TableRow(
+                              decoration: const BoxDecoration(
+                                border: Border(
+                                  bottom: BorderSide(
+                                    color: Color(0xFFF1F5F9),
+                                    width: 1,
+                                  ),
+                                ),
+                              ),
+                              children: [
+                                // Role Name + Initials
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12.0,
+                                    horizontal: 16.0,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      CircleAvatar(
+                                        radius: 16,
+                                        backgroundColor: role.badgeColor,
+                                        child: Text(
+                                          role.initials,
+                                          style: GoogleFonts.inter(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Text(
+                                          role.name,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: GoogleFonts.inter(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.bold,
+                                            color: const Color(0xFF1E293B),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                // Description
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12.0,
+                                    horizontal: 16.0,
+                                  ),
+                                  child: Text(
+                                    role.description.isEmpty
+                                        ? "—"
+                                        : role.description,
+                                    style: GoogleFonts.inter(
+                                      fontSize: 13,
+                                      color: const Color(0xFF475569),
+                                    ),
+                                  ),
+                                ),
+                                // Users count with icon
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12.0,
+                                    horizontal: 8.0,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.people_outline_rounded,
+                                        size: 16,
+                                        color: Color(0xFF64748B),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        role.usersCount.toString(),
+                                        style: GoogleFonts.inter(
+                                          fontSize: 13,
+                                          color: const Color(0xFF1E293B),
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                // Status
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12.0,
+                                    horizontal: 8.0,
+                                  ),
+                                  child: _buildStatusIndicator(role.status),
+                                ),
+                                // Created At
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12.0,
+                                    horizontal: 16.0,
+                                  ),
+                                  child: Text(
+                                    role.createdAt,
+                                    style: GoogleFonts.inter(
+                                      fontSize: 13,
+                                      color: const Color(0xFF64748B),
+                                    ),
+                                  ),
+                                ),
+                                // Actions
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12.0,
+                                    horizontal: 16.0,
+                                  ),
+                                  child: Wrap(
+                                    spacing: 8,
+                                    runSpacing: 6,
+                                    alignment: WrapAlignment.start,
+                                    crossAxisAlignment:
+                                        WrapCrossAlignment.center,
+                                    children: [
+                                      _buildActionButton(
+                                        Icons.person_add_outlined,
+                                        const Color(0xFF8B5CF6),
+                                        "Assign",
+                                        () => _showAssignUserDialog(
+                                          context,
+                                          role,
+                                        ),
+                                      ),
+                                      _buildActionButton(
+                                        Icons.edit_outlined,
+                                        Colors.blue,
+                                        "Edit",
+                                        () =>
+                                            _showEditRoleDialog(context, role),
+                                      ),
+                                      _buildActionButton(
+                                        Icons.visibility_outlined,
+                                        const Color(0xFF10B981),
+                                        "View",
+                                        () =>
+                                            _showViewRoleDialog(context, role),
+                                      ),
+                                      _buildActionButton(
+                                        Icons.delete_outline_rounded,
+                                        Colors.red,
+                                        "Delete",
+                                        () => _showDeleteConfirmation(
+                                          context,
+                                          role,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            );
+                          }),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
@@ -1075,144 +1166,147 @@ class _UserRolesPageState extends State<UserRolesPage> {
 
                       final docs = snapshot.data!.docs;
 
-                      return SingleChildScrollView(
-                        child: Table(
-                          columnWidths: const {
-                            0: FlexColumnWidth(2),
-                            1: FlexColumnWidth(1.5),
-                            2: FlexColumnWidth(2.5),
-                            3: FlexColumnWidth(1.5),
-                            4: FlexColumnWidth(2),
-                          },
-                          defaultVerticalAlignment:
-                              TableCellVerticalAlignment.middle,
-                          children: [
-                            TableRow(
-                              decoration: const BoxDecoration(
-                                border: Border(
-                                  bottom: BorderSide(
-                                    color: Color(0xFFE2E8F0),
-                                    width: 1.5,
-                                  ),
-                                ),
-                              ),
-                              children: [
-                                _buildHeaderCell("Full Name"),
-                                _buildHeaderCell("Assigned Role"),
-                                _buildHeaderCell("Contact Info"),
-                                _buildHeaderCell("Deleted By"),
-                                _buildHeaderCell("Deleted At"),
-                              ],
-                            ),
-                            ...docs.map((doc) {
-                              final data = doc.data() as Map<String, dynamic>;
-                              final fullName = data['fullName'] ?? 'No Name';
-                              final assignedRole =
-                                  data['assignedRole'] ?? 'N/A';
-                              final email = data['email'] ?? 'No Email';
-                              final phone = data['phone'] ?? 'N/A';
-                              final deletedBy = data['deletedBy'] ?? 'Admin';
-
-                              String deletedAtStr = 'Recently';
-                              if (data['deletedAt'] is Timestamp) {
-                                final dt =
-                                    (data['deletedAt'] as Timestamp).toDate();
-                                deletedAtStr = _formatDateTime(dt);
-                              }
-
-                              return TableRow(
+                      return Scrollbar(
+                        thumbVisibility: true,
+                        child: SingleChildScrollView(
+                          child: Table(
+                            columnWidths: const {
+                              0: FlexColumnWidth(2),
+                              1: FlexColumnWidth(1.5),
+                              2: FlexColumnWidth(2.5),
+                              3: FlexColumnWidth(1.5),
+                              4: FlexColumnWidth(2),
+                            },
+                            defaultVerticalAlignment:
+                                TableCellVerticalAlignment.middle,
+                            children: [
+                              TableRow(
                                 decoration: const BoxDecoration(
                                   border: Border(
                                     bottom: BorderSide(
-                                      color: Color(0xFFF1F5F9),
-                                      width: 1,
+                                      color: Color(0xFFE2E8F0),
+                                      width: 1.5,
                                     ),
                                   ),
                                 ),
                                 children: [
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 12.0,
-                                      horizontal: 16.0,
-                                    ),
-                                    child: Text(
-                                      fullName,
-                                      style: GoogleFonts.inter(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                        color: const Color(0xFF0F172A),
-                                      ),
-                                    ),
-                                  ),
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 12.0,
-                                      horizontal: 16.0,
-                                    ),
-                                    child: Text(
-                                      assignedRole,
-                                      style: GoogleFonts.inter(
-                                        fontSize: 12,
-                                        color: const Color(0xFF334155),
-                                      ),
-                                    ),
-                                  ),
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 12.0,
-                                      horizontal: 16.0,
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          email,
-                                          style: GoogleFonts.inter(
-                                            fontSize: 11,
-                                            color: const Color(0xFF475569),
-                                          ),
-                                        ),
-                                        Text(
-                                          phone,
-                                          style: GoogleFonts.inter(
-                                            fontSize: 11,
-                                            color: const Color(0xFF64748B),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 12.0,
-                                      horizontal: 16.0,
-                                    ),
-                                    child: Text(
-                                      deletedBy,
-                                      style: GoogleFonts.inter(
-                                        fontSize: 12,
-                                        color: const Color(0xFF475569),
-                                      ),
-                                    ),
-                                  ),
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 12.0,
-                                      horizontal: 16.0,
-                                    ),
-                                    child: Text(
-                                      deletedAtStr,
-                                      style: GoogleFonts.inter(
-                                        fontSize: 11,
-                                        color: const Color(0xFF64748B),
-                                      ),
-                                    ),
-                                  ),
+                                  _buildHeaderCell("Full Name"),
+                                  _buildHeaderCell("Assigned Role"),
+                                  _buildHeaderCell("Contact Info"),
+                                  _buildHeaderCell("Deleted By"),
+                                  _buildHeaderCell("Deleted At"),
                                 ],
-                              );
-                            }),
-                          ],
+                              ),
+                              ...docs.map((doc) {
+                                final data = doc.data() as Map<String, dynamic>;
+                                final fullName = data['fullName'] ?? 'No Name';
+                                final assignedRole =
+                                    data['assignedRole'] ?? 'N/A';
+                                final email = data['email'] ?? 'No Email';
+                                final phone = data['phone'] ?? 'N/A';
+                                final deletedBy = data['deletedBy'] ?? 'Admin';
+
+                                String deletedAtStr = 'Recently';
+                                if (data['deletedAt'] is Timestamp) {
+                                  final dt =
+                                      (data['deletedAt'] as Timestamp).toDate();
+                                  deletedAtStr = _formatDateTime(dt);
+                                }
+
+                                return TableRow(
+                                  decoration: const BoxDecoration(
+                                    border: Border(
+                                      bottom: BorderSide(
+                                        color: Color(0xFFF1F5F9),
+                                        width: 1,
+                                      ),
+                                    ),
+                                  ),
+                                  children: [
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 12.0,
+                                        horizontal: 16.0,
+                                      ),
+                                      child: Text(
+                                        fullName,
+                                        style: GoogleFonts.inter(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: const Color(0xFF0F172A),
+                                        ),
+                                      ),
+                                    ),
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 12.0,
+                                        horizontal: 16.0,
+                                      ),
+                                      child: Text(
+                                        assignedRole,
+                                        style: GoogleFonts.inter(
+                                          fontSize: 12,
+                                          color: const Color(0xFF334155),
+                                        ),
+                                      ),
+                                    ),
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 12.0,
+                                        horizontal: 16.0,
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            email,
+                                            style: GoogleFonts.inter(
+                                              fontSize: 11,
+                                              color: const Color(0xFF475569),
+                                            ),
+                                          ),
+                                          Text(
+                                            phone,
+                                            style: GoogleFonts.inter(
+                                              fontSize: 11,
+                                              color: const Color(0xFF64748B),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 12.0,
+                                        horizontal: 16.0,
+                                      ),
+                                      child: Text(
+                                        deletedBy,
+                                        style: GoogleFonts.inter(
+                                          fontSize: 12,
+                                          color: const Color(0xFF475569),
+                                        ),
+                                      ),
+                                    ),
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 12.0,
+                                        horizontal: 16.0,
+                                      ),
+                                      child: Text(
+                                        deletedAtStr,
+                                        style: GoogleFonts.inter(
+                                          fontSize: 11,
+                                          color: const Color(0xFF64748B),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              }),
+                            ],
+                          ),
                         ),
                       );
                     },

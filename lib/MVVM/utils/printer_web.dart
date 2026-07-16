@@ -2,6 +2,7 @@ import 'dart:html' as html;
 import 'package:swiftclean_admin/MVVM/view/pages.dart/User/Profile_user.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/User/User_roles.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/User/Banned_users.dart';
+import 'package:swiftclean_admin/MVVM/view/pages.dart/worker/All_workers.dart';
 
 void printUsersList(List<UserModel> users) {
   final htmlBuffer = StringBuffer();
@@ -503,3 +504,114 @@ void printBannedUsersList(List<BannedUserModel> bannedUsers) {
   html.window.open(url, '_blank');
 }
 
+void printWorkersList(List<WorkerModel> workers) {
+  final htmlBuffer = StringBuffer();
+  htmlBuffer.write('''
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>Workers Directory Export</title>
+      <style>
+        body {
+          font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+          margin: 40px; color: #1E293B; background-color: #FFFFFF;
+        }
+        h1 { font-size: 22px; margin: 0; color: #0F172A; font-weight: 700; }
+        .header-container {
+          display: flex; justify-content: space-between; align-items: center;
+          margin-bottom: 24px; border-bottom: 2px solid #D1FAE5; padding-bottom: 16px;
+        }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #E2E8F0; padding: 10px 12px; text-align: left; font-size: 12px; vertical-align: middle; }
+        th { background-color: #ECFDF5; font-weight: 600; color: #065F46; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; }
+        tr:nth-child(even) { background-color: #F8FAFC; }
+        .status { font-weight: 600; font-size: 11px; padding: 3px 8px; border-radius: 4px; display: inline-block; }
+        .status-approved  { background-color: #D1FAE5; color: #065F46; }
+        .status-pending   { background-color: #FEF3C7; color: #92400E; }
+        .status-rejected  { background-color: #FEE2E2; color: #991B1B; }
+        .status-suspended { background-color: #F1F5F9; color: #475569; }
+        .verified-badge { font-size: 11px; padding: 2px 6px; border-radius: 4px; font-weight: 500; background-color: #DBEAFE; color: #1E40AF; display: inline-block; }
+        @media print { body { margin: 20px 10px; } button { display: none; } .header-container { border-bottom: 1px solid #A7F3D0; } }
+      </style>
+    </head>
+    <body>
+      <div class="header-container">
+        <div>
+          <h1>Workers Directory</h1>
+          <p style="margin: 4px 0 0 0; font-size: 12px; color: #64748B;">Total Workers: TOTAL_COUNT | Generated on GENERATED_DATE</p>
+        </div>
+        <button onclick="window.print()" style="padding: 10px 20px; background-color: #10B981; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-family: inherit; font-size: 13px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">Print / Save PDF</button>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Name &amp; ID</th><th>Contact</th><th>Category</th><th>Experience</th>
+            <th>Verification</th><th>Status</th><th>Rating</th><th>Jobs Done</th><th>Joined Date</th>
+          </tr>
+        </thead>
+        <tbody>
+  ''');
+
+  for (final w in workers) {
+    final statusClass = switch (w.status.toLowerCase()) {
+      'approved' => 'status-approved',
+      'pending'  => 'status-pending',
+      'rejected' => 'status-rejected',
+      _          => 'status-suspended',
+    };
+    final name = _escapeHtml(w.name);
+    final id = _escapeHtml(w.id);
+    final phone = _escapeHtml(w.phone);
+    final email = _escapeHtml(w.email);
+    final category = _escapeHtml(w.category);
+    final experience = _escapeHtml(w.experience);
+    final verification = _escapeHtml(w.verification);
+    final status = _escapeHtml(w.status);
+    final rating = w.rating.toStringAsFixed(1);
+    final ratingsCount = w.ratingsCount;
+    final jobsCompleted = w.jobsCompleted;
+    final joinedOn = _escapeHtml(w.joinedOn);
+
+    htmlBuffer.write('''
+          <tr>
+            <td>
+              <div style="font-weight: 600; color: #0F172A;">${name}</div>
+              <div style="color: #64748B; font-size: 11px; margin-top: 2px;">${id}</div>
+            </td>
+            <td>
+              <div style="font-size: 12px;">${phone}</div>
+              <div style="color: #64748B; font-size: 11px; margin-top: 2px;">${email}</div>
+            </td>
+            <td>${category}</td>
+            <td>${experience}</td>
+            <td><span class="verified-badge">${verification}</span></td>
+            <td><span class="status ${statusClass}">${status}</span></td>
+            <td><strong style="color: #F59E0B;">&#9733;</strong> ${rating} <span style="color:#94A3B8;font-size:10px;">(${ratingsCount})</span></td>
+            <td><strong>${jobsCompleted}</strong></td>
+            <td>${joinedOn}</td>
+          </tr>
+    ''');
+  }
+
+  htmlBuffer.write('''
+        </tbody>
+      </table>
+      <script>
+        window.addEventListener('load', () => {
+          setTimeout(() => { window.print(); }, 500);
+        });
+      </script>
+    </body>
+    </html>
+  ''');
+
+  final finalHtml = htmlBuffer
+      .toString()
+      .replaceFirst('TOTAL_COUNT', workers.length.toString())
+      .replaceFirst('GENERATED_DATE', DateTime.now().toString().split('.')[0]);
+
+  final blob = html.Blob([finalHtml], 'text/html');
+  final url = html.Url.createObjectUrlFromBlob(blob);
+  html.window.open(url, '_blank');
+}

@@ -288,7 +288,9 @@ class AdminUserModel {
     final added = overrides['added'] as Map<String, dynamic>? ?? {};
     final removed = overrides['removed'] as Map<String, dynamic>? ?? {};
     final roleId = d['roleId'] as String? ?? d['role'] as String? ?? 'staff';
-    final roleIds = (d['roleIds'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [roleId];
+    final roleIds =
+        (d['roleIds'] as List<dynamic>?)?.map((e) => e.toString()).toList() ??
+        [roleId];
 
     return AdminUserModel(
       uid: doc.id,

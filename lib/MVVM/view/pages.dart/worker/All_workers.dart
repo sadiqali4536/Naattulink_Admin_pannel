@@ -3,6 +3,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:swiftclean_admin/MVVM/utils/printer_helper.dart';
 
 class WorkerModel {
   final String id;
@@ -58,8 +59,6 @@ class _AllWorkersPageState extends State<AllWorkersPage> {
   late int _selectedTabIndex;
   String _searchQuery = "";
   String _selectedCategory = "All Categories";
-  String _selectedStatus = "All Status";
-  String _selectedVerification = "All Verification";
   String _selectedRating = "All Ratings";
 
   bool _seeding = false;
@@ -136,10 +135,6 @@ class _AllWorkersPageState extends State<AllWorkersPage> {
       else if (_selectedTabIndex == 4)
         queryStatus = "Suspended";
 
-      if (_selectedStatus != "All Status") {
-        queryStatus = _selectedStatus;
-      }
-
       if (queryStatus != null) {
         if (queryStatus == "Approved") {
           query = query.where("isVerified", isEqualTo: 1);
@@ -154,17 +149,6 @@ class _AllWorkersPageState extends State<AllWorkersPage> {
 
       if (_selectedCategory != "All Categories") {
         query = query.where("category", isEqualTo: _selectedCategory);
-      }
-
-      if (_selectedVerification != "All Verification") {
-        String verificationVal = _selectedVerification;
-        if (verificationVal == "Verified") {
-          query = query.where("isVerified", isEqualTo: 1);
-        } else if (verificationVal == "Pending") {
-          query = query.where("isVerified", isEqualTo: 0);
-        } else if (verificationVal == "Not Verified") {
-          query = query.where("isVerified", isEqualTo: -1);
-        }
       }
 
       if (_selectedRating == "4.5+ Ratings") {
@@ -219,10 +203,6 @@ class _AllWorkersPageState extends State<AllWorkersPage> {
       else if (_selectedTabIndex == 4)
         queryStatus = "Suspended";
 
-      if (_selectedStatus != "All Status") {
-        queryStatus = _selectedStatus;
-      }
-
       if (queryStatus != null) {
         if (queryStatus == "Approved") {
           query = query.where("isVerified", isEqualTo: 1);
@@ -237,17 +217,6 @@ class _AllWorkersPageState extends State<AllWorkersPage> {
 
       if (_selectedCategory != "All Categories") {
         query = query.where("category", isEqualTo: _selectedCategory);
-      }
-
-      if (_selectedVerification != "All Verification") {
-        String verificationVal = _selectedVerification;
-        if (verificationVal == "Verified") {
-          query = query.where("isVerified", isEqualTo: 1);
-        } else if (verificationVal == "Pending") {
-          query = query.where("isVerified", isEqualTo: 0);
-        } else if (verificationVal == "Not Verified") {
-          query = query.where("isVerified", isEqualTo: -1);
-        }
       }
 
       if (_selectedRating == "4.5+ Ratings") {
@@ -2553,98 +2522,6 @@ class _AllWorkersPageState extends State<AllWorkersPage> {
       ),
     );
 
-    final statusDropdown = SizedBox(
-      width: isSmall ? double.infinity : 130,
-      height: 38,
-      child: DropdownButtonFormField<String>(
-        isExpanded: true,
-        initialValue: _selectedStatus,
-        decoration: InputDecoration(
-          isDense: true,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 12,
-            vertical: 8,
-          ),
-          fillColor: Colors.white,
-          filled: true,
-          border: OutlineInputBorder(
-            borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-            borderRadius: BorderRadius.circular(8),
-          ),
-        ),
-        style: GoogleFonts.inter(color: const Color(0xFF1E293B), fontSize: 12),
-        items:
-            ["All Status", "Approved", "Pending", "Rejected", "Suspended"]
-                .map(
-                  (status) => DropdownMenuItem(
-                    value: status,
-                    child: Text(
-                      status,
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                    ),
-                  ),
-                )
-                .toList(),
-        onChanged: (val) {
-          setState(() {
-            _selectedStatus = val!;
-          });
-          _onFilterChanged();
-        },
-      ),
-    );
-
-    final verificationDropdown = SizedBox(
-      width: isSmall ? double.infinity : 160,
-      height: 38,
-      child: DropdownButtonFormField<String>(
-        isExpanded: true,
-        initialValue: _selectedVerification,
-        decoration: InputDecoration(
-          isDense: true,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 12,
-            vertical: 8,
-          ),
-          fillColor: Colors.white,
-          filled: true,
-          border: OutlineInputBorder(
-            borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-            borderRadius: BorderRadius.circular(8),
-          ),
-        ),
-        style: GoogleFonts.inter(color: const Color(0xFF1E293B), fontSize: 12),
-        items:
-            ["All Verification", "Verified", "Pending", "Not Verified"]
-                .map(
-                  (ver) => DropdownMenuItem(
-                    value: ver,
-                    child: Text(
-                      ver,
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                    ),
-                  ),
-                )
-                .toList(),
-        onChanged: (val) {
-          setState(() {
-            _selectedVerification = val!;
-          });
-          _onFilterChanged();
-        },
-      ),
-    );
-
     final ratingDropdown = SizedBox(
       width: isSmall ? double.infinity : 130,
       height: 38,
@@ -2691,24 +2568,8 @@ class _AllWorkersPageState extends State<AllWorkersPage> {
       ),
     );
 
-    final filterButton = Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-      ),
-      child: IconButton(
-        icon: const Icon(
-          Icons.filter_list_rounded,
-          size: 18,
-          color: Color(0xFF64748B),
-        ),
-        onPressed: () {},
-      ),
-    );
-
     final exportButton = ElevatedButton.icon(
-      onPressed: () {},
+      onPressed: _exportToPdf,
       icon: const Icon(Icons.download_rounded, size: 14),
       label: Text(
         "Export",
@@ -2734,22 +2595,11 @@ class _AllWorkersPageState extends State<AllWorkersPage> {
             children: [
               Expanded(child: categoryDropdown),
               const SizedBox(width: 12),
-              Expanded(child: statusDropdown),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(child: verificationDropdown),
-              const SizedBox(width: 12),
               Expanded(child: ratingDropdown),
             ],
           ),
           const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [filterButton, const SizedBox(width: 12), exportButton],
-          ),
+          Align(alignment: Alignment.centerRight, child: exportButton),
         ],
       );
     } else {
@@ -2759,14 +2609,8 @@ class _AllWorkersPageState extends State<AllWorkersPage> {
           const SizedBox(width: 12),
           categoryDropdown,
           const SizedBox(width: 12),
-          statusDropdown,
-          const SizedBox(width: 12),
-          verificationDropdown,
-          const SizedBox(width: 12),
           ratingDropdown,
           const Spacer(),
-          filterButton,
-          const SizedBox(width: 12),
           exportButton,
         ],
       );
@@ -2893,6 +2737,65 @@ class _AllWorkersPageState extends State<AllWorkersPage> {
         ),
       ),
     );
+  }
+
+  Future<void> _exportToPdf() async {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Preparing export... Please wait.")),
+    );
+
+    try {
+      Query query = FirebaseFirestore.instance.collection("workers");
+      String? queryStatus;
+      if (_selectedTabIndex == 1) {
+        queryStatus = "Pending";
+      } else if (_selectedTabIndex == 2) {
+        queryStatus = "Approved";
+      } else if (_selectedTabIndex == 3) {
+        queryStatus = "Rejected";
+      } else if (_selectedTabIndex == 4) {
+        queryStatus = "Suspended";
+      }
+
+      if (queryStatus != null) {
+        if (queryStatus == "Approved") {
+          query = query.where("isVerified", isEqualTo: 1);
+        } else if (queryStatus == "Pending") {
+          query = query.where("isVerified", isEqualTo: 0);
+        } else if (queryStatus == "Rejected") {
+          query = query.where("isVerified", isEqualTo: -1);
+        } else if (queryStatus == "Suspended") {
+          query = query.where("isVerified", isEqualTo: -2);
+        }
+      }
+
+      if (_selectedCategory != "All Categories") {
+        query = query.where("category", isEqualTo: _selectedCategory);
+      }
+
+      if (_selectedRating == "4.5+ Ratings") {
+        query = query.where("rating", isGreaterThanOrEqualTo: 4.5);
+      } else if (_selectedRating == "4.8+ Ratings") {
+        query = query.where("rating", isGreaterThanOrEqualTo: 4.8);
+      }
+
+      if (_searchQuery.isNotEmpty) {
+        query = query
+            .where("name", isGreaterThanOrEqualTo: _searchQuery)
+            .where("name", isLessThanOrEqualTo: _searchQuery + '\uf8ff');
+      }
+
+      final snapshot = await query.get();
+      final workers = snapshot.docs.map((doc) => _parseWorker(doc)).toList();
+
+      printWorkersList(workers);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Error exporting: $e")));
+      }
+    }
   }
 
   Widget _buildWorkersTable(List<WorkerModel> workers) {

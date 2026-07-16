@@ -48,10 +48,50 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
   List<DocumentSnapshot> _bannedDocs = [];
   bool _isLoading = false;
 
+  // Table scroll controllers for sticky header + scrollable body
+  final ScrollController _bannedTableVerticalController = ScrollController();
+  final ScrollController _bannedTableHorizontalHeaderController =
+      ScrollController();
+  final ScrollController _bannedTableHorizontalBodyController =
+      ScrollController();
+  bool _isBannedSyncingScroll = false;
+
   @override
   void initState() {
     super.initState();
     _fetchBannedUsers();
+    _bannedTableHorizontalHeaderController.addListener(_onBannedHeaderHScroll);
+    _bannedTableHorizontalBodyController.addListener(_onBannedBodyHScroll);
+  }
+
+  @override
+  void dispose() {
+    _bannedTableVerticalController.dispose();
+    _bannedTableHorizontalHeaderController.dispose();
+    _bannedTableHorizontalBodyController.dispose();
+    super.dispose();
+  }
+
+  void _onBannedHeaderHScroll() {
+    if (_isBannedSyncingScroll) return;
+    _isBannedSyncingScroll = true;
+    if (_bannedTableHorizontalBodyController.hasClients) {
+      _bannedTableHorizontalBodyController.jumpTo(
+        _bannedTableHorizontalHeaderController.offset,
+      );
+    }
+    _isBannedSyncingScroll = false;
+  }
+
+  void _onBannedBodyHScroll() {
+    if (_isBannedSyncingScroll) return;
+    _isBannedSyncingScroll = true;
+    if (_bannedTableHorizontalHeaderController.hasClients) {
+      _bannedTableHorizontalHeaderController.jumpTo(
+        _bannedTableHorizontalBodyController.offset,
+      );
+    }
+    _isBannedSyncingScroll = false;
   }
 
   Future<void> _fetchBannedUsers() async {
@@ -187,8 +227,18 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
                     final parts = user.bannedOn.replaceAll(',', '').split(' ');
                     if (parts.length >= 3) {
                       const months = {
-                        'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6,
-                        'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12,
+                        'Jan': 1,
+                        'Feb': 2,
+                        'Mar': 3,
+                        'Apr': 4,
+                        'May': 5,
+                        'Jun': 6,
+                        'Jul': 7,
+                        'Aug': 8,
+                        'Sep': 9,
+                        'Oct': 10,
+                        'Nov': 11,
+                        'Dec': 12,
                       };
                       final month = months[parts[0]];
                       final day = int.tryParse(parts[1]);
@@ -199,7 +249,9 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
                     }
                   }
                   if (cellDateTime != null) {
-                    final rangeEnd = _selectedDateRange!.end.add(const Duration(days: 1));
+                    final rangeEnd = _selectedDateRange!.end.add(
+                      const Duration(days: 1),
+                    );
                     if (cellDateTime.isBefore(_selectedDateRange!.start) ||
                         cellDateTime.isAfter(rangeEnd)) {
                       matchesDate = false;
@@ -208,7 +260,10 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
                 } catch (_) {}
               }
 
-              return matchesSearch && matchesType && matchesDuration && matchesDate;
+              return matchesSearch &&
+                  matchesType &&
+                  matchesDuration &&
+                  matchesDate;
             }).toList();
 
         return SingleChildScrollView(
@@ -649,6 +704,19 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
   }
 
   Widget _buildBannedTable(List<BannedUserModel> users) {
+    const columnWidths = <int, TableColumnWidth>{
+      0: FlexColumnWidth(2.0), // User Profile
+      1: FlexColumnWidth(2.2), // Email / Phone
+      2: FlexColumnWidth(2.5), // Reason
+      3: FlexColumnWidth(1.2), // Ban Type Badge
+      4: FlexColumnWidth(1.8), // Banned On
+      5: FlexColumnWidth(1.8), // Banned By
+      6: FlexColumnWidth(1.8), // Ban Duration
+      7: FlexColumnWidth(1.0), // Status
+      8: FlexColumnWidth(1.6), // Actions
+    };
+    const double tableWidth = 1200;
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -658,25 +726,17 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // ── STICKY HEADER ──
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
+            controller: _bannedTableHorizontalHeaderController,
+            physics: const ClampingScrollPhysics(),
             child: SizedBox(
-              width: 1200,
+              width: tableWidth,
               child: Table(
-                columnWidths: const {
-                  0: FlexColumnWidth(2.0), // User Profile
-                  1: FlexColumnWidth(2.2), // Email / Phone
-                  2: FlexColumnWidth(2.5), // Reason
-                  3: FlexColumnWidth(1.2), // Ban Type Badge
-                  4: FlexColumnWidth(1.8), // Banned On
-                  5: FlexColumnWidth(1.8), // Banned By
-                  6: FlexColumnWidth(1.8), // Ban Duration
-                  7: FlexColumnWidth(1.0), // Status
-                  8: FlexColumnWidth(1.6), // Actions
-                },
+                columnWidths: columnWidths,
                 defaultVerticalAlignment: TableCellVerticalAlignment.middle,
                 children: [
-                  // Table Header
                   TableRow(
                     decoration: const BoxDecoration(
                       color: Color(0xFFF8FAFC),
@@ -696,165 +756,240 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
                       _buildHeaderCell("Actions"),
                     ],
                   ),
+                ],
+              ),
+            ),
+          ),
 
-                  // Table Rows
-                  ...users.map((user) {
-                    return TableRow(
-                      decoration: const BoxDecoration(
-                        border: Border(
-                          bottom: BorderSide(
-                            color: Color(0xFFF1F5F9),
-                            width: 1,
-                          ),
-                        ),
-                      ),
-                      children: [
-                        // User Profile column
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 10.0,
-                            horizontal: 16.0,
-                          ),
-                          child: Row(
-                            children: [
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(16),
-                                child: Image.network(
-                                  user.avatarUrl,
-                                  width: 32,
-                                  height: 32,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) {
-                                    return Container(
-                                      width: 32,
-                                      height: 32,
-                                      color: const Color(0xFFE2E8F0),
-                                      child: const Icon(
-                                        Icons.person,
-                                        color: Color(0xFF64748B),
-                                        size: 16,
-                                      ),
-                                    );
-                                  },
+          // ── SCROLLABLE BODY ──
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 500),
+            child: Scrollbar(
+              thumbVisibility: true,
+              controller: _bannedTableVerticalController,
+              child: Scrollbar(
+                thumbVisibility: true,
+                controller: _bannedTableHorizontalBodyController,
+                notificationPredicate:
+                    (notification) => notification.depth == 1,
+                child: SingleChildScrollView(
+                  controller: _bannedTableVerticalController,
+                  physics: const ClampingScrollPhysics(),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    controller: _bannedTableHorizontalBodyController,
+                    physics: const ClampingScrollPhysics(),
+                    child: SizedBox(
+                      width: tableWidth,
+                      child: Table(
+                        columnWidths: columnWidths,
+                        defaultVerticalAlignment:
+                            TableCellVerticalAlignment.middle,
+                        children: [
+                          ...users.map((user) {
+                            return TableRow(
+                              decoration: const BoxDecoration(
+                                border: Border(
+                                  bottom: BorderSide(
+                                    color: Color(0xFFF1F5F9),
+                                    width: 1,
+                                  ),
                                 ),
                               ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      user.name,
-                                      style: GoogleFonts.inter(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.bold,
-                                        color: const Color(0xFF1E293B),
+                              children: [
+                                // User Profile column
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 10.0,
+                                    horizontal: 16.0,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      ClipRRect(
+                                        borderRadius: BorderRadius.circular(16),
+                                        child: Image.network(
+                                          user.avatarUrl,
+                                          width: 32,
+                                          height: 32,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (
+                                            context,
+                                            error,
+                                            stackTrace,
+                                          ) {
+                                            return Container(
+                                              width: 32,
+                                              height: 32,
+                                              color: const Color(0xFFE2E8F0),
+                                              child: const Icon(
+                                                Icons.person,
+                                                color: Color(0xFF64748B),
+                                                size: 16,
+                                              ),
+                                            );
+                                          },
+                                        ),
                                       ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              user.name,
+                                              style: GoogleFonts.inter(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.bold,
+                                                color: const Color(0xFF1E293B),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              user.userId,
+                                              style: GoogleFonts.inter(
+                                                fontSize: 11,
+                                                color: const Color(0xFF94A3B8),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                // Email / Phone
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 10.0,
+                                    horizontal: 16.0,
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        user.email,
+                                        style: GoogleFonts.inter(
+                                          fontSize: 12,
+                                          color: const Color(0xFF1E293B),
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        user.phone,
+                                        style: GoogleFonts.inter(
+                                          fontSize: 11,
+                                          color: const Color(0xFF64748B),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                // Reason
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 10.0,
+                                    horizontal: 16.0,
+                                  ),
+                                  child: Text(
+                                    user.reason,
+                                    style: GoogleFonts.inter(
+                                      fontSize: 12,
+                                      color: const Color(0xFF475569),
+                                      height: 1.4,
                                     ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      user.userId,
-                                      style: GoogleFonts.inter(
-                                        fontSize: 11,
-                                        color: const Color(0xFF94A3B8),
-                                      ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                // Ban Type Badge
+                                _buildBanTypeBadge(user.banType),
+                                // Banned On
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 10.0,
+                                    horizontal: 16.0,
+                                  ),
+                                  child: Text(
+                                    user.bannedOn,
+                                    style: GoogleFonts.inter(
+                                      fontSize: 12,
+                                      color: const Color(0xFF475569),
+                                    ),
+                                  ),
+                                ),
+                                // Banned By
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 10.0,
+                                    horizontal: 16.0,
+                                  ),
+                                  child: Text(
+                                    user.bannedBy,
+                                    style: GoogleFonts.inter(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                      color: const Color(0xFF1E293B),
+                                    ),
+                                  ),
+                                ),
+                                // Ban Duration
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 10.0,
+                                    horizontal: 16.0,
+                                  ),
+                                  child: Text(
+                                    user.banDuration,
+                                    style: GoogleFonts.inter(
+                                      fontSize: 13,
+                                      color: const Color(0xFF475569),
+                                    ),
+                                  ),
+                                ),
+                                _buildStatusBadge(user.status),
+                                // Actions row
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    _buildActionButton(
+                                      Icons.visibility_outlined,
+                                      Colors.blue,
+                                      () {
+                                        _showBannedUserDetailsDialog(
+                                          context,
+                                          user,
+                                        );
+                                      },
+                                    ),
+                                    const SizedBox(width: 8),
+                                    _buildActionButton(
+                                      Icons.restore_page_rounded,
+                                      Colors.grey,
+                                      () {
+                                        _showUnbanConfirmation(context, user);
+                                      },
+                                    ),
+                                    const SizedBox(width: 8),
+                                    _buildActionButton(
+                                      Icons.delete_outline_rounded,
+                                      Colors.red,
+                                      () {
+                                        _showDeleteConfirmation(context, user);
+                                      },
                                     ),
                                   ],
                                 ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        // Email / Phone details
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                user.email,
-                                style: GoogleFonts.inter(
-                                  fontSize: 13,
-                                  color: const Color(0xFF1E293B),
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                user.phone,
-                                style: GoogleFonts.inter(
-                                  fontSize: 12,
-                                  color: const Color(0xFF64748B),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                          child: Text(
-                            user.reason,
-                            style: GoogleFonts.inter(
-                              fontSize: 13,
-                              color: const Color(0xFF475569),
-                            ),
-                          ),
-                        ),
-                        _buildBanTypeBadge(user.banType),
-                        Text(
-                          user.bannedOn,
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            color: const Color(0xFF64748B),
-                          ),
-                        ),
-                        Text(
-                          user.bannedBy,
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            color: const Color(0xFF475569),
-                          ),
-                        ),
-                        Text(
-                          user.banDuration,
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            color: const Color(0xFF475569),
-                          ),
-                        ),
-                        _buildStatusBadge(user.status),
-                        // Actions row
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            _buildActionButton(
-                              Icons.visibility_outlined,
-                              Colors.blue,
-                              () {
-                                _showBannedUserDetailsDialog(context, user);
-                              },
-                            ),
-                            const SizedBox(width: 8),
-                            _buildActionButton(
-                              Icons.restore_page_rounded,
-                              Colors.grey,
-                              () {
-                                _showUnbanConfirmation(context, user);
-                              },
-                            ),
-                            const SizedBox(width: 8),
-                            _buildActionButton(
-                              Icons.delete_outline_rounded,
-                              Colors.red,
-                              () {
-                                _showDeleteConfirmation(context, user);
-                              },
-                            ),
-                          ],
-                        ),
-                      ],
-                    );
-                  }),
-                ],
+                              ],
+                            );
+                          }),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
