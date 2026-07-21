@@ -819,15 +819,15 @@ class _UserRolesPageState extends State<UserRolesPage> {
                                     crossAxisAlignment:
                                         WrapCrossAlignment.center,
                                     children: [
-                                      _buildActionButton(
-                                        Icons.person_add_outlined,
-                                        const Color(0xFF8B5CF6),
-                                        "Assign",
-                                        () => _showAssignUserDialog(
-                                          context,
-                                          role,
-                                        ),
-                                      ),
+                                      // _buildActionButton(
+                                      //   Icons.person_add_outlined,
+                                      //   const Color(0xFF8B5CF6),
+                                      //   "Assign",
+                                      //   () => _showAssignUserDialog(
+                                      //     context,
+                                      //     role,
+                                      //   ),
+                                      // ),
                                       _buildActionButton(
                                         Icons.edit_outlined,
                                         Colors.blue,
@@ -3695,14 +3695,18 @@ class _UserRolesPageState extends State<UserRolesPage> {
                                       onPressed: () {
                                         Navigator.pop(context); // Close dialog
                                         // Navigate to Grant Access Tab or Page
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder:
-                                                (context) =>
-                                                    const GrantAccessPage(),
-                                          ),
-                                        );
+                                        if (widget.onTabChanged != null) {
+                                          widget.onTabChanged!("Grant Access");
+                                        } else {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder:
+                                                  (context) =>
+                                                      const GrantAccessPage(),
+                                            ),
+                                          );
+                                        }
                                       },
                                       icon: const Icon(
                                         Icons.person_add_alt_1_rounded,
@@ -4104,12 +4108,12 @@ class _UserRolesPageState extends State<UserRolesPage> {
                               .replaceAll(' ', '_');
                           final List<Map<String, dynamic>> assignedUsersList =
                               [];
+                          int inactiveAdminsCount = 0;
+
                           if (adminSnapshot.hasData) {
                             for (var doc in adminSnapshot.data!.docs) {
                               final d =
                                   doc.data() as Map<String, dynamic>? ?? {};
-                              final status = d['status'] as String? ?? 'Active';
-                              if (status != 'Active') continue;
 
                               final rId = (d['roleId'] ?? '').toString();
                               final rIds =
@@ -4117,6 +4121,8 @@ class _UserRolesPageState extends State<UserRolesPage> {
                                       ?.map((e) => e.toString())
                                       .toList() ??
                                   [rId];
+
+                              if (!rIds.contains(canonicalRoleId)) continue;
 
                               // Filter out deleted users whose document in users collection no longer exists
                               if (!userDocs.containsKey(doc.id)) continue;
@@ -4132,7 +4138,9 @@ class _UserRolesPageState extends State<UserRolesPage> {
                                   rIds.contains('super_admin')) {
                                 continue;
                               }
-                              if (rIds.contains(canonicalRoleId)) {
+
+                              final status = d['status'] as String? ?? 'Active';
+                              if (status == 'Active') {
                                 assignedUsersList.add({
                                   'uid': doc.id,
                                   'fullName':
@@ -4150,10 +4158,12 @@ class _UserRolesPageState extends State<UserRolesPage> {
                                       d['roleDisplayName'] ?? rId,
                                   'webEmail':
                                       d['webEmail'] ??
-                                      '${doc.id}_adm@naattulink.internal',
+                                      '${doc.id}_adm@naattulink',
                                   'webPassword': d['webPassword'],
                                   'status': status,
                                 });
+                              } else {
+                                inactiveAdminsCount++;
                               }
                             }
                           }
@@ -4191,60 +4201,53 @@ class _UserRolesPageState extends State<UserRolesPage> {
                                     ),
                                     const SizedBox(width: 16),
                                     Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
+                                      child: Row(
                                         children: [
-                                          Text(
-                                            role.name,
-                                            style: GoogleFonts.inter(
-                                              fontSize: 18,
-                                              fontWeight: FontWeight.bold,
-                                              color: const Color(0xFF0F172A),
+                                          Expanded(
+                                            flex: 2,
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  role.name,
+                                                  style: GoogleFonts.inter(
+                                                    fontSize: 18,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: const Color(
+                                                      0xFF0F172A,
+                                                    ),
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  role.description.isNotEmpty
+                                                      ? role.description
+                                                      : "No description provided.",
+                                                  style: GoogleFonts.inter(
+                                                    fontSize: 13,
+                                                    color: const Color(
+                                                      0xFF64748B,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
                                             ),
                                           ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            role.description.isNotEmpty
-                                                ? role.description
-                                                : "No description provided.",
-                                            style: GoogleFonts.inter(
-                                              fontSize: 13,
-                                              color: const Color(0xFF64748B),
-                                            ),
+                                          const SizedBox(width: 12),
+                                          buildStatItem(
+                                            "Active",
+                                            assignedUsersList.length.toString(),
+                                            Icons.person_outline_rounded,
+                                            const Color(0xFF3B82F6),
                                           ),
                                         ],
                                       ),
                                     ),
                                   ],
                                 ),
-                                const SizedBox(height: 20),
 
                                 // Stats Box Row
-                                Row(
-                                  children: [
-                                    buildStatItem(
-                                      "Users",
-                                      assignedUsersList.length.toString(),
-                                      Icons.people_outline_rounded,
-                                      const Color(0xFF3B82F6),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    buildStatItem(
-                                      "Permissions",
-                                      totalPermissions.toString(),
-                                      Icons.lock_outline_rounded,
-                                      const Color(0xFF10B981),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    buildStatItem(
-                                      "Status",
-                                      role.status,
-                                      Icons.circle,
-                                      const Color(0xFF10B981),
-                                    ),
-                                  ],
-                                ),
                                 const SizedBox(height: 20),
 
                                 // Created On
@@ -5726,6 +5729,23 @@ class _ViewRoleUserCardState extends State<_ViewRoleUserCard> {
             ],
           ),
           const SizedBox(height: 8),
+          Row(
+            children: [
+              const Icon(
+                Icons.lock_outlined,
+                size: 16,
+                color: Color(0xFF64748B),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                "Web Email: ${user['webEmail'] as String}",
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  color: const Color(0xFF334155),
+                ),
+              ),
+            ],
+          ),
 
           // 🔒 Password status with Reset Password action
           Row(

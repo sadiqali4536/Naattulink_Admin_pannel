@@ -258,9 +258,10 @@ class FirebaseAuthService {
     required String targetUid,
     required String targetDisplayName,
     required String webPassword,
+    required String webEmail,
   }) async {
     print(
-      '[RBAC CREATE] Starting createWebAdminAccount for targetUid: $targetUid, displayName: $targetDisplayName',
+      '[RBAC CREATE] Starting createWebAdminAccount for targetUid: $targetUid, displayName: $targetDisplayName, webEmail: $webEmail',
     );
     final session = RbacSession();
     if (!session.isActive)
@@ -297,8 +298,6 @@ class FirebaseAuthService {
         }
       }
     }
-
-    final webEmail = '${targetUid}_adm@naattulink.internal';
 
     // If caller is Super Admin and old credentials exist, try to delete the old Auth user first
     if (shouldRecreate &&
@@ -339,10 +338,11 @@ class FirebaseAuthService {
     final secondaryApp = await _getSecondaryApp();
     final secondaryAuth = FirebaseAuth.instanceFor(app: secondaryApp);
 
+    String finalWebEmail = webEmail;
     String webAuthUid;
     try {
       final cred = await secondaryAuth.createUserWithEmailAndPassword(
-        email: webEmail,
+        email: finalWebEmail,
         password: webPassword,
       );
       webAuthUid = cred.user!.uid;
@@ -351,27 +351,24 @@ class FirebaseAuthService {
       );
     } on FirebaseAuthException catch (e) {
       if (e.code == 'email-already-in-use') {
-        if (isCallerSuperAdmin) {
-          print(
-            '[RBAC CREATE] Legacy web account already exists but could not be resolved automatically: $webEmail',
-          );
-          throw 'A legacy web account already exists for this user and cannot '
-              'be recreated automatically. Delete the internal account ($webEmail) '
-              'once from Firebase Authentication, then try again.';
-        }
-        // Auth account exists but admin_users was missing the field — recover (for regular admins)
+        print(
+          '[RBAC CREATE] Legacy web account exists. Auto-resolving by generating a unique email...',
+        );
+        final timestamp = DateTime.now().millisecondsSinceEpoch;
+        finalWebEmail =
+            '${finalWebEmail.split('@')[0]}_$timestamp@naattulink.internal';
+
         try {
-          final cred = await secondaryAuth.signInWithEmailAndPassword(
-            email: webEmail,
+          final cred = await secondaryAuth.createUserWithEmailAndPassword(
+            email: finalWebEmail,
             password: webPassword,
           );
           webAuthUid = cred.user!.uid;
-        } catch (_) {
+        } catch (innerE) {
           try {
             await secondaryAuth.signOut();
           } catch (_) {}
-          throw 'A web account already exists for this user but the password '
-              'does not match. Please contact a Super Admin to reset it.';
+          throw 'Failed to auto-resolve existing web account. Please contact support.';
         }
       } else {
         rethrow;
@@ -388,7 +385,7 @@ class FirebaseAuthService {
     );
     await _db.collection('admin_users').doc(targetUid).update({
       'webAuthUid': webAuthUid,
-      'webEmail': webEmail,
+      'webEmail': finalWebEmail,
       'webPassword': webPassword,
       'webAccountCreatedAt': FieldValue.serverTimestamp(),
     });
@@ -396,7 +393,7 @@ class FirebaseAuthService {
     // Write reverse-lookup index: web_auth_index/{webAuthUid} → originalUid
     await _db.collection('web_auth_index').doc(webAuthUid).set({
       'originalUid': targetUid,
-      'webEmail': webEmail,
+      'webEmail': finalWebEmail,
       'createdAt': FieldValue.serverTimestamp(),
       'createdBy': session.uid,
     });
@@ -420,7 +417,7 @@ class FirebaseAuthService {
       performedToUid: targetUid,
       performedToName: targetDisplayName,
       details: AuditDetails(
-        extra: 'Web admin account created: $webEmail',
+        extra: 'Web admin account created: $finalWebEmail',
         platform: kIsWeb ? 'web' : 'app',
       ),
     );

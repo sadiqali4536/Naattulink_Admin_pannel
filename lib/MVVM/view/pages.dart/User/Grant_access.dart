@@ -669,10 +669,22 @@ class _GrantAccessPageState extends State<GrantAccessPage> {
       bool createdNew = false;
       if (_webPassword != null && _webPassword!.isNotEmpty) {
         final prevWebUid = _existingRecord?.webAuthUid;
+
+        final String cleanUsername =
+            (_selectedUser?['username'] as String? ?? '').isNotEmpty
+                ? (_selectedUser!['username'] as String)
+                    .toLowerCase()
+                    .replaceAll(RegExp(r'[^a-z0-9]'), '')
+                : (_selectedUser?['uid']?.toString() ?? 'user')
+                    .substring(0, 6)
+                    .toLowerCase();
+        final generatedWebEmail = '${cleanUsername}_adm@naattulink.internal';
+
         await FirebaseAuthService.instance.createWebAdminAccount(
           targetUid: _selectedUser!['uid'],
           targetDisplayName: _selectedUser!['fullName'],
           webPassword: _webPassword!,
+          webEmail: _existingRecord?.webEmail ?? generatedWebEmail,
         );
         // Detect whether a brand-new account was created
         createdNew = prevWebUid == null;
@@ -1199,6 +1211,17 @@ class _GrantAccessPageState extends State<GrantAccessPage> {
   // Step 3 — Confirm
   // ---------------------------------------------------------------------------
   Widget _buildStep3Confirm() {
+    final String cleanUsername =
+        (_selectedUser?['username'] as String? ?? '').isNotEmpty
+            ? (_selectedUser!['username'] as String).toLowerCase().replaceAll(
+              RegExp(r'[^a-z0-9]'),
+              '',
+            )
+            : (_selectedUser?['uid']?.toString() ?? 'user')
+                .substring(0, 6)
+                .toLowerCase();
+    final generatedWebEmail = '${cleanUsername}_adm@naattulink.internal';
+
     return _StepCard(
       title: 'Confirm & Submit',
       subtitle: 'Review the access configuration before granting.',
@@ -1337,11 +1360,38 @@ class _GrantAccessPageState extends State<GrantAccessPage> {
                 ],
               ),
             ),
+            if (_existingRecord?.webEmail != null &&
+                _existingRecord?.webPassword != null) ...[
+              const SizedBox(height: 16),
+              _SummarySection(
+                title: 'Existing Web Credentials',
+                child: Column(
+                  children: [
+                    _ReadOnlyField(
+                      label: 'Web Email',
+                      value: () {
+                        String e = _existingRecord!.webEmail!;
+                        if (e.contains('_adm_')) {
+                          return '${e.split('_adm_')[0]}_adm@naattulink.internal';
+                        }
+                        return e;
+                      }(),
+                    ),
+                    _ReadOnlyField(
+                      label: 'Web Password',
+                      value: _existingRecord!.webPassword!,
+                      isLast: true,
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
           const SizedBox(height: 16),
           _PasswordDeliverySection(
             email: _selectedUser?['email'] ?? '',
             username: _selectedUser?['username'] ?? '-',
+            webEmail: _existingRecord?.webEmail ?? generatedWebEmail,
             showGenerateOnly: _existingRecord?.webAuthUid != null,
             onPasswordGenerated: (pwd) {
               setState(() => _webPassword = pwd);
@@ -1786,8 +1836,8 @@ class _UserSearchDropdownState extends State<_UserSearchDropdown> {
                     radius: 16,
                     backgroundColor: const Color(0xFFF0FDF4),
                     child: Text(
-                      (user['fullName'] as String).isNotEmpty
-                          ? (user['fullName'] as String)[0].toUpperCase()
+                      (user['username'] as String).isNotEmpty
+                          ? (user['username'] as String)[0].toUpperCase()
                           : '?',
                       style: GoogleFonts.inter(
                         fontSize: 13,
@@ -1797,7 +1847,7 @@ class _UserSearchDropdownState extends State<_UserSearchDropdown> {
                     ),
                   ),
                   title: Text(
-                    user['fullName'] as String,
+                    user['username'] as String,
                     style: GoogleFonts.inter(
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
@@ -2126,6 +2176,7 @@ class _SummarySection extends StatelessWidget {
 class _PasswordDeliverySection extends StatefulWidget {
   final String email;
   final String username;
+  final String? webEmail;
 
   /// Called whenever a password is generated. Parent uses this to gate submit.
   final void Function(String password) onPasswordGenerated;
@@ -2136,6 +2187,7 @@ class _PasswordDeliverySection extends StatefulWidget {
   const _PasswordDeliverySection({
     required this.email,
     required this.username,
+    this.webEmail,
     required this.onPasswordGenerated,
     this.showGenerateOnly = false,
   });
@@ -2207,6 +2259,75 @@ class _PasswordDeliverySectionState extends State<_PasswordDeliverySection> {
               color: const Color(0xFF475569),
             ),
           ),
+          if (widget.webEmail != null) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.email_outlined,
+                    size: 16,
+                    color: Color(0xFF64748B),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Web Email: ',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: const Color(0xFF64748B),
+                    ),
+                  ),
+                  Expanded(
+                    child: SelectableText(
+                      widget.webEmail!,
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF0F172A),
+                      ),
+                    ),
+                  ),
+                  InkWell(
+                    onTap: () async {
+                      await Clipboard.setData(
+                        ClipboardData(text: widget.webEmail!),
+                      );
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: const Text(
+                              'Web Email copied to clipboard',
+                            ),
+                            behavior: SnackBarBehavior.floating,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            backgroundColor: const Color(0xFF059669),
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                      }
+                    },
+                    borderRadius: BorderRadius.circular(4),
+                    child: const Padding(
+                      padding: EdgeInsets.all(4.0),
+                      child: Icon(
+                        Icons.copy_rounded,
+                        size: 16,
+                        color: Color(0xFF059669),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 16),
 
           // Title

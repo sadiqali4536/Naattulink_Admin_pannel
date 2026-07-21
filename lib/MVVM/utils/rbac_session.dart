@@ -56,9 +56,7 @@ class RbacSession {
     // modified in Firestore. Skipping this prevents auto-signout if their
     // admin_users/{uid} document is missing.
     final currentUser = FirebaseAuth.instance.currentUser;
-    const devEmails = [
-      'superadmin@naattulink.com',
-    ];
+    const devEmails = ['superadmin@naattulink.com'];
     if (currentUser != null && devEmails.contains(currentUser.email)) {
       return;
     }
@@ -104,7 +102,7 @@ class RbacSession {
     email = user.email;
 
     // ── Resolve web-panel account → original UID ──────────────────────────────
-    // When a web-panel account ({uid}_adm@naattulink.internal) is signed in,
+    // When a web-panel account ({uid}_adm@naattulink) is signed in,
     // its Firebase UID differs from the user's real UID stored in admin_users.
     // web_auth_index/{webAuthUid} maps back to the original uid.
     String? originalUid;
@@ -124,9 +122,7 @@ class RbacSession {
     uid = originalUid ?? currentAuthUid;
 
     // ── Super Admin check (hardcoded superadmin/dev emails) ───────────────────
-    const devEmails = [
-      'superadmin@naattulink.com',
-    ];
+    const devEmails = ['superadmin@naattulink.com'];
     if (devEmails.contains(user.email)) {
       roleId = 'super_admin';
       roleDisplayName = 'Super Admin';

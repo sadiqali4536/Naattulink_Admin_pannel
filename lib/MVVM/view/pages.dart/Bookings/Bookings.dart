@@ -394,15 +394,15 @@ class _BookingsState extends State<Bookings> {
                 // Header & Breadcrumbs
                 _buildHeaderAndBreadcrumbs(),
                 const SizedBox(height: 24),
-      
+
                 // 5 Statistics Cards
                 _buildStatsGrid(isSmall),
                 const SizedBox(height: 24),
-      
+
                 // Filter Controls Card
                 _buildFiltersCard(isSmall),
                 const SizedBox(height: 20),
-      
+
                 // Tabs & Table Card
                 _buildTableCard(filteredList, width),
               ],
@@ -1041,325 +1041,330 @@ class _BookingsState extends State<Bookings> {
               child: SizedBox(
                 width: 1400,
                 child: Table(
-                columnWidths: const {
-                  0: FlexColumnWidth(1.2), // Booking ID
-                  1: FlexColumnWidth(2.0), // Customer
-                  2: FlexColumnWidth(2.0), // Worker
-                  3: FlexColumnWidth(2.2), // Service
-                  4: FlexColumnWidth(1.8), // Date & Time
-                  5: FlexColumnWidth(1.2), // Amount
-                  6: FlexColumnWidth(1.3), // Payment
-                  7: FlexColumnWidth(1.3), // Status
-                  8: FlexColumnWidth(1.8), // Actions
-                },
-                defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-                children: [
-                  // Table Header
-                  TableRow(
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFF8FAFC),
-                      border: Border(
-                        bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
-                      ),
-                    ),
-                    children: [
-                      _buildHeaderCell("Booking ID"),
-                      _buildHeaderCell("Customer"),
-                      _buildHeaderCell("Worker"),
-                      _buildHeaderCell("Service"),
-                      _buildHeaderCell("Booking Date & Time"),
-                      _buildHeaderCell("Amount"),
-                      _buildHeaderCell("Payment"),
-                      _buildHeaderCell("Status"),
-                      _buildHeaderCell("Actions"),
-                    ],
-                  ),
-
-                  // Table Rows
-                  ...bookings.map((booking) {
-                    return TableRow(
+                  columnWidths: const {
+                    0: FlexColumnWidth(1.2), // Booking ID
+                    1: FlexColumnWidth(2.0), // Customer
+                    2: FlexColumnWidth(2.0), // Worker
+                    3: FlexColumnWidth(2.2), // Service
+                    4: FlexColumnWidth(1.8), // Date & Time
+                    5: FlexColumnWidth(1.2), // Amount
+                    6: FlexColumnWidth(1.3), // Payment
+                    7: FlexColumnWidth(1.3), // Status
+                    8: FlexColumnWidth(1.8), // Actions
+                  },
+                  defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+                  children: [
+                    // Table Header
+                    TableRow(
                       decoration: const BoxDecoration(
+                        color: Color(0xFFF8FAFC),
                         border: Border(
                           bottom: BorderSide(
-                            color: Color(0xFFF1F5F9),
+                            color: Color(0xFFE2E8F0),
                             width: 1,
                           ),
                         ),
                       ),
                       children: [
-                        // Booking ID & Date
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 12.0,
-                            horizontal: 16.0,
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                booking.id,
-                                style: GoogleFonts.inter(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.bold,
-                                  color: const Color(0xFF0F172A),
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                booking.date,
-                                style: GoogleFonts.inter(
-                                  fontSize: 11,
-                                  color: const Color(0xFF64748B),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+                        _buildHeaderCell("Booking ID"),
+                        _buildHeaderCell("Customer"),
+                        _buildHeaderCell("Worker"),
+                        _buildHeaderCell("Service"),
+                        _buildHeaderCell("Booking Date & Time"),
+                        _buildHeaderCell("Amount"),
+                        _buildHeaderCell("Payment"),
+                        _buildHeaderCell("Status"),
+                        _buildHeaderCell("Actions"),
+                      ],
+                    ),
 
-                        // Customer Details
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 12.0,
-                            horizontal: 16.0,
-                          ),
-                          child: Row(
-                            children: [
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(16),
-                                child: Image.network(
-                                  booking.customerAvatarUrl,
-                                  width: 32,
-                                  height: 32,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) {
-                                    return Container(
-                                      width: 32,
-                                      height: 32,
-                                      color: const Color(0xFFE2E8F0),
-                                      child: const Icon(
-                                        Icons.person,
-                                        color: Color(0xFF64748B),
-                                        size: 16,
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      booking.customerName,
-                                      style: GoogleFonts.inter(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                        color: const Color(0xFF1E293B),
-                                      ),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      booking.customerPhone,
-                                      style: GoogleFonts.inter(
-                                        fontSize: 11,
-                                        color: const Color(0xFF64748B),
-                                      ),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        // Worker Details
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 12.0,
-                            horizontal: 16.0,
-                          ),
-                          child: Row(
-                            children: [
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(16),
-                                child: Image.network(
-                                  booking.workerAvatarUrl,
-                                  width: 32,
-                                  height: 32,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) {
-                                    return Container(
-                                      width: 32,
-                                      height: 32,
-                                      color: const Color(0xFFE2E8F0),
-                                      child: const Icon(
-                                        Icons.person,
-                                        color: Color(0xFF64748B),
-                                        size: 16,
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      booking.workerName,
-                                      style: GoogleFonts.inter(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                        color: const Color(0xFF1E293B),
-                                      ),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      booking.workerPhone,
-                                      style: GoogleFonts.inter(
-                                        fontSize: 11,
-                                        color: const Color(0xFF64748B),
-                                      ),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        // Service Details
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 12.0,
-                            horizontal: 16.0,
-                          ),
-                          child: _buildServiceCell(
-                            booking.category,
-                            booking.serviceDetails,
-                          ),
-                        ),
-
-                        // Booking Date & Time
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 12.0,
-                            horizontal: 16.0,
-                          ),
-                          child: Text(
-                            booking.dateTime,
-                            style: GoogleFonts.inter(
-                              fontSize: 13,
-                              color: const Color(0xFF475569),
-                              height: 1.3,
+                    // Table Rows
+                    ...bookings.map((booking) {
+                      return TableRow(
+                        decoration: const BoxDecoration(
+                          border: Border(
+                            bottom: BorderSide(
+                              color: Color(0xFFF1F5F9),
+                              width: 1,
                             ),
                           ),
                         ),
-
-                        // Amount Cell
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 12.0,
-                            horizontal: 16.0,
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                "₹${booking.amount.toStringAsFixed(0)}",
-                                style: GoogleFonts.inter(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.bold,
-                                  color: const Color(0xFF0F172A),
+                        children: [
+                          // Booking ID & Date
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 12.0,
+                              horizontal: 16.0,
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  booking.id,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: const Color(0xFF0F172A),
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                "1 Item",
-                                style: GoogleFonts.inter(
-                                  fontSize: 10,
-                                  color: const Color(0xFF94A3B8),
+                                const SizedBox(height: 2),
+                                Text(
+                                  booking.date,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 11,
+                                    color: const Color(0xFF64748B),
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                        ),
 
-                        // Payment Cell
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 12.0,
-                            horizontal: 16.0,
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _buildPaymentStatusIndicator(
-                                booking.paymentStatus,
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                booking.paymentMethod,
-                                style: GoogleFonts.inter(
-                                  fontSize: 11,
-                                  color: const Color(0xFF64748B),
+                          // Customer Details
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 12.0,
+                              horizontal: 16.0,
+                            ),
+                            child: Row(
+                              children: [
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: Image.network(
+                                    booking.customerAvatarUrl,
+                                    width: 32,
+                                    height: 32,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (context, error, stackTrace) {
+                                      return Container(
+                                        width: 32,
+                                        height: 32,
+                                        color: const Color(0xFFE2E8F0),
+                                        child: const Icon(
+                                          Icons.person,
+                                          color: Color(0xFF64748B),
+                                          size: 16,
+                                        ),
+                                      );
+                                    },
+                                  ),
                                 ),
-                              ),
-                            ],
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        booking.customerName,
+                                        style: GoogleFonts.inter(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                          color: const Color(0xFF1E293B),
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        booking.customerPhone,
+                                        style: GoogleFonts.inter(
+                                          fontSize: 11,
+                                          color: const Color(0xFF64748B),
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
 
-                        // Status Cell
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 12.0,
-                            horizontal: 16.0,
+                          // Worker Details
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 12.0,
+                              horizontal: 16.0,
+                            ),
+                            child: Row(
+                              children: [
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: Image.network(
+                                    booking.workerAvatarUrl,
+                                    width: 32,
+                                    height: 32,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (context, error, stackTrace) {
+                                      return Container(
+                                        width: 32,
+                                        height: 32,
+                                        color: const Color(0xFFE2E8F0),
+                                        child: const Icon(
+                                          Icons.person,
+                                          color: Color(0xFF64748B),
+                                          size: 16,
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        booking.workerName,
+                                        style: GoogleFonts.inter(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                          color: const Color(0xFF1E293B),
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        booking.workerPhone,
+                                        style: GoogleFonts.inter(
+                                          fontSize: 11,
+                                          color: const Color(0xFF64748B),
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                          child: _buildStatusBadge(booking.status),
-                        ),
 
-                        // Actions Cell
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 12.0,
-                            horizontal: 4.0,
+                          // Service Details
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 12.0,
+                              horizontal: 16.0,
+                            ),
+                            child: _buildServiceCell(
+                              booking.category,
+                              booking.serviceDetails,
+                            ),
                           ),
-                          child: Row(
-                            children: [
-                              _buildActionButton(
-                                Icons.visibility_outlined,
-                                Colors.blue,
-                                () {},
+
+                          // Booking Date & Time
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 12.0,
+                              horizontal: 16.0,
+                            ),
+                            child: Text(
+                              booking.dateTime,
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                color: const Color(0xFF475569),
+                                height: 1.3,
                               ),
-                              const SizedBox(width: 4),
-                              _buildActionButton(
-                                Icons.edit_outlined,
-                                Colors.blue,
-                                () {},
-                              ),
-                              const SizedBox(width: 4),
-                              _buildActionButton(
-                                Icons.more_vert_rounded,
-                                Colors.grey,
-                                () {},
-                              ),
-                            ],
+                            ),
                           ),
-                        ),
-                      ],
-                    );
-                  }),
-                ],
+
+                          // Amount Cell
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 12.0,
+                              horizontal: 16.0,
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  "₹${booking.amount.toStringAsFixed(0)}",
+                                  style: GoogleFonts.inter(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: const Color(0xFF0F172A),
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  "1 Item",
+                                  style: GoogleFonts.inter(
+                                    fontSize: 10,
+                                    color: const Color(0xFF94A3B8),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          // Payment Cell
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 12.0,
+                              horizontal: 16.0,
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _buildPaymentStatusIndicator(
+                                  booking.paymentStatus,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  booking.paymentMethod,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 11,
+                                    color: const Color(0xFF64748B),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          // Status Cell
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 12.0,
+                              horizontal: 16.0,
+                            ),
+                            child: _buildStatusBadge(booking.status),
+                          ),
+
+                          // Actions Cell
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 12.0,
+                              horizontal: 4.0,
+                            ),
+                            child: Row(
+                              children: [
+                                _buildActionButton(
+                                  Icons.visibility_outlined,
+                                  Colors.blue,
+                                  () {},
+                                ),
+                                const SizedBox(width: 4),
+                                _buildActionButton(
+                                  Icons.edit_outlined,
+                                  Colors.blue,
+                                  () {},
+                                ),
+                                const SizedBox(width: 4),
+                                _buildActionButton(
+                                  Icons.more_vert_rounded,
+                                  Colors.grey,
+                                  () {},
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      );
+                    }),
+                  ],
+                ),
               ),
             ),
           ),
-        ),
 
           // Pagination Footer
           Padding(
