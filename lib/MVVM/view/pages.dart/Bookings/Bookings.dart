@@ -1,6 +1,9 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:async';
+import 'package:swiftclean_admin/MVVM/utils/printer_helper.dart';
 
 class BookingModel {
   final String id;
@@ -8,6 +11,7 @@ class BookingModel {
   final String customerName;
   final String customerPhone;
   final String customerAvatarUrl;
+  final String customerAddress;
   final String workerName;
   final String workerPhone;
   final String workerAvatarUrl;
@@ -26,6 +30,7 @@ class BookingModel {
     required this.customerName,
     required this.customerPhone,
     required this.customerAvatarUrl,
+    required this.customerAddress,
     required this.workerName,
     required this.workerPhone,
     required this.workerAvatarUrl,
@@ -38,6 +43,47 @@ class BookingModel {
     required this.paymentMethod,
     required this.status,
   });
+
+  factory BookingModel.fromMap(Map<String, dynamic> data, String docId) {
+    String date = data['date']?.toString() ?? '';
+    String time = data['Time']?.toString() ?? '';
+    String cName = data['customerName']?.toString() ?? 'Unknown';
+    String wImage = data['workerimage']?.toString() ?? '';
+
+    double amt = 0.0;
+    var amountData = data['amount'];
+    if (amountData != null) {
+      if (amountData is String) {
+        amt = double.tryParse(amountData) ?? 0.0;
+      } else if (amountData is num) {
+        amt = amountData.toDouble();
+      }
+    }
+
+    return BookingModel(
+      id: data['id']?.toString() ?? docId,
+      date: date,
+      customerName: cName,
+      customerPhone: data['customerPhone']?.toString() ?? 'N/A',
+      customerAvatarUrl:
+          "https://ui-avatars.com/api/?name=${Uri.encodeComponent(cName)}",
+      customerAddress: data['customerAddress']?.toString() ?? 'N/A',
+      workerName: data['workerName']?.toString() ?? 'Unassigned',
+      workerPhone: data['workerPhone']?.toString() ?? 'N/A',
+      workerAvatarUrl:
+          wImage.isNotEmpty
+              ? wImage
+              : "https://ui-avatars.com/api/?name=${Uri.encodeComponent(data['workerName']?.toString() ?? 'W')}",
+      serviceName: data['serviceName']?.toString() ?? 'Unknown Service',
+      serviceDetails: "Standard",
+      category: data['category']?.toString() ?? 'Uncategorized',
+      dateTime: time.isNotEmpty ? "$date\n$time" : date,
+      amount: amt,
+      paymentStatus: data['paymentStatus']?.toString() ?? 'Pending',
+      paymentMethod: data['paymentMethod']?.toString() ?? 'Unknown',
+      status: data['status']?.toString() ?? 'Pending',
+    );
+  }
 }
 
 class Bookings extends StatefulWidget {
@@ -58,230 +104,15 @@ class _BookingsState extends State<Bookings> {
   String _selectedPaymentStatus = "All Payment Status";
   String _selectedDate = "Select Date";
 
-  final List<BookingModel> _bookings = [
-    BookingModel(
-      id: "#BK-5689",
-      date: "May 19, 2024",
-      customerName: "Ajay Dev",
-      customerPhone: "+91 98765 43230",
-      customerAvatarUrl: "https://randomuser.me/api/portraits/men/20.jpg",
-      workerName: "Arun Kumar",
-      workerPhone: "+91 98765 43210",
-      workerAvatarUrl: "https://randomuser.me/api/portraits/men/1.jpg",
-      serviceName: "Home Cleaning",
-      serviceDetails: "Sofa Cleaning",
-      category: "Home Cleaning",
-      dateTime: "May 19, 2024\n09:00 AM",
-      amount: 499.0,
-      paymentStatus: "Pending",
-      paymentMethod: "UPI",
-      status: "Pending",
-    ),
-    BookingModel(
-      id: "#BK-5688",
-      date: "May 19, 2024",
-      customerName: "Sanya Gupta",
-      customerPhone: "+91 98765 43231",
-      customerAvatarUrl: "https://randomuser.me/api/portraits/women/20.jpg",
-      workerName: "Maya Sen",
-      workerPhone: "+91 98765 43233",
-      workerAvatarUrl: "https://randomuser.me/api/portraits/women/2.jpg",
-      serviceName: "Pet Grooming",
-      serviceDetails: "Dog Wash",
-      category: "Pet Grooming",
-      dateTime: "May 19, 2024\n11:00 AM",
-      amount: 699.0,
-      paymentStatus: "Pending",
-      paymentMethod: "Card",
-      status: "Pending",
-    ),
-    BookingModel(
-      id: "#BK-5687",
-      date: "May 18, 2024",
-      customerName: "Rohit Sharma",
-      customerPhone: "+91 98765 43210",
-      customerAvatarUrl: "https://randomuser.me/api/portraits/men/32.jpg",
-      workerName: "Arun Kumar",
-      workerPhone: "+91 98765 43210",
-      workerAvatarUrl: "https://randomuser.me/api/portraits/men/1.jpg",
-      serviceName: "Home Cleaning",
-      serviceDetails: "3 BHK • Deep Cleaning",
-      category: "Home Cleaning",
-      dateTime: "May 18, 2024\n10:00 AM",
-      amount: 1499.0,
-      paymentStatus: "Paid",
-      paymentMethod: "UPI",
-      status: "Confirmed",
-    ),
-    BookingModel(
-      id: "#BK-5686",
-      date: "May 18, 2024",
-      customerName: "Priya Nair",
-      customerPhone: "+91 98765 43211",
-      customerAvatarUrl: "https://randomuser.me/api/portraits/women/44.jpg",
-      workerName: "Maya Sen",
-      workerPhone: "+91 98765 43233",
-      workerAvatarUrl: "https://randomuser.me/api/portraits/women/2.jpg",
-      serviceName: "Pet Grooming",
-      serviceDetails: "Pet Bath • Hair Cut",
-      category: "Pet Grooming",
-      dateTime: "May 18, 2024\n02:00 PM",
-      amount: 899.0,
-      paymentStatus: "Paid",
-      paymentMethod: "Card",
-      status: "Confirmed",
-    ),
-    BookingModel(
-      id: "#BK-5685",
-      date: "May 17, 2024",
-      customerName: "Suresh Babu",
-      customerPhone: "+91 98765 43212",
-      customerAvatarUrl: "https://randomuser.me/api/portraits/men/15.jpg",
-      workerName: "Vikram Singh",
-      workerPhone: "+91 98765 43214",
-      workerAvatarUrl: "https://randomuser.me/api/portraits/men/12.jpg",
-      serviceName: "Garden Services",
-      serviceDetails: "Lawn Mowing • Trimming",
-      category: "Garden Services",
-      dateTime: "May 17, 2024\n11:30 AM",
-      amount: 1199.0,
-      paymentStatus: "Paid",
-      paymentMethod: "UPI",
-      status: "Completed",
-    ),
-    BookingModel(
-      id: "#BK-5684",
-      date: "May 17, 2024",
-      customerName: "Neha Patel",
-      customerPhone: "+91 98765 43213",
-      customerAvatarUrl: "https://randomuser.me/api/portraits/women/10.jpg",
-      workerName: "Pooja Sharma",
-      workerPhone: "+91 98765 43245",
-      workerAvatarUrl: "https://randomuser.me/api/portraits/women/15.jpg",
-      serviceName: "Room Cleaning",
-      serviceDetails: "1 Room • Standard",
-      category: "Room Cleaning",
-      dateTime: "May 17, 2024\n03:00 PM",
-      amount: 699.0,
-      paymentStatus: "Failed",
-      paymentMethod: "Card",
-      status: "Cancelled",
-    ),
-    BookingModel(
-      id: "#BK-5683",
-      date: "May 16, 2024",
-      customerName: "Amit Verma",
-      customerPhone: "+91 98765 43214",
-      customerAvatarUrl: "https://randomuser.me/api/portraits/men/33.jpg",
-      workerName: "Ramesh K",
-      workerPhone: "+91 98765 43215",
-      workerAvatarUrl: "https://randomuser.me/api/portraits/men/16.jpg",
-      serviceName: "Vehicle Cleaning",
-      serviceDetails: "Exterior • Premium",
-      category: "Vehicle Cleaning",
-      dateTime: "May 16, 2024\n09:00 AM",
-      amount: 1299.0,
-      paymentStatus: "Paid",
-      paymentMethod: "Wallet",
-      status: "Completed",
-    ),
-    BookingModel(
-      id: "#BK-5682",
-      date: "May 15, 2024",
-      customerName: "Kavya Menon",
-      customerPhone: "+91 98765 43215",
-      customerAvatarUrl: "https://randomuser.me/api/portraits/women/3.jpg",
-      workerName: "Arun Kumar",
-      workerPhone: "+91 98765 43210",
-      workerAvatarUrl: "https://randomuser.me/api/portraits/men/1.jpg",
-      serviceName: "Interior Cleaning",
-      serviceDetails: "Sofa • Carpet • Floor",
-      category: "Interior Cleaning",
-      dateTime: "May 15, 2024\n01:00 PM",
-      amount: 1799.0,
-      paymentStatus: "Paid",
-      paymentMethod: "UPI",
-      status: "Confirmed",
-    ),
-    BookingModel(
-      id: "#BK-5681",
-      date: "May 15, 2024",
-      customerName: "Manoj Kumar",
-      customerPhone: "+91 98765 43216",
-      customerAvatarUrl: "https://randomuser.me/api/portraits/men/4.jpg",
-      workerName: "Anjali Sharma",
-      workerPhone: "+91 98765 43216",
-      workerAvatarUrl: "https://randomuser.me/api/portraits/women/5.jpg",
-      serviceName: "Home Cleaning",
-      serviceDetails: "2 BHK • Standard",
-      category: "Home Cleaning",
-      dateTime: "May 15, 2024\n10:00 AM",
-      amount: 1199.0,
-      paymentStatus: "Paid",
-      paymentMethod: "Card",
-      status: "Completed",
-    ),
-    BookingModel(
-      id: "#BK-5680",
-      date: "May 14, 2024",
-      customerName: "Deepak Singh",
-      customerPhone: "+91 98765 43217",
-      customerAvatarUrl: "https://randomuser.me/api/portraits/men/5.jpg",
-      workerName: "Manoj Verma",
-      workerPhone: "+91 98765 43217",
-      workerAvatarUrl: "https://randomuser.me/api/portraits/men/8.jpg",
-      serviceName: "Garden Services",
-      serviceDetails: "Plant Care • Watering",
-      category: "Garden Services",
-      dateTime: "May 14, 2024\n04:00 PM",
-      amount: 599.0,
-      paymentStatus: "Paid",
-      paymentMethod: "Cash",
-      status: "Completed",
-    ),
-    BookingModel(
-      id: "#BK-5679",
-      date: "May 14, 2024",
-      customerName: "Sneha Reddy",
-      customerPhone: "+91 98765 43218",
-      customerAvatarUrl: "https://randomuser.me/api/portraits/women/6.jpg",
-      workerName: "Meena Devi",
-      workerPhone: "+91 98765 43213",
-      workerAvatarUrl: "https://randomuser.me/api/portraits/women/15.jpg",
-      serviceName: "Pet Grooming",
-      serviceDetails: "Nail Cut • Spa",
-      category: "Pet Grooming",
-      dateTime: "May 14, 2024\n12:30 PM",
-      amount: 749.0,
-      paymentStatus: "Paid",
-      paymentMethod: "UPI",
-      status: "Confirmed",
-    ),
-    BookingModel(
-      id: "#BK-5678",
-      date: "May 13, 2024",
-      customerName: "Vivek Joshi",
-      customerPhone: "+91 98765 43219",
-      customerAvatarUrl: "https://randomuser.me/api/portraits/men/9.jpg",
-      workerName: "Vikram Singh",
-      workerPhone: "+91 98765 43214",
-      workerAvatarUrl: "https://randomuser.me/api/portraits/men/12.jpg",
-      serviceName: "Interior Cleaning",
-      serviceDetails: "Kitchen • Bathroom",
-      category: "Interior Cleaning",
-      dateTime: "May 13, 2024\n11:00 AM",
-      amount: 1499.0,
-      paymentStatus: "Paid",
-      paymentMethod: "Wallet",
-      status: "Confirmed",
-    ),
-  ];
+  List<BookingModel> _bookings = [];
+  StreamSubscription<QuerySnapshot>? _bookingsSubscription;
 
   final ScrollController _verticalScrollController = ScrollController();
   final ScrollController _horizontalScrollController = ScrollController();
 
   @override
   void dispose() {
+    _bookingsSubscription?.cancel();
     _verticalScrollController.dispose();
     _horizontalScrollController.dispose();
     super.dispose();
@@ -291,6 +122,19 @@ class _BookingsState extends State<Bookings> {
   void initState() {
     super.initState();
     _parseInitialFilter();
+    _bookingsSubscription = FirebaseFirestore.instance
+        .collection('bookings')
+        .snapshots()
+        .listen((snapshot) {
+          if (mounted) {
+            setState(() {
+              _bookings =
+                  snapshot.docs
+                      .map((doc) => BookingModel.fromMap(doc.data(), doc.id))
+                      .toList();
+            });
+          }
+        });
   }
 
   void _parseInitialFilter() {
@@ -420,53 +264,58 @@ class _BookingsState extends State<Bookings> {
     if (_selectedTabIndex == 3) subPath = "Completed Bookings";
     if (_selectedTabIndex == 4) subPath = "Cancelled Bookings";
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          "Bookings",
-          style: GoogleFonts.inter(
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-            color: const Color(0xFF0F172A),
-          ),
-        ),
-        const SizedBox(height: 6),
-        Row(
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              "Dashboard",
-              style: GoogleFonts.inter(
-                fontSize: 12,
-                color: const Color(0xFF64748B),
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const Icon(
-              Icons.chevron_right_rounded,
-              size: 14,
-              color: Color(0xFF94A3B8),
-            ),
             Text(
               "Bookings",
               style: GoogleFonts.inter(
-                fontSize: 12,
-                color: const Color(0xFF64748B),
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const Icon(
-              Icons.chevron_right_rounded,
-              size: 14,
-              color: Color(0xFF94A3B8),
-            ),
-            Text(
-              subPath,
-              style: GoogleFonts.inter(
-                fontSize: 12,
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
                 color: const Color(0xFF0F172A),
-                fontWeight: FontWeight.w600,
               ),
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Text(
+                  "Dashboard",
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    color: const Color(0xFF64748B),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  size: 14,
+                  color: Color(0xFF94A3B8),
+                ),
+                Text(
+                  "Bookings",
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    color: const Color(0xFF64748B),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  size: 14,
+                  color: Color(0xFF94A3B8),
+                ),
+                Text(
+                  subPath,
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    color: const Color(0xFF0F172A),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -487,10 +336,16 @@ class _BookingsState extends State<Bookings> {
         const double itemHeight = 115;
         final double aspectRatio = itemWidth / itemHeight;
 
+        int total = _bookings.length;
+        int pending = _bookings.where((b) => b.status == "Pending").length;
+        int confirmed = _bookings.where((b) => b.status == "Confirmed").length;
+        int completed = _bookings.where((b) => b.status == "Completed").length;
+        int cancelled = _bookings.where((b) => b.status == "Cancelled").length;
+
         final cards = [
           _buildStatsCard(
             title: "Total Bookings",
-            value: "1,568",
+            value: total.toString(),
             subtitle: "All time bookings",
             icon: Icons.calendar_today_outlined,
             color: const Color(0xFF3B82F6),
@@ -498,7 +353,7 @@ class _BookingsState extends State<Bookings> {
           ),
           _buildStatsCard(
             title: "Pending Bookings",
-            value: "18",
+            value: pending.toString(),
             subtitle: "Awaiting confirmation",
             icon: Icons.access_time_rounded,
             color: const Color(0xFFF59E0B),
@@ -506,7 +361,7 @@ class _BookingsState extends State<Bookings> {
           ),
           _buildStatsCard(
             title: "Confirmed Bookings",
-            value: "623",
+            value: confirmed.toString(),
             subtitle: "Upcoming bookings",
             icon: Icons.check_circle_outline_rounded,
             color: const Color(0xFF10B981),
@@ -514,7 +369,7 @@ class _BookingsState extends State<Bookings> {
           ),
           _buildStatsCard(
             title: "Completed Bookings",
-            value: "812",
+            value: completed.toString(),
             subtitle: "Successfully completed",
             icon: Icons.assignment_outlined,
             color: const Color(0xFF06B6D4),
@@ -522,7 +377,7 @@ class _BookingsState extends State<Bookings> {
           ),
           _buildStatsCard(
             title: "Cancelled Bookings",
-            value: "115",
+            value: cancelled.toString(),
             subtitle: "Cancelled by user/admin",
             icon: Icons.cancel_outlined,
             color: const Color(0xFFEF4444),
@@ -692,46 +547,7 @@ class _BookingsState extends State<Bookings> {
       ),
     );
 
-    final statusDropdown = SizedBox(
-      width: isSmall ? double.infinity : 130,
-      height: 38,
-      child: DropdownButtonFormField<String>(
-        isExpanded: true,
-        initialValue: _selectedStatus,
-        decoration: InputDecoration(
-          isDense: true,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 12,
-            vertical: 8,
-          ),
-          fillColor: Colors.white,
-          filled: true,
-          border: OutlineInputBorder(
-            borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-            borderRadius: BorderRadius.circular(8),
-          ),
-        ),
-        style: GoogleFonts.inter(color: const Color(0xFF1E293B), fontSize: 12),
-        items:
-            ["All Status", "Pending", "Confirmed", "Completed", "Cancelled"]
-                .map(
-                  (status) => DropdownMenuItem(
-                    value: status,
-                    child: Text(
-                      status,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                )
-                .toList(),
-        onChanged: (val) => setState(() => _selectedStatus = val!),
-      ),
-    );
+    final statusDropdown = const SizedBox.shrink();
 
     final categoryDropdown = SizedBox(
       width: isSmall ? double.infinity : 160,
@@ -823,24 +639,10 @@ class _BookingsState extends State<Bookings> {
       ),
     );
 
-    final filterButton = Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-      ),
-      child: IconButton(
-        icon: const Icon(
-          Icons.filter_list_rounded,
-          size: 18,
-          color: Color(0xFF64748B),
-        ),
-        onPressed: () {},
-      ),
-    );
+    final filterButton = const SizedBox.shrink();
 
     final exportButton = ElevatedButton.icon(
-      onPressed: () {},
+      onPressed: _exportToPdf,
       icon: const Icon(Icons.download_rounded, size: 14),
       label: Text(
         "Export",
@@ -863,15 +665,13 @@ class _BookingsState extends State<Bookings> {
           const SizedBox(height: 12),
           dateDropdown,
           const SizedBox(height: 12),
-          statusDropdown,
-          const SizedBox(height: 12),
           categoryDropdown,
           const SizedBox(height: 12),
           paymentDropdown,
           const SizedBox(height: 16),
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
-            children: [filterButton, const SizedBox(width: 12), exportButton],
+            children: [exportButton],
           ),
         ],
       );
@@ -890,14 +690,10 @@ class _BookingsState extends State<Bookings> {
           const SizedBox(width: 12),
           dateDropdown,
           const SizedBox(width: 12),
-          statusDropdown,
-          const SizedBox(width: 12),
           categoryDropdown,
           const SizedBox(width: 12),
           paymentDropdown,
           const Spacer(),
-          filterButton,
-          const SizedBox(width: 12),
           exportButton,
         ],
       ),
@@ -905,12 +701,21 @@ class _BookingsState extends State<Bookings> {
   }
 
   Widget _buildTableCard(List<BookingModel> bookings, double screenWidth) {
+    final allCount = _bookings.length;
+    final pendingCount = _bookings.where((b) => b.status == "Pending").length;
+    final confirmedCount =
+        _bookings.where((b) => b.status == "Confirmed").length;
+    final completedCount =
+        _bookings.where((b) => b.status == "Completed").length;
+    final cancelledCount =
+        _bookings.where((b) => b.status == "Cancelled").length;
+
     final tabs = [
-      {"label": "All Bookings", "count": 1568},
-      {"label": "Pending Bookings", "count": 18},
-      {"label": "Confirmed Bookings", "count": 623},
-      {"label": "Completed Bookings", "count": 812},
-      {"label": "Cancelled Bookings", "count": 115},
+      {"label": "All Bookings", "count": allCount},
+      {"label": "Pending Bookings", "count": pendingCount},
+      {"label": "Confirmed Bookings", "count": confirmedCount},
+      {"label": "Completed Bookings", "count": completedCount},
+      {"label": "Cancelled Bookings", "count": cancelledCount},
     ];
 
     return Container(
@@ -1042,15 +847,15 @@ class _BookingsState extends State<Bookings> {
                 width: 1400,
                 child: Table(
                   columnWidths: const {
-                    0: FlexColumnWidth(1.2), // Booking ID
-                    1: FlexColumnWidth(2.0), // Customer
-                    2: FlexColumnWidth(2.0), // Worker
-                    3: FlexColumnWidth(2.2), // Service
+                    0: FlexColumnWidth(1.4), // Booking ID
+                    1: FlexColumnWidth(2.2), // Customer
+                    2: FlexColumnWidth(2.2), // Worker
+                    3: FlexColumnWidth(2.0), // Service
                     4: FlexColumnWidth(1.8), // Date & Time
                     5: FlexColumnWidth(1.2), // Amount
                     6: FlexColumnWidth(1.3), // Payment
-                    7: FlexColumnWidth(1.3), // Status
-                    8: FlexColumnWidth(1.8), // Actions
+                    7: FlexColumnWidth(1.4), // Status
+                    8: FlexColumnWidth(1.2), // Actions
                   },
                   defaultVerticalAlignment: TableCellVerticalAlignment.middle,
                   children: [
@@ -1109,7 +914,7 @@ class _BookingsState extends State<Bookings> {
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
-                                  booking.date,
+                                  booking.dateTime.replaceAll("\n", " at "),
                                   style: GoogleFonts.inter(
                                     fontSize: 11,
                                     color: const Color(0xFF64748B),
@@ -1246,8 +1051,9 @@ class _BookingsState extends State<Bookings> {
                               horizontal: 16.0,
                             ),
                             child: _buildServiceCell(
+                              booking.serviceName,
                               booking.category,
-                              booking.serviceDetails,
+                              booking.category,
                             ),
                           ),
 
@@ -1282,14 +1088,6 @@ class _BookingsState extends State<Bookings> {
                                     fontSize: 13,
                                     fontWeight: FontWeight.bold,
                                     color: const Color(0xFF0F172A),
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  "1 Item",
-                                  style: GoogleFonts.inter(
-                                    fontSize: 10,
-                                    color: const Color(0xFF94A3B8),
                                   ),
                                 ),
                               ],
@@ -1340,19 +1138,25 @@ class _BookingsState extends State<Bookings> {
                                 _buildActionButton(
                                   Icons.visibility_outlined,
                                   Colors.blue,
-                                  () {},
+                                  () {
+                                    _showBookingDetailsDialog(booking);
+                                  },
                                 ),
                                 const SizedBox(width: 4),
                                 _buildActionButton(
                                   Icons.edit_outlined,
                                   Colors.blue,
-                                  () {},
+                                  () {
+                                    _showEditBookingStatusDialog(booking);
+                                  },
                                 ),
                                 const SizedBox(width: 4),
                                 _buildActionButton(
-                                  Icons.more_vert_rounded,
-                                  Colors.grey,
-                                  () {},
+                                  Icons.delete_outline_rounded,
+                                  Colors.red,
+                                  () {
+                                    _showDeleteConfirmationDialog(booking);
+                                  },
                                 ),
                               ],
                             ),
@@ -1369,7 +1173,7 @@ class _BookingsState extends State<Bookings> {
           // Pagination Footer
           Padding(
             padding: const EdgeInsets.all(16.0),
-            child: _buildTableFooter(bookings.length),
+            child: _buildTableFooter(bookings.length, _bookings.length),
           ),
         ],
       ),
@@ -1390,12 +1194,16 @@ class _BookingsState extends State<Bookings> {
     );
   }
 
-  Widget _buildServiceCell(String category, String details) {
+  Widget _buildServiceCell(
+    String title,
+    String subtitle,
+    String categoryForIcon,
+  ) {
     IconData icon;
     Color color;
     Color bgColor;
 
-    switch (category) {
+    switch (categoryForIcon) {
       case "Home Cleaning":
       case "Room Cleaning":
         icon = Icons.home_repair_service_rounded;
@@ -1441,7 +1249,7 @@ class _BookingsState extends State<Bookings> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                category,
+                title,
                 style: GoogleFonts.inter(
                   fontSize: 13,
                   color: const Color(0xFF1E293B),
@@ -1451,7 +1259,7 @@ class _BookingsState extends State<Bookings> {
               ),
               const SizedBox(height: 2),
               Text(
-                details,
+                subtitle,
                 style: GoogleFonts.inter(
                   fontSize: 11,
                   color: const Color(0xFF64748B),
@@ -1514,9 +1322,14 @@ class _BookingsState extends State<Bookings> {
         color = const Color(0xFF10B981);
         bgColor = const Color(0xFFECFDF5);
         break;
+      case "Rejected":
       case "Cancelled":
         color = const Color(0xFFEF4444);
         bgColor = const Color(0xFFFEF2F2);
+        break;
+      case "Ongoing":
+        color = const Color(0xFF8B5CF6);
+        bgColor = const Color(0xFFF5F3FF);
         break;
       case "Pending":
       default:
@@ -1574,11 +1387,11 @@ class _BookingsState extends State<Bookings> {
     );
   }
 
-  Widget _buildTableFooter(int totalFiltered) {
+  Widget _buildTableFooter(int totalFiltered, int totalBookings) {
     return Row(
       children: [
         Text(
-          "Showing 1 to $totalFiltered of 1,568 bookings",
+          "Showing 1 to $totalFiltered of $totalBookings bookings",
           style: GoogleFonts.inter(
             fontSize: 12,
             color: const Color(0xFF64748B),
@@ -1687,5 +1500,1147 @@ class _BookingsState extends State<Bookings> {
         ),
       ],
     );
+  }
+
+  Widget _buildDetailRow(
+    IconData icon,
+    String label,
+    String value, {
+    VoidCallback? onEdit,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, color: const Color(0xFF64748B), size: 18),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  color: const Color(0xFF94A3B8),
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF1E293B),
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (onEdit != null)
+          IconButton(
+            icon: const Icon(
+              Icons.edit_outlined,
+              size: 16,
+              color: Color(0xFF64748B),
+            ),
+            onPressed: onEdit,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            splashRadius: 16,
+          ),
+      ],
+    );
+  }
+
+  void _showBookingDetailsDialog(BookingModel booking) {
+    showDialog(
+      context: context,
+      builder:
+          (dialogContext) => Dialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            elevation: 0,
+            backgroundColor: Colors.transparent,
+            child: Container(
+              width: 480,
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.rectangle,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x14000000), // 8% opacity
+                    blurRadius: 20,
+                    offset: Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Header
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        "Booking Details",
+                        style: GoogleFonts.inter(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: const Color(0xFF0F172A),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(dialogContext),
+                        icon: const Icon(
+                          Icons.close_rounded,
+                          color: Color(0xFF64748B),
+                          size: 20,
+                        ),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        splashRadius: 18,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Container(height: 1, color: const Color(0xFFE2E8F0)),
+                  const SizedBox(height: 24),
+
+                  // Wrap details body in Flexible + SingleChildScrollView to prevent overflow
+                  Flexible(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                booking.id,
+                                style: GoogleFonts.inter(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: const Color(0xFF0F172A),
+                                ),
+                              ),
+                              const Spacer(),
+                              _buildStatusBadge(booking.status),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Details Grid / List
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: const Color(0xFFF1F5F9),
+                              ),
+                            ),
+                            child: Column(
+                              children: [
+                                _buildDetailRow(
+                                  Icons.calendar_today_outlined,
+                                  "Booking Date & Time",
+                                  booking.dateTime.replaceAll('\n', ' '),
+                                ),
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 8.0),
+                                  child: Divider(color: Color(0xFFE2E8F0)),
+                                ),
+                                _buildDetailRow(
+                                  Icons.person_outline,
+                                  "Customer Name",
+                                  booking.customerName,
+                                ),
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 8.0),
+                                  child: Divider(color: Color(0xFFE2E8F0)),
+                                ),
+                                _buildDetailRow(
+                                  Icons.phone_outlined,
+                                  "Customer Phone",
+                                  booking.customerPhone,
+                                  onEdit:
+                                      () => _showEditFieldDialog(
+                                        booking,
+                                        "Customer Phone",
+                                        booking.customerPhone,
+                                        "customerPhone",
+                                      ),
+                                ),
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 8.0),
+                                  child: Divider(color: Color(0xFFE2E8F0)),
+                                ),
+                                _buildDetailRow(
+                                  Icons.location_on_outlined,
+                                  "Customer Address",
+                                  booking.customerAddress,
+                                  onEdit:
+                                      () => _showEditFieldDialog(
+                                        booking,
+                                        "Customer Address",
+                                        booking.customerAddress,
+                                        "customerAddress",
+                                      ),
+                                ),
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 8.0),
+                                  child: Divider(color: Color(0xFFE2E8F0)),
+                                ),
+                                _buildDetailRow(
+                                  Icons.engineering_outlined,
+                                  "Worker Name",
+                                  booking.workerName,
+                                ),
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 8.0),
+                                  child: Divider(color: Color(0xFFE2E8F0)),
+                                ),
+                                _buildDetailRow(
+                                  Icons.phone_outlined,
+                                  "Worker Phone",
+                                  booking.workerPhone,
+                                  onEdit:
+                                      () => _showEditFieldDialog(
+                                        booking,
+                                        "Worker Phone",
+                                        booking.workerPhone,
+                                        "workerPhone",
+                                      ),
+                                ),
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 8.0),
+                                  child: Divider(color: Color(0xFFE2E8F0)),
+                                ),
+                                _buildDetailRow(
+                                  Icons.category_outlined,
+                                  "Service & Category",
+                                  "${booking.serviceName} - ${booking.category}",
+                                ),
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 8.0),
+                                  child: Divider(color: Color(0xFFE2E8F0)),
+                                ),
+                                _buildDetailRow(
+                                  Icons.attach_money_rounded,
+                                  "Amount",
+                                  "₹${booking.amount.toStringAsFixed(2)}",
+                                ),
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 8.0),
+                                  child: Divider(color: Color(0xFFE2E8F0)),
+                                ),
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Icon(
+                                      Icons.payment_outlined,
+                                      color: Color(0xFF64748B),
+                                      size: 18,
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            "Payment Details",
+                                            style: GoogleFonts.inter(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w500,
+                                              color: const Color(0xFF94A3B8),
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Row(
+                                            children: [
+                                              _buildPaymentStatusIndicator(
+                                                booking.paymentStatus,
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Text(
+                                                "via ${booking.paymentMethod}",
+                                                style: GoogleFonts.inter(
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: const Color(
+                                                    0xFF1E293B,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(
+                                        Icons.edit_outlined,
+                                        size: 16,
+                                        color: Color(0xFF64748B),
+                                      ),
+                                      onPressed:
+                                          () => _showEditPaymentDetailsDialog(
+                                            booking,
+                                          ),
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(),
+                                      splashRadius: 16,
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Actions
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      OutlinedButton(
+                        onPressed: () => Navigator.pop(dialogContext),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 14,
+                          ),
+                          side: const BorderSide(color: Color(0xFFE2E8F0)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: Text(
+                          "Close",
+                          style: GoogleFonts.inter(
+                            color: const Color(0xFF475569),
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+    );
+  }
+
+  void _showEditFieldDialog(
+    BookingModel booking,
+    String fieldTitle,
+    String currentValue,
+    String firestoreField,
+  ) {
+    final TextEditingController controller = TextEditingController(
+      text: currentValue,
+    );
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(
+            "Edit $fieldTitle",
+            style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 18),
+          ),
+          content: TextField(
+            controller: controller,
+            decoration: InputDecoration(
+              labelText: fieldTitle,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(
+                "Cancel",
+                style: GoogleFonts.inter(color: Colors.grey[700]),
+              ),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF10B981),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              onPressed: () async {
+                try {
+                  await FirebaseFirestore.instance
+                      .collection('bookings')
+                      .doc(booking.id)
+                      .update({firestoreField: controller.text});
+                  if (mounted) {
+                    final nav = Navigator.of(context);
+                    nav.pop(); // Close the edit dialog
+                    nav.pop(); // Close the details dialog so old data doesn't persist on screen
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text("$fieldTitle updated successfully!"),
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text("Error updating: $e")),
+                    );
+                  }
+                }
+              },
+              child: Text(
+                "Save",
+                style: GoogleFonts.inter(color: Colors.white),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showEditBookingStatusDialog(BookingModel booking) {
+    String selectedStatus = booking.status;
+    final validStatuses = [
+      "Pending",
+      "Ongoing",
+      "Completed",
+      "Rejected",
+      "Confirmed",
+      "Cancelled",
+    ];
+    if (!validStatuses.contains(selectedStatus)) {
+      validStatuses.add(selectedStatus);
+    }
+
+    showDialog(
+      context: context,
+      builder:
+          (dialogContext) => StatefulBuilder(
+            builder: (context, setDialogState) {
+              return Dialog(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                elevation: 0,
+                backgroundColor: Colors.transparent,
+                child: Container(
+                  width: 400,
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.rectangle,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x14000000), // 8% opacity
+                        blurRadius: 20,
+                        offset: Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Header
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            "Update Booking Status",
+                            style: GoogleFonts.inter(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: const Color(0xFF0F172A),
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: () => Navigator.pop(dialogContext),
+                            icon: const Icon(
+                              Icons.close_rounded,
+                              color: Color(0xFF64748B),
+                              size: 20,
+                            ),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            splashRadius: 18,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Container(height: 1, color: const Color(0xFFE2E8F0)),
+                      const SizedBox(height: 20),
+
+                      Text(
+                        "Booking ID: ${booking.id}",
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF1E293B),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        "Status",
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF475569),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      DropdownButtonFormField<String>(
+                        value: selectedStatus,
+                        decoration: InputDecoration(
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          filled: true,
+                          fillColor: const Color(0xFFF8FAFC),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFE2E8F0),
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(
+                              color: Color(0xFF10B981),
+                              width: 1.5,
+                            ),
+                          ),
+                        ),
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          color: const Color(0xFF1E293B),
+                        ),
+                        items:
+                            validStatuses
+                                .map(
+                                  (s) => DropdownMenuItem(
+                                    value: s,
+                                    child: Text(s),
+                                  ),
+                                )
+                                .toList(),
+                        onChanged: (v) {
+                          if (v != null) {
+                            setDialogState(() {
+                              selectedStatus = v;
+                            });
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Actions
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          OutlinedButton(
+                            onPressed: () => Navigator.pop(dialogContext),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 12,
+                              ),
+                              side: const BorderSide(color: Color(0xFFE2E8F0)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            child: Text(
+                              "Cancel",
+                              style: GoogleFonts.inter(
+                                color: const Color(0xFF475569),
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          ElevatedButton(
+                            onPressed: () async {
+                              try {
+                                await FirebaseFirestore.instance
+                                    .collection('bookings')
+                                    .doc(booking.id)
+                                    .update({'status': selectedStatus});
+
+                                if (mounted) {
+                                  Navigator.pop(dialogContext);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        "Status updated to $selectedStatus",
+                                      ),
+                                    ),
+                                  );
+                                }
+                              } catch (e) {
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        "Error updating status: $e",
+                                      ),
+                                    ),
+                                  );
+                                }
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF10B981),
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 12,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            child: Text(
+                              "Save Changes",
+                              style: GoogleFonts.inter(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+    );
+  }
+
+  void _showEditPaymentDetailsDialog(BookingModel booking) {
+    String selectedStatus = booking.paymentStatus;
+    final validStatuses = ["Pending", "Paid", "Failed", "Refunded"];
+    if (!validStatuses.contains(selectedStatus)) {
+      validStatuses.add(selectedStatus);
+    }
+
+    String selectedMethod = booking.paymentMethod;
+    final validMethods = ["Wallet", "Online Pay", "Cash", "Card"];
+    if (!validMethods.contains(selectedMethod)) {
+      validMethods.add(selectedMethod);
+    }
+
+    showDialog(
+      context: context,
+      builder:
+          (dialogContext) => StatefulBuilder(
+            builder: (context, setDialogState) {
+              return Dialog(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                elevation: 0,
+                backgroundColor: Colors.transparent,
+                child: Container(
+                  width: 400,
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.rectangle,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x14000000), // 8% opacity
+                        blurRadius: 20,
+                        offset: Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Header
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            "Update Payment Details",
+                            style: GoogleFonts.inter(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: const Color(0xFF0F172A),
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: () => Navigator.pop(dialogContext),
+                            icon: const Icon(
+                              Icons.close_rounded,
+                              color: Color(0xFF64748B),
+                              size: 20,
+                            ),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            splashRadius: 18,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Container(height: 1, color: const Color(0xFFE2E8F0)),
+                      const SizedBox(height: 20),
+
+                      Text(
+                        "Booking ID: ${booking.id}",
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF1E293B),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        "Payment Status",
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF475569),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      DropdownButtonFormField<String>(
+                        value: selectedStatus,
+                        decoration: InputDecoration(
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          filled: true,
+                          fillColor: const Color(0xFFF8FAFC),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFE2E8F0),
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(
+                              color: Color(0xFF10B981),
+                              width: 1.5,
+                            ),
+                          ),
+                        ),
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          color: const Color(0xFF1E293B),
+                        ),
+                        icon: const Icon(
+                          Icons.keyboard_arrow_down_rounded,
+                          color: Color(0xFF64748B),
+                        ),
+                        items:
+                            validStatuses
+                                .map(
+                                  (s) => DropdownMenuItem(
+                                    value: s,
+                                    child: Text(s),
+                                  ),
+                                )
+                                .toList(),
+                        onChanged: (v) {
+                          if (v != null) {
+                            setDialogState(() {
+                              selectedStatus = v;
+                            });
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        "Payment Method",
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF475569),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      DropdownButtonFormField<String>(
+                        value: selectedMethod,
+                        decoration: InputDecoration(
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          filled: true,
+                          fillColor: const Color(0xFFF8FAFC),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFE2E8F0),
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(
+                              color: Color(0xFF10B981),
+                              width: 1.5,
+                            ),
+                          ),
+                        ),
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          color: const Color(0xFF1E293B),
+                        ),
+                        icon: const Icon(
+                          Icons.keyboard_arrow_down_rounded,
+                          color: Color(0xFF64748B),
+                        ),
+                        items:
+                            validMethods
+                                .map(
+                                  (m) => DropdownMenuItem(
+                                    value: m,
+                                    child: Text(m),
+                                  ),
+                                )
+                                .toList(),
+                        onChanged: (v) {
+                          if (v != null) {
+                            setDialogState(() {
+                              selectedMethod = v;
+                            });
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Actions
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          OutlinedButton(
+                            onPressed: () => Navigator.pop(dialogContext),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 12,
+                              ),
+                              side: const BorderSide(color: Color(0xFFE2E8F0)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            child: Text(
+                              "Cancel",
+                              style: GoogleFonts.inter(
+                                color: const Color(0xFF475569),
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          ElevatedButton(
+                            onPressed: () async {
+                              try {
+                                await FirebaseFirestore.instance
+                                    .collection('bookings')
+                                    .doc(booking.id)
+                                    .update({
+                                      'paymentStatus': selectedStatus,
+                                      'paymentMethod': selectedMethod,
+                                    });
+
+                                if (mounted) {
+                                  final nav = Navigator.of(context);
+                                  nav.pop();
+                                  nav.pop();
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        "Payment Details updated successfully",
+                                      ),
+                                    ),
+                                  );
+                                }
+                              } catch (e) {
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        "Error updating status: $e",
+                                      ),
+                                    ),
+                                  );
+                                }
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF10B981),
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 12,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            child: Text(
+                              "Save Changes",
+                              style: GoogleFonts.inter(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+    );
+  }
+
+  void _showDeleteConfirmationDialog(BookingModel booking) {
+    showDialog(
+      context: context,
+      builder:
+          (dialogContext) => Dialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            elevation: 0,
+            backgroundColor: Colors.transparent,
+            child: Container(
+              width: 400,
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.rectangle,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x14000000), // 8% opacity
+                    blurRadius: 20,
+                    offset: Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFEF2F2),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.warning_amber_rounded,
+                          color: Color(0xFFEF4444),
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "Delete Booking",
+                              style: GoogleFonts.inter(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: const Color(0xFF0F172A),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              "Are you sure you want to delete ${booking.id}? This action cannot be undone.",
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                color: const Color(0xFF64748B),
+                                height: 1.4,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      OutlinedButton(
+                        onPressed: () => Navigator.pop(dialogContext),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 12,
+                          ),
+                          side: const BorderSide(color: Color(0xFFE2E8F0)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: Text(
+                          "Cancel",
+                          style: GoogleFonts.inter(
+                            color: const Color(0xFF475569),
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      ElevatedButton(
+                        onPressed: () async {
+                          try {
+                            await FirebaseFirestore.instance
+                                .collection('bookings')
+                                .doc(booking.id)
+                                .delete();
+
+                            if (mounted) {
+                              Navigator.pop(dialogContext);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    "Booking ${booking.id} deleted",
+                                  ),
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text("Error deleting: $e")),
+                              );
+                            }
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFEF4444),
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 12,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: Text(
+                          "Delete",
+                          style: GoogleFonts.inter(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+    );
+  }
+
+  Future<void> _exportToPdf() async {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Preparing export... Please wait.")),
+    );
+
+    try {
+      List<BookingModel> filteredBookings = List.from(_bookings);
+
+      String? queryStatus;
+      if (_selectedTabIndex == 1) {
+        queryStatus = "Pending";
+      } else if (_selectedTabIndex == 2) {
+        queryStatus = "Confirmed";
+      } else if (_selectedTabIndex == 3) {
+        queryStatus = "Completed";
+      } else if (_selectedTabIndex == 4) {
+        queryStatus = "Cancelled";
+      }
+
+      if (queryStatus != null) {
+        filteredBookings =
+            filteredBookings.where((b) => b.status == queryStatus).toList();
+      }
+
+      if (_selectedCategory != "All Categories") {
+        filteredBookings =
+            filteredBookings
+                .where((b) => b.category == _selectedCategory)
+                .toList();
+      }
+
+      if (_selectedPaymentStatus != "All Payment Status") {
+        filteredBookings =
+            filteredBookings
+                .where((b) => b.paymentStatus == _selectedPaymentStatus)
+                .toList();
+      }
+
+      if (_searchQuery.isNotEmpty) {
+        filteredBookings =
+            filteredBookings.where((b) {
+              final query = _searchQuery.toLowerCase();
+              return b.customerName.toLowerCase().contains(query) ||
+                  b.workerName.toLowerCase().contains(query) ||
+                  b.serviceName.toLowerCase().contains(query) ||
+                  b.id.toLowerCase().contains(query);
+            }).toList();
+      }
+
+      printBookingsList(filteredBookings);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Error exporting: $e")));
+      }
+    }
   }
 }

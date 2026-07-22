@@ -239,12 +239,12 @@ class AdminUserModel {
 
   // ── Web-panel authentication ─────────────────────────────────────────────
   /// The Firebase Auth UID of the dedicated web-panel account
-  /// (email: {uid}_adm@naattulink).
+  /// (email: {uid}_adm@naattulink.internal).
   /// Null until an admin grants access and creates the web account.
   final String? webAuthUid;
 
   /// The synthetic Firebase Auth email used exclusively for web panel login.
-  /// Format: {uid}_adm@naattulink
+  /// Format: {uid}_adm@naattulink.internal
   final String? webEmail;
 
   /// The plain-text password for the web-panel account (stored for cleanup/reset).

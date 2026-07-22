@@ -48,11 +48,13 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
   List<NotificationItem> notifications = [];
   bool _sessionLoaded = false;
   final _session = RbacSession();
+  int pendingBookingsCount = 0;
 
   @override
   void initState() {
     super.initState();
     _loadSession();
+    _listenToPendingBookings();
     notifications = [
       NotificationItem(
         message: "User Alex booked a service",
@@ -80,6 +82,20 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
       await _session.loadSession();
     }
     if (mounted) setState(() => _sessionLoaded = true);
+  }
+
+  void _listenToPendingBookings() {
+    FirebaseFirestore.instance
+        .collection('bookings')
+        .where('status', isEqualTo: 'Pending')
+        .snapshots()
+        .listen((snapshot) {
+      if (mounted) {
+        setState(() {
+          pendingBookingsCount = snapshot.docs.length;
+        });
+      }
+    });
   }
 
   bool _can(String module, String action) =>
@@ -559,7 +575,7 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
                                       borderRadius: BorderRadius.circular(10),
                                     ),
                                     child: Text(
-                                      "18",
+                                      pendingBookingsCount.toString(),
                                       style: GoogleFonts.inter(
                                         fontSize: 10,
                                         fontWeight: FontWeight.bold,
@@ -982,7 +998,9 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
                               children:
                                   notifications
                                       .map(
-                                        (note) => ListTile(
+                                        (note) => Material(
+                                          color: Colors.transparent,
+                                          child: ListTile(
                                           leading: Container(
                                             padding: const EdgeInsets.all(8),
                                             decoration: BoxDecoration(
@@ -1014,7 +1032,7 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
                                             note.onTap();
                                           },
                                         ),
-                                      )
+                                      ))
                                       .toList(),
                             ),
                           ),

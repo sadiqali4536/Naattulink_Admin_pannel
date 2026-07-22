@@ -102,7 +102,7 @@ class RbacSession {
     email = user.email;
 
     // ── Resolve web-panel account → original UID ──────────────────────────────
-    // When a web-panel account ({uid}_adm@naattulink) is signed in,
+    // When a web-panel account ({uid}_adm@naattulink.internal) is signed in,
     // its Firebase UID differs from the user's real UID stored in admin_users.
     // web_auth_index/{webAuthUid} maps back to the original uid.
     String? originalUid;

@@ -3,6 +3,7 @@ import 'package:swiftclean_admin/MVVM/view/pages.dart/User/Profile_user.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/User/User_roles.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/User/Banned_users.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/worker/All_workers.dart';
+import 'package:swiftclean_admin/MVVM/view/pages.dart/Bookings/Bookings.dart';
 
 void printUsersList(List<UserModel> users) {
   final htmlBuffer = StringBuffer();
@@ -609,6 +610,130 @@ void printWorkersList(List<WorkerModel> workers) {
   final finalHtml = htmlBuffer
       .toString()
       .replaceFirst('TOTAL_COUNT', workers.length.toString())
+      .replaceFirst('GENERATED_DATE', DateTime.now().toString().split('.')[0]);
+
+  final blob = html.Blob([finalHtml], 'text/html');
+  final url = html.Url.createObjectUrlFromBlob(blob);
+  html.window.open(url, '_blank');
+}
+
+void printBookingsList(List<BookingModel> bookings) {
+  final htmlBuffer = StringBuffer();
+  htmlBuffer.write('''
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>Bookings Directory Export</title>
+      <style>
+        body {
+          font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+          margin: 40px; color: #1E293B; background-color: #FFFFFF;
+        }
+        h1 { font-size: 22px; margin: 0; color: #0F172A; font-weight: 700; }
+        .header-container {
+          display: flex; justify-content: space-between; align-items: center;
+          margin-bottom: 24px; border-bottom: 2px solid #DBEAFE; padding-bottom: 16px;
+        }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #E2E8F0; padding: 10px 12px; text-align: left; font-size: 12px; vertical-align: middle; }
+        th { background-color: #EFF6FF; font-weight: 600; color: #1E40AF; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; }
+        tr:nth-child(even) { background-color: #F8FAFC; }
+        .status { font-weight: 600; font-size: 11px; padding: 3px 8px; border-radius: 4px; display: inline-block; }
+        .status-completed  { background-color: #D1FAE5; color: #065F46; }
+        .status-confirmed  { background-color: #DBEAFE; color: #1E40AF; }
+        .status-pending   { background-color: #FEF3C7; color: #92400E; }
+        .status-cancelled { background-color: #FEE2E2; color: #991B1B; }
+        .payment-status { font-size: 11px; padding: 2px 6px; border-radius: 4px; font-weight: 500; display: inline-block; }
+        .payment-paid { background-color: #D1FAE5; color: #065F46; }
+        .payment-pending { background-color: #FEF3C7; color: #92400E; }
+        .payment-failed { background-color: #FEE2E2; color: #991B1B; }
+        @media print { body { margin: 20px 10px; } button { display: none; } .header-container { border-bottom: 1px solid #BFDBFE; } }
+      </style>
+    </head>
+    <body>
+      <div class="header-container">
+        <div>
+          <h1>Bookings Directory</h1>
+          <p style="margin: 4px 0 0 0; font-size: 12px; color: #64748B;">Total Bookings: TOTAL_COUNT | Generated on GENERATED_DATE</p>
+        </div>
+        <button onclick="window.print()" style="padding: 10px 20px; background-color: #3B82F6; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-family: inherit; font-size: 13px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">Print / Save PDF</button>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Booking ID &amp; Date</th><th>Customer</th><th>Worker</th><th>Service &amp; Category</th>
+            <th>Amount</th><th>Payment Status</th><th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+  ''');
+
+  for (final b in bookings) {
+    final statusClass = switch (b.status.toLowerCase()) {
+      'completed' => 'status-completed',
+      'confirmed' => 'status-confirmed',
+      'cancelled' => 'status-cancelled',
+      _          => 'status-pending',
+    };
+    final paymentClass = switch (b.paymentStatus.toLowerCase()) {
+      'paid'   => 'payment-paid',
+      'failed' => 'payment-failed',
+      _        => 'payment-pending',
+    };
+
+    final id = _escapeHtml(b.id);
+    final dateTime = _escapeHtml(b.dateTime.replaceAll('\n', ' '));
+    final customerName = _escapeHtml(b.customerName);
+    final customerPhone = _escapeHtml(b.customerPhone);
+    final workerName = _escapeHtml(b.workerName);
+    final workerPhone = _escapeHtml(b.workerPhone);
+    final serviceName = _escapeHtml(b.serviceName);
+    final category = _escapeHtml(b.category);
+    final amount = b.amount.toStringAsFixed(2);
+    final paymentStatus = _escapeHtml(b.paymentStatus);
+    final status = _escapeHtml(b.status);
+
+    htmlBuffer.write('''
+          <tr>
+            <td>
+              <div style="font-weight: 600; color: #0F172A;">${id}</div>
+              <div style="color: #64748B; font-size: 11px; margin-top: 2px;">${dateTime}</div>
+            </td>
+            <td>
+              <div style="font-weight: 600;">${customerName}</div>
+              <div style="color: #64748B; font-size: 11px; margin-top: 2px;">${customerPhone}</div>
+            </td>
+            <td>
+              <div style="font-weight: 600;">${workerName}</div>
+              <div style="color: #64748B; font-size: 11px; margin-top: 2px;">${workerPhone}</div>
+            </td>
+            <td>
+              <div style="font-weight: 600;">${serviceName}</div>
+              <div style="color: #64748B; font-size: 11px; margin-top: 2px;">${category}</div>
+            </td>
+            <td><strong>₹${amount}</strong></td>
+            <td><span class="payment-status ${paymentClass}">${paymentStatus}</span></td>
+            <td><span class="status ${statusClass}">${status}</span></td>
+          </tr>
+    ''');
+  }
+
+  htmlBuffer.write('''
+        </tbody>
+      </table>
+      <script>
+        window.addEventListener('load', () => {
+          setTimeout(() => { window.print(); }, 500);
+        });
+      </script>
+    </body>
+    </html>
+  ''');
+
+  final finalHtml = htmlBuffer
+      .toString()
+      .replaceFirst('TOTAL_COUNT', bookings.length.toString())
       .replaceFirst('GENERATED_DATE', DateTime.now().toString().split('.')[0]);
 
   final blob = html.Blob([finalHtml], 'text/html');

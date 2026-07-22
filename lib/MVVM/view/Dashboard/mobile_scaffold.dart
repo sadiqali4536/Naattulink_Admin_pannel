@@ -42,10 +42,12 @@ class _MobileScaffoldState extends State<MobileScaffold> {
   String selectedTile = "Dashboard";
   List<NotificationItem> notifications = [];
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  int pendingBookingsCount = 0;
 
   @override
   void initState() {
     super.initState();
+    _listenToPendingBookings();
     notifications = [
       NotificationItem(
         message: "User Alex booked a service",
@@ -66,6 +68,20 @@ class _MobileScaffoldState extends State<MobileScaffold> {
         onTap: () => setState(() => selectedTile = "User Profile"),
       ),
     ];
+  }
+
+  void _listenToPendingBookings() {
+    FirebaseFirestore.instance
+        .collection('bookings')
+        .where('status', isEqualTo: 'Pending')
+        .snapshots()
+        .listen((snapshot) {
+          if (mounted) {
+            setState(() {
+              pendingBookingsCount = snapshot.docs.length;
+            });
+          }
+        });
   }
 
   Widget getSelectedPage() {
@@ -115,7 +131,10 @@ class _MobileScaffoldState extends State<MobileScaffold> {
       case "Categories":
         return const ServiceCategoriesPage();
       case "Service Reviews":
-        return _buildPlaceholderPage("Service Reviews", Icons.rate_review_rounded);
+        return _buildPlaceholderPage(
+          "Service Reviews",
+          Icons.rate_review_rounded,
+        );
       case "Payments":
         return PaymentPage();
       case "All Bookings":
@@ -150,22 +169,37 @@ class _MobileScaffoldState extends State<MobileScaffold> {
       case "Ads Promotion":
         return const Adspromotion();
       case "Products":
-        return _buildPlaceholderPage("Products Catalog", Icons.shopping_bag_rounded);
+        return _buildPlaceholderPage(
+          "Products Catalog",
+          Icons.shopping_bag_rounded,
+        );
       case "Orders":
-        return _buildPlaceholderPage("Orders Management", Icons.shopping_cart_rounded);
+        return _buildPlaceholderPage(
+          "Orders Management",
+          Icons.shopping_cart_rounded,
+        );
       case "Bus Routes":
-        return _buildPlaceholderPage("Bus Routes", Icons.directions_bus_rounded);
+        return _buildPlaceholderPage(
+          "Bus Routes",
+          Icons.directions_bus_rounded,
+        );
       case "Taxi Drivers":
         return _buildPlaceholderPage("Taxi Drivers", Icons.local_taxi_rounded);
       case "Coupons":
-        return _buildPlaceholderPage("Coupons & Offers", Icons.local_offer_rounded);
+        return _buildPlaceholderPage(
+          "Coupons & Offers",
+          Icons.local_offer_rounded,
+        );
       case "Profile":
         return _buildPlaceholderPage("Admin Profile", Icons.person_rounded);
       default:
         return Center(
           child: Text(
             "Selected: $selectedTile",
-            style: GoogleFonts.inter(fontSize: 16, color: const Color(0xFF64748B)),
+            style: GoogleFonts.inter(
+              fontSize: 16,
+              color: const Color(0xFF64748B),
+            ),
           ),
         );
     }
@@ -242,7 +276,11 @@ class _MobileScaffoldState extends State<MobileScaffold> {
                   width: 28,
                   height: 28,
                   color: const Color(0xFFE2E8F0),
-                  child: const Icon(Icons.person, color: Color(0xFF64748B), size: 14),
+                  child: const Icon(
+                    Icons.person,
+                    color: Color(0xFF64748B),
+                    size: 14,
+                  ),
                 );
               },
             ),
@@ -277,8 +315,12 @@ class _MobileScaffoldState extends State<MobileScaffold> {
                     SidebarExpansionTile(
                       title: "User Management",
                       icon: Icons.people_alt_rounded,
-                      isInitiallyExpanded: selectedTile == "User Profile" || selectedTile == "User Roles" || selectedTile == "Banned Users",
-                      onTap: () => setState(() => selectedTile = "User Profile"),
+                      isInitiallyExpanded:
+                          selectedTile == "User Profile" ||
+                          selectedTile == "User Roles" ||
+                          selectedTile == "Banned Users",
+                      onTap:
+                          () => setState(() => selectedTile = "User Profile"),
                       children: [
                         SidebarTile(
                           title: "Users",
@@ -312,7 +354,12 @@ class _MobileScaffoldState extends State<MobileScaffold> {
                     SidebarExpansionTile(
                       title: "Worker Management",
                       icon: Icons.engineering_rounded,
-                      isInitiallyExpanded: selectedTile == "All Workers" || selectedTile == "Pending Approvals" || selectedTile == "Approved Workers" || selectedTile == "Rejected Workers" || selectedTile == "Suspended Workers",
+                      isInitiallyExpanded:
+                          selectedTile == "All Workers" ||
+                          selectedTile == "Pending Approvals" ||
+                          selectedTile == "Approved Workers" ||
+                          selectedTile == "Rejected Workers" ||
+                          selectedTile == "Suspended Workers",
                       onTap: () => setState(() => selectedTile = "All Workers"),
                       children: [
                         SidebarTile(
@@ -333,17 +380,21 @@ class _MobileScaffoldState extends State<MobileScaffold> {
                             _scaffoldKey.currentState?.closeDrawer();
                           },
                           trailing: StreamBuilder<QuerySnapshot>(
-                            stream: FirebaseFirestore.instance
-                                .collection("workers")
-                                .where("isVerified", isEqualTo: 0)
-                                .snapshots(),
+                            stream:
+                                FirebaseFirestore.instance
+                                    .collection("workers")
+                                    .where("isVerified", isEqualTo: 0)
+                                    .snapshots(),
                             builder: (context, snapshot) {
                               int count = 0;
                               if (snapshot.hasData) {
                                 count = snapshot.data!.docs.length;
                               }
                               return Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
                                 decoration: BoxDecoration(
                                   color: const Color(0xFFF59E0B),
                                   borderRadius: BorderRadius.circular(10),
@@ -392,8 +443,14 @@ class _MobileScaffoldState extends State<MobileScaffold> {
                     SidebarExpansionTile(
                       title: "Bookings",
                       icon: Icons.book_online_rounded,
-                      isInitiallyExpanded: selectedTile == "All Bookings" || selectedTile == "Pending Bookings" || selectedTile == "Confirmed Bookings" || selectedTile == "Completed Bookings" || selectedTile == "Cancelled Bookings",
-                      onTap: () => setState(() => selectedTile = "All Bookings"),
+                      isInitiallyExpanded:
+                          selectedTile == "All Bookings" ||
+                          selectedTile == "Pending Bookings" ||
+                          selectedTile == "Confirmed Bookings" ||
+                          selectedTile == "Completed Bookings" ||
+                          selectedTile == "Cancelled Bookings",
+                      onTap:
+                          () => setState(() => selectedTile = "All Bookings"),
                       children: [
                         SidebarTile(
                           title: "All Bookings",
@@ -413,13 +470,16 @@ class _MobileScaffoldState extends State<MobileScaffold> {
                             _scaffoldKey.currentState?.closeDrawer();
                           },
                           trailing: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
                               color: const Color(0xFFF59E0B),
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: Text(
-                              "18",
+                              pendingBookingsCount.toString(),
                               style: GoogleFonts.inter(
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
@@ -460,8 +520,12 @@ class _MobileScaffoldState extends State<MobileScaffold> {
                     SidebarExpansionTile(
                       title: "Services",
                       icon: Icons.home_repair_service_rounded,
-                      isInitiallyExpanded: selectedTile == "All Services" || selectedTile == "Categories" || selectedTile == "Service Reviews",
-                      onTap: () => setState(() => selectedTile = "All Services"),
+                      isInitiallyExpanded:
+                          selectedTile == "All Services" ||
+                          selectedTile == "Categories" ||
+                          selectedTile == "Service Reviews",
+                      onTap:
+                          () => setState(() => selectedTile = "All Services"),
                       children: [
                         SidebarTile(
                           title: "All Services",
@@ -647,11 +711,7 @@ class _MobileScaffoldState extends State<MobileScaffold> {
               shape: BoxShape.circle,
             ),
             child: const Center(
-              child: Icon(
-                Icons.spa_rounded,
-                color: Colors.white,
-                size: 18,
-              ),
+              child: Icon(Icons.spa_rounded, color: Colors.white, size: 18),
             ),
           ),
           const SizedBox(width: 12),
@@ -684,111 +744,166 @@ class _MobileScaffoldState extends State<MobileScaffold> {
     showDialog(
       context: context,
       barrierColor: Colors.black26,
-      builder: (context) => Stack(
-        children: [
-          Positioned(
-            top: 70,
-            right: 16,
-            child: Material(
-              color: Colors.transparent,
-              child: Container(
-                width: 280,
-                constraints: const BoxConstraints(maxHeight: 350),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: const [
-                    BoxShadow(blurRadius: 16, color: Colors.black12, offset: Offset(0, 8)),
-                  ],
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.all(12.0),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            "Notifications",
-                            style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 14, color: const Color(0xFF1E293B)),
+      builder:
+          (context) => Stack(
+            children: [
+              Positioned(
+                top: 70,
+                right: 16,
+                child: Material(
+                  color: Colors.transparent,
+                  child: Container(
+                    width: 280,
+                    constraints: const BoxConstraints(maxHeight: 350),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: const [
+                        BoxShadow(
+                          blurRadius: 16,
+                          color: Colors.black12,
+                          offset: Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.all(12.0),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                "Notifications",
+                                style: GoogleFonts.inter(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                  color: const Color(0xFF1E293B),
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF1F5F9),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(
+                                  "New",
+                                  style: GoogleFonts.inter(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w600,
+                                    color: const Color(0xFF475569),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF1F5F9),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
+                        ),
+                        const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                        if (notifications.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.all(16.0),
                             child: Text(
-                              "New",
-                              style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.w600, color: const Color(0xFF475569)),
+                              "No new notifications",
+                              style: GoogleFonts.inter(
+                                color: const Color(0xFF64748B),
+                                fontSize: 12,
+                              ),
                             ),
                           )
-                        ],
-                      ),
-                    ),
-                    const Divider(height: 1, color: Color(0xFFF1F5F9)),
-                    if (notifications.isEmpty)
-                      Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Text("No new notifications", style: GoogleFonts.inter(color: const Color(0xFF64748B), fontSize: 12)),
-                      )
-                    else
-                      Flexible(
-                        child: ListView(
-                          shrinkWrap: true,
-                          padding: EdgeInsets.zero,
-                          children: notifications.map((note) => ListTile(
-                            leading: Container(
-                              padding: const EdgeInsets.all(6),
-                              decoration: BoxDecoration(
-                                color: note.color.withValues(alpha: 0.1),
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(note.icon, color: note.color, size: 14),
+                        else
+                          Flexible(
+                            child: ListView(
+                              shrinkWrap: true,
+                              padding: EdgeInsets.zero,
+                              children:
+                                  notifications
+                                      .map(
+                                        (note) => Material(
+                                          color: Colors.transparent,
+                                          child: ListTile(
+                                            leading: Container(
+                                              padding: const EdgeInsets.all(6),
+                                              decoration: BoxDecoration(
+                                                color: note.color.withValues(
+                                                  alpha: 0.1,
+                                                ),
+                                                shape: BoxShape.circle,
+                                              ),
+                                              child: Icon(
+                                                note.icon,
+                                                color: note.color,
+                                                size: 14,
+                                              ),
+                                            ),
+                                            title: Text(
+                                              note.message,
+                                              style: GoogleFonts.inter(
+                                                fontSize: 11,
+                                                color: const Color(0xFF1E293B),
+                                              ),
+                                            ),
+                                            contentPadding:
+                                                const EdgeInsets.symmetric(
+                                                  horizontal: 12,
+                                                  vertical: 2,
+                                                ),
+                                            onTap: () {
+                                              Navigator.pop(context);
+                                              note.onTap();
+                                            },
+                                          ),
+                                        ))
+                                        .toList(),
                             ),
-                            title: Text(note.message, style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF1E293B))),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-                            onTap: () {
-                              Navigator.pop(context);
-                              note.onTap();
-                            },
-                          )).toList(),
-                        ),
-                      ),
-                  ],
+                          ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
-            ),
+            ],
           ),
-        ],
-      ),
     );
   }
 
   void _showLogoutDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text("Logout", style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
-        content: Text("Are you sure you want to logout?", style: GoogleFonts.inter()),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text("Cancel", style: GoogleFonts.inter(color: const Color(0xFF64748B))),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFEF4444),
-              foregroundColor: Colors.white,
+      builder:
+          (context) => AlertDialog(
+            title: Text(
+              "Logout",
+              style: GoogleFonts.inter(fontWeight: FontWeight.bold),
             ),
-            child: Text("Logout", style: GoogleFonts.inter()),
+            content: Text(
+              "Are you sure you want to logout?",
+              style: GoogleFonts.inter(),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(
+                  "Cancel",
+                  style: GoogleFonts.inter(color: const Color(0xFF64748B)),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFEF4444),
+                  foregroundColor: Colors.white,
+                ),
+                child: Text("Logout", style: GoogleFonts.inter()),
+              ),
+            ],
           ),
-        ],
-      ),
     );
   }
 }
@@ -826,7 +941,10 @@ class SidebarTile extends StatelessWidget {
             children: [
               Icon(
                 icon,
-                color: isSelected ? const Color(0xFF10B981) : const Color(0xFF94A3B8),
+                color:
+                    isSelected
+                        ? const Color(0xFF10B981)
+                        : const Color(0xFF94A3B8),
                 size: 18,
               ),
               const SizedBox(width: 12),
@@ -906,11 +1024,7 @@ class _SidebarExpansionTileState extends State<SidebarExpansionTile> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               child: Row(
                 children: [
-                  Icon(
-                    widget.icon,
-                    color: const Color(0xFF94A3B8),
-                    size: 18,
-                  ),
+                  Icon(widget.icon, color: const Color(0xFF94A3B8), size: 18),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
@@ -923,7 +1037,9 @@ class _SidebarExpansionTileState extends State<SidebarExpansionTile> {
                     ),
                   ),
                   Icon(
-                    _isExpanded ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
+                    _isExpanded
+                        ? Icons.keyboard_arrow_up_rounded
+                        : Icons.keyboard_arrow_down_rounded,
                     color: const Color(0xFF94A3B8),
                     size: 16,
                   ),
@@ -934,9 +1050,7 @@ class _SidebarExpansionTileState extends State<SidebarExpansionTile> {
           if (_isExpanded)
             Padding(
               padding: const EdgeInsets.only(left: 12.0),
-              child: Column(
-                children: widget.children,
-              ),
+              child: Column(children: widget.children),
             ),
         ],
       ),
@@ -947,10 +1061,7 @@ class _SidebarExpansionTileState extends State<SidebarExpansionTile> {
 class SidebarLogoutTile extends StatelessWidget {
   final VoidCallback onTap;
 
-  const SidebarLogoutTile({
-    super.key,
-    required this.onTap,
-  });
+  const SidebarLogoutTile({super.key, required this.onTap});
 
   @override
   Widget build(BuildContext context) {

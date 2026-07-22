@@ -5,7 +5,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:swiftclean_admin/MVVM/utils/imagekit_service.dart';
+import 'package:swiftclean_admin/core/imagekit/imagekit_base_service.dart';
+import 'package:swiftclean_admin/modules/advertisements/advertisement_service.dart';
+import 'package:swiftclean_admin/MVVM/model/models/admin_model.dart';
+import 'package:swiftclean_admin/MVVM/utils/rbac_session.dart';
 
 /// Models representing an advertisement banner
 class AdBanner {
@@ -14,6 +17,7 @@ class AdBanner {
   final String description;
   final String category;
   final String imageUrl;
+  final String imageFileId;
   final String buttonText;
   final String bannerAction;
   final String actionValue;
@@ -41,6 +45,7 @@ class AdBanner {
     required this.description,
     required this.category,
     required this.imageUrl,
+    required this.imageFileId,
     required this.buttonText,
     required this.bannerAction,
     required this.actionValue,
@@ -71,6 +76,7 @@ class AdBanner {
       description: data['description'] ?? '',
       category: data['category'] ?? '',
       imageUrl: data['imageUrl'] ?? '',
+      imageFileId: data['imageFileId'] ?? '',
       buttonText: data['buttonText'] ?? '',
       bannerAction: data['bannerAction'] ?? data['buttonAction'] ?? '',
       actionValue: data['actionValue'] ?? '',
@@ -103,6 +109,7 @@ class AdBanner {
       'description': description,
       'category': category,
       'imageUrl': imageUrl,
+      'imageFileId': imageFileId,
       'buttonText': buttonText,
       'bannerAction': bannerAction,
       'buttonAction':
@@ -170,37 +177,13 @@ class _AdspromotionState extends State<Adspromotion> {
       );
     }
 
-    // Default admin bypass
-    if (user.email == 'swiftcleanaccount@gmail.com') {
+    if (RbacSession().hasPermission(Modules.advertisement, Perms.view)) {
       return _buildAdminDashboard();
+    } else {
+      return _buildAccessDenied(
+        "You don't have permission to access the Advertisement module.",
+      );
     }
-
-    return StreamBuilder<DocumentSnapshot>(
-      stream: _firestore.collection('users').doc(user.uid).snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            backgroundColor: backgroundGrey,
-            body: Center(child: CircularProgressIndicator(color: primaryNavy)),
-          );
-        }
-
-        if (!snapshot.hasData || !snapshot.data!.exists) {
-          return _buildAccessDenied("User document not found in Firestore.");
-        }
-
-        final userData = snapshot.data!.data() as Map<String, dynamic>?;
-        final role = userData?['role'];
-
-        if (role != 'admin') {
-          return _buildAccessDenied(
-            "Required administrator role ('admin') missing.",
-          );
-        }
-
-        return _buildAdminDashboard();
-      },
-    );
   }
 
   Widget _buildAccessDenied(String reason) {
@@ -208,7 +191,7 @@ class _AdspromotionState extends State<Adspromotion> {
       backgroundColor: backgroundGrey,
       body: Center(
         child: Container(
-          width: 500,
+          constraints: const BoxConstraints(maxWidth: 500),
           margin: const EdgeInsets.all(24),
           padding: const EdgeInsets.all(32),
           decoration: BoxDecoration(
@@ -352,321 +335,331 @@ class _AdspromotionState extends State<Adspromotion> {
         return Container(
           color: backgroundGrey,
           padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Dashboard Header Section
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        "Advertisement Banners",
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                          color: textDark,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Dashboard Header Section
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "Advertisement Banners",
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            color: textDark,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        "Configure sliding banners, category campaigns, and Local Ads details",
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 14,
-                          color: textGrey,
-                          fontWeight: FontWeight.w500,
+                        const SizedBox(height: 6),
+                        Text(
+                          "Configure sliding banners, category campaigns, and Local Ads details",
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 14,
+                            color: textGrey,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                  ElevatedButton.icon(
-                    onPressed: () => _openBannerFormDialog(null),
-                    icon: const Icon(
-                      Icons.add_photo_alternate_rounded,
-                      color: Colors.white,
+                      ],
                     ),
-                    label: Text(
-                      "Create Advertisement",
-                      style: GoogleFonts.plusJakartaSans(
-                        fontWeight: FontWeight.bold,
+                    ElevatedButton.icon(
+                      onPressed: () => _openBannerFormDialog(null),
+                      icon: const Icon(
+                        Icons.add_photo_alternate_rounded,
                         color: Colors.white,
                       ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: primaryNavy,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 16,
+                      label: Text(
+                        "Create Advertisement",
+                        style: GoogleFonts.plusJakartaSans(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
                       ),
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: primaryNavy,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 16,
+                        ),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
+                  ],
+                ),
+                const SizedBox(height: 24),
 
-              // Overview Metric Cards
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final isMobile = constraints.maxWidth < 750;
-                  return isMobile
-                      ? Column(
-                        children: [
-                          _buildMetricCard(
-                            "Total Banners",
-                            totalCount.toString(),
-                            Icons.campaign_rounded,
-                            primaryNavy,
-                          ),
-                          const SizedBox(height: 12),
-                          _buildMetricCard(
-                            "Active Ads",
-                            activeCount.toString(),
-                            Icons.check_circle_outline_rounded,
-                            Colors.green,
-                          ),
-                          const SizedBox(height: 12),
-                          _buildMetricCard(
-                            "Scheduled",
-                            scheduledCount.toString(),
-                            Icons.schedule_rounded,
-                            secondaryYellow,
-                          ),
-                          const SizedBox(height: 12),
-                          _buildMetricCard(
-                            "Expired / Draft",
-                            expiredCount.toString(),
-                            Icons.history_rounded,
-                            textGrey,
-                          ),
-                        ],
-                      )
-                      : Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(
-                            child: _buildMetricCard(
+                // Overview Metric Cards
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final isMobile = constraints.maxWidth < 750;
+                    return isMobile
+                        ? Column(
+                          children: [
+                            _buildMetricCard(
                               "Total Banners",
                               totalCount.toString(),
                               Icons.campaign_rounded,
                               primaryNavy,
                             ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: _buildMetricCard(
+                            const SizedBox(height: 12),
+                            _buildMetricCard(
                               "Active Ads",
                               activeCount.toString(),
                               Icons.check_circle_outline_rounded,
                               Colors.green,
                             ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: _buildMetricCard(
+                            const SizedBox(height: 12),
+                            _buildMetricCard(
                               "Scheduled",
                               scheduledCount.toString(),
                               Icons.schedule_rounded,
                               secondaryYellow,
                             ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: _buildMetricCard(
+                            const SizedBox(height: 12),
+                            _buildMetricCard(
                               "Expired / Draft",
-                              (expiredCount +
-                                      (totalCount -
-                                          activeCount -
-                                          scheduledCount -
-                                          expiredCount))
-                                  .toString(),
+                              expiredCount.toString(),
                               Icons.history_rounded,
                               textGrey,
-                            ),
-                          ),
-                        ],
-                      );
-                },
-              ),
-              const SizedBox(height: 24),
-
-              // Filter & Search Toolbar
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: borderLight),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.01),
-                      blurRadius: 10,
-                    ),
-                  ],
-                ),
-                child: LayoutBuilder(
-                  builder: (context, toolbarConstraints) {
-                    final isToolbarCompact = toolbarConstraints.maxWidth < 900;
-                    final searchField = Container(
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: backgroundGrey,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: TextField(
-                        onChanged: (val) => setState(() => _searchQuery = val),
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 14,
-                          color: textDark,
-                        ),
-                        decoration: InputDecoration(
-                          hintText:
-                              "Search banners, advertisers, categories...",
-                          hintStyle: GoogleFonts.plusJakartaSans(
-                            fontSize: 14,
-                            color: textGrey,
-                          ),
-                          prefixIcon: const Icon(
-                            Icons.search_rounded,
-                            color: textGrey,
-                          ),
-                          border: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(
-                            vertical: 12,
-                          ),
-                        ),
-                      ),
-                    );
-
-                    final filters = [
-                      _buildToolbarDropdown(
-                        label: "Placement",
-                        value: _selectedFilterPosition,
-                        items: [
-                          'All',
-                          'Home -> For You',
-                          'Home -> Workers',
-                          'Home -> Bus',
-                          'Home -> Local Ads',
-                          'Home -> Online Shops',
-                        ],
-                        onChanged:
-                            (val) =>
-                                setState(() => _selectedFilterPosition = val!),
-                      ),
-                      const SizedBox(width: 12),
-                      _buildToolbarDropdown(
-                        label: "Status",
-                        value: _selectedFilterStatus,
-                        items: [
-                          'All',
-                          'Active',
-                          'Scheduled',
-                          'Expired',
-                          'Inactive',
-                        ],
-                        onChanged:
-                            (val) =>
-                                setState(() => _selectedFilterStatus = val!),
-                      ),
-                      const SizedBox(width: 12),
-                      _buildToolbarDropdown(
-                        label: "Sort By",
-                        value: _selectedSortBy,
-                        items: [
-                          'Priority (High to Low)',
-                          'Priority (Low to High)',
-                          'Created Date',
-                          'Title',
-                        ],
-                        onChanged:
-                            (val) => setState(() => _selectedSortBy = val!),
-                      ),
-                    ];
-
-                    return isToolbarCompact
-                        ? Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            SizedBox(
-                              width: double.infinity,
-                              child: searchField,
-                            ),
-                            const SizedBox(height: 12),
-                            SingleChildScrollView(
-                              scrollDirection: Axis.horizontal,
-                              child: Row(children: filters),
                             ),
                           ],
                         )
                         : Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Expanded(flex: 3, child: searchField),
-                            const SizedBox(width: 20),
-                            ...filters,
+                            Expanded(
+                              child: _buildMetricCard(
+                                "Total Banners",
+                                totalCount.toString(),
+                                Icons.campaign_rounded,
+                                primaryNavy,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: _buildMetricCard(
+                                "Active Ads",
+                                activeCount.toString(),
+                                Icons.check_circle_outline_rounded,
+                                Colors.green,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: _buildMetricCard(
+                                "Scheduled",
+                                scheduledCount.toString(),
+                                Icons.schedule_rounded,
+                                secondaryYellow,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: _buildMetricCard(
+                                "Expired / Draft",
+                                (expiredCount +
+                                        (totalCount -
+                                            activeCount -
+                                            scheduledCount -
+                                            expiredCount))
+                                    .toString(),
+                                Icons.history_rounded,
+                                textGrey,
+                              ),
+                            ),
                           ],
                         );
                   },
                 ),
-              ),
-              const SizedBox(height: 24),
+                const SizedBox(height: 24),
 
-              // Banners Grid Layout
-              filteredBanners.isEmpty
-                  ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.broken_image_outlined,
-                          size: 64,
-                          color: textGrey,
+                // Filter & Search Toolbar
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: borderLight),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.01),
+                        blurRadius: 10,
+                      ),
+                    ],
+                  ),
+                  child: LayoutBuilder(
+                    builder: (context, toolbarConstraints) {
+                      final isToolbarCompact =
+                          toolbarConstraints.maxWidth < 900;
+                      final searchField = Container(
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: backgroundGrey,
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                        const SizedBox(height: 16),
-                        Text(
-                          "No advertisements match the criteria.",
+                        child: TextField(
+                          onChanged:
+                              (val) => setState(() => _searchQuery = val),
                           style: GoogleFonts.plusJakartaSans(
-                            fontSize: 16,
-                            color: textGrey,
-                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                            color: textDark,
+                          ),
+                          decoration: InputDecoration(
+                            hintText:
+                                "Search banners, advertisers, categories...",
+                            hintStyle: GoogleFonts.plusJakartaSans(
+                              fontSize: 14,
+                              color: textGrey,
+                            ),
+                            prefixIcon: const Icon(
+                              Icons.search_rounded,
+                              color: textGrey,
+                            ),
+                            border: InputBorder.none,
+                            contentPadding: const EdgeInsets.symmetric(
+                              vertical: 12,
+                            ),
                           ),
                         ),
-                      ],
-                    ),
-                  )
-                  : LayoutBuilder(
-                    builder: (context, gridConstraints) {
-                      int columns = (gridConstraints.maxWidth / 500).floor();
-                      if (columns < 1) columns = 1;
-
-                      const double spacing = 16.0;
-                      final double cardWidth =
-                          (gridConstraints.maxWidth - (columns - 1) * spacing) /
-                          columns;
-                      final double childAspectRatio = cardWidth / 170.0;
-
-                      return GridView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: filteredBanners.length,
-                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: columns,
-                          crossAxisSpacing: spacing,
-                          mainAxisSpacing: spacing,
-                          childAspectRatio: childAspectRatio,
-                        ),
-                        itemBuilder: (context, index) {
-                          return _buildBannerCard(filteredBanners[index], now);
-                        },
                       );
+
+                      final filters = [
+                        _buildToolbarDropdown(
+                          label: "Placement",
+                          value: _selectedFilterPosition,
+                          items: [
+                            'All',
+                            'Home -> For You',
+                            'Home -> Workers',
+                            'Home -> Bus',
+                            'Home -> Local Ads',
+                            'Home -> Online Shops',
+                          ],
+                          onChanged:
+                              (val) => setState(
+                                () => _selectedFilterPosition = val!,
+                              ),
+                        ),
+                        const SizedBox(width: 12),
+                        _buildToolbarDropdown(
+                          label: "Status",
+                          value: _selectedFilterStatus,
+                          items: [
+                            'All',
+                            'Active',
+                            'Scheduled',
+                            'Expired',
+                            'Inactive',
+                          ],
+                          onChanged:
+                              (val) =>
+                                  setState(() => _selectedFilterStatus = val!),
+                        ),
+                        const SizedBox(width: 12),
+                        _buildToolbarDropdown(
+                          label: "Sort By",
+                          value: _selectedSortBy,
+                          items: [
+                            'Priority (High to Low)',
+                            'Priority (Low to High)',
+                            'Created Date',
+                            'Title',
+                          ],
+                          onChanged:
+                              (val) => setState(() => _selectedSortBy = val!),
+                        ),
+                      ];
+
+                      return isToolbarCompact
+                          ? Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              SizedBox(
+                                width: double.infinity,
+                                child: searchField,
+                              ),
+                              const SizedBox(height: 12),
+                              SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: Row(children: filters),
+                              ),
+                            ],
+                          )
+                          : Row(
+                            children: [
+                              Expanded(flex: 3, child: searchField),
+                              const SizedBox(width: 20),
+                              ...filters,
+                            ],
+                          );
                     },
                   ),
-            ],
+                ),
+                const SizedBox(height: 24),
+
+                // Banners Grid Layout
+                filteredBanners.isEmpty
+                    ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(
+                            Icons.broken_image_outlined,
+                            size: 64,
+                            color: textGrey,
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            "No advertisements match the criteria.",
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 16,
+                              color: textGrey,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                    : LayoutBuilder(
+                      builder: (context, gridConstraints) {
+                        int columns = (gridConstraints.maxWidth / 500).floor();
+                        if (columns < 1) columns = 1;
+
+                        const double spacing = 16.0;
+                        final double cardWidth =
+                            (gridConstraints.maxWidth -
+                                (columns - 1) * spacing) /
+                            columns;
+                        final double childAspectRatio = cardWidth / 175.0;
+
+                        return GridView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: filteredBanners.length,
+                          gridDelegate:
+                              SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: columns,
+                                crossAxisSpacing: spacing,
+                                mainAxisSpacing: spacing,
+                                childAspectRatio: childAspectRatio,
+                              ),
+                          itemBuilder: (context, index) {
+                            return _buildBannerCard(
+                              filteredBanners[index],
+                              now,
+                            );
+                          },
+                        );
+                      },
+                    ),
+              ],
+            ),
           ),
         );
       },
@@ -828,7 +821,7 @@ class _AdspromotionState extends State<Adspromotion> {
           // Banner Image & Badge Overlay - Left side horizontal layout
           SizedBox(
             width: 140,
-            height: 170,
+            height: double.infinity,
             child: Stack(
               children: [
                 Positioned.fill(
@@ -1412,7 +1405,7 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
     try {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
-        allowedExtensions: ImageKitService.allowedExtensions,
+        allowedExtensions: ImageKitBaseService.allowedExtensions,
       );
       if (!mounted) return;
       if (result != null) {
@@ -1422,7 +1415,7 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
         final fileName = pickedFile.name;
 
         // Validate file extension
-        if (!ImageKitService.isAllowedExtension(fileName)) {
+        if (!ImageKitBaseService.isAllowedExtension(fileName)) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text(
@@ -1435,7 +1428,7 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
         }
 
         // Validate file size (10 MB limit)
-        if (fileSize > ImageKitService.maxFileSizeBytes) {
+        if (fileSize > ImageKitBaseService.maxFileSizeBytes) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text("Error: Image exceeds the maximum limit of 10 MB."),
@@ -1538,21 +1531,16 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
       String finalImageUrl = _currentImageUrl ?? '';
       String finalProductImageUrl = _currentLocalProductImageUrl ?? '';
 
+      String finalImageFileId = widget.existingBanner?.imageFileId ?? '';
+      String finalProductImageFileId = widget.existingBanner?.localAdsConfig?['productImageFileId'] ?? '';
+
       // 1. Upload Main Banner Image via ImageKit
       if (_imageBytes != null) {
         debugPrint('DEBUG: Starting main banner ImageKit upload...');
-        final filename = ImageKitService.generateFileName(
-          _imageName ?? 'banner.png',
-          'banner',
-        );
-        debugPrint(
-          'DEBUG: ImageKit target filename: $filename, folder: banners',
-        );
-
-        finalImageUrl = await ImageKitService.uploadImage(
+        final service = AdvertisementImageService();
+        final result = await service.uploadBanner(
           imageBytes: _imageBytes!,
-          fileName: filename,
-          folder: 'banners',
+          fileName: _imageName ?? 'banner.png',
           onProgress: (progress) {
             debugPrint(
               'DEBUG: ImageKit upload progress: ${(progress * 100).toStringAsFixed(1)}%',
@@ -1562,6 +1550,8 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
             }
           },
         );
+        finalImageUrl = result.imageUrl;
+        finalImageFileId = result.fileId;
         debugPrint('DEBUG: ImageKit upload successful. URL: $finalImageUrl');
       }
 
@@ -1569,21 +1559,18 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
       if (_selectedPosition == 'Home -> Local Ads' &&
           _localProductBytes != null) {
         debugPrint('DEBUG: Starting local product ImageKit upload...');
-        final filename = ImageKitService.generateFileName(
-          _localProductName ?? 'product.png',
-          'prod',
-        );
-
-        finalProductImageUrl = await ImageKitService.uploadImage(
+        final service = AdvertisementImageService();
+        final result = await service.uploadLocalProduct(
           imageBytes: _localProductBytes!,
-          fileName: filename,
-          folder: 'local_products',
+          fileName: _localProductName ?? 'product.png',
           onProgress: (progress) {
             if (mounted) {
               setState(() => _uploadProgress = progress);
             }
           },
         );
+        finalProductImageUrl = result.imageUrl;
+        finalProductImageFileId = result.fileId;
         debugPrint(
           'DEBUG: Local product ImageKit upload successful. URL: $finalProductImageUrl',
         );
@@ -1623,6 +1610,7 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
           'offerType': _localOfferType,
           'productName': _localProductNameController.text.trim(),
           'productImageUrl': finalProductImageUrl,
+          'productImageFileId': finalProductImageFileId,
           'originalPrice':
               double.tryParse(_localOriginalPriceController.text) ?? 0.0,
           'offerPrice': double.tryParse(_localOfferPriceController.text) ?? 0.0,
@@ -1638,6 +1626,8 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
         'description': _descController.text.trim(),
         'category': _selectedCategory,
         'imageUrl': finalImageUrl,
+        'imageFileId': finalImageFileId,
+        'storage': 'advertisement',
         'buttonText': resolvedButtonText,
         'bannerAction': _noBannerAction ? 'None' : _selectedBannerAction,
         'buttonAction':

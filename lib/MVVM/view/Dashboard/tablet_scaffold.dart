@@ -48,11 +48,13 @@ class _TabletScaffoldState extends State<TabletScaffold> {
   List<NotificationItem> notifications = [];
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final _session = RbacSession();
+  int pendingBookingsCount = 0;
 
   @override
   void initState() {
     super.initState();
     _loadSession();
+    _listenToPendingBookings();
     notifications = [
       NotificationItem(
         message: "User Alex booked a service",
@@ -78,6 +80,20 @@ class _TabletScaffoldState extends State<TabletScaffold> {
   Future<void> _loadSession() async {
     if (!_session.isActive) await _session.loadSession();
     if (mounted) setState(() {});
+  }
+
+  void _listenToPendingBookings() {
+    FirebaseFirestore.instance
+        .collection('bookings')
+        .where('status', isEqualTo: 'Pending')
+        .snapshots()
+        .listen((snapshot) {
+      if (mounted) {
+        setState(() {
+          pendingBookingsCount = snapshot.docs.length;
+        });
+      }
+    });
   }
 
   bool _can(String module, String action) =>
@@ -542,7 +558,7 @@ class _TabletScaffoldState extends State<TabletScaffold> {
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: Text(
-                              "18",
+                              pendingBookingsCount.toString(),
                               style: GoogleFonts.inter(
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
@@ -886,40 +902,42 @@ class _TabletScaffoldState extends State<TabletScaffold> {
                               children:
                                   notifications
                                       .map(
-                                        (note) => ListTile(
-                                          leading: Container(
-                                            padding: const EdgeInsets.all(8),
-                                            decoration: BoxDecoration(
-                                              color: note.color.withValues(
-                                                alpha: 0.1,
+                                        (note) => Material(
+                                          color: Colors.transparent,
+                                          child: ListTile(
+                                            leading: Container(
+                                              padding: const EdgeInsets.all(8),
+                                              decoration: BoxDecoration(
+                                                color: note.color.withValues(
+                                                  alpha: 0.1,
+                                                ),
+                                                shape: BoxShape.circle,
                                               ),
-                                              shape: BoxShape.circle,
-                                            ),
-                                            child: Icon(
-                                              note.icon,
-                                              color: note.color,
-                                              size: 14,
-                                            ),
-                                          ),
-                                          title: Text(
-                                            note.message,
-                                            style: GoogleFonts.inter(
-                                              fontSize: 12,
-                                              color: const Color(0xFF1E293B),
-                                            ),
-                                          ),
-                                          contentPadding:
-                                              const EdgeInsets.symmetric(
-                                                horizontal: 14,
-                                                vertical: 3,
+                                              child: Icon(
+                                                note.icon,
+                                                color: note.color,
+                                                size: 14,
                                               ),
-                                          onTap: () {
-                                            Navigator.pop(context);
-                                            note.onTap();
-                                          },
-                                        ),
-                                      )
-                                      .toList(),
+                                            ),
+                                            title: Text(
+                                              note.message,
+                                              style: GoogleFonts.inter(
+                                                fontSize: 12,
+                                                color: const Color(0xFF1E293B),
+                                              ),
+                                            ),
+                                            contentPadding:
+                                                const EdgeInsets.symmetric(
+                                                  horizontal: 14,
+                                                  vertical: 3,
+                                                ),
+                                            onTap: () {
+                                              Navigator.pop(context);
+                                              note.onTap();
+                                            },
+                                          ),
+                                        ))
+                                        .toList(),
                             ),
                           ),
                       ],

@@ -1,27 +1,60 @@
+import 'dart:typed_data';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+import 'package:intl/intl.dart';
 
 class CategoryModel {
-  final String name;
+  final String id;
+  final String title;
   final String description;
   final int totalServices;
   String status;
   final String createdOn;
-  final IconData icon;
-  final Color iconColor;
-  final Color iconBgColor;
+  final String iconType;
+  final double price;
+  final String imageUrl;
 
   CategoryModel({
-    required this.name,
+    required this.id,
+    required this.title,
     required this.description,
     required this.totalServices,
     required this.status,
     required this.createdOn,
-    required this.icon,
-    required this.iconColor,
-    required this.iconBgColor,
+    required this.iconType,
+    required this.price,
+    required this.imageUrl,
   });
+
+  factory CategoryModel.fromMap(Map<String, dynamic> map, String id) {
+    return CategoryModel(
+      id: id,
+      title: map['title'] ?? map['name'] ?? '',
+      description: map['description'] ?? '',
+      totalServices: map['totalServices'] ?? 0,
+      status: map['status'] ?? 'Active',
+      createdOn: map['createdOn'] ?? '',
+      iconType: map['iconType'] ?? 'Home',
+      price: (map['price'] ?? 0.0).toDouble(),
+      imageUrl: map['imageUrl'] ?? '',
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'title': title,
+      'description': description,
+      'totalServices': totalServices,
+      'status': status,
+      'createdOn': createdOn,
+      'iconType': iconType,
+      'price': price,
+      'imageUrl': imageUrl,
+    };
+  }
 }
 
 class ServiceCategoriesPage extends StatefulWidget {
@@ -37,98 +70,7 @@ class _ServiceCategoriesPageState extends State<ServiceCategoriesPage> {
 
   String _searchQuery = "";
 
-  final List<CategoryModel> _categoriesList = [
-    CategoryModel(
-      name: "Vehicle Cleaning",
-      description: "Services related to cleaning all types of vehicles",
-      totalServices: 25,
-      status: "Active",
-      createdOn: "May 10, 2024",
-      icon: Icons.directions_car_rounded,
-      iconColor: const Color(0xFF3B82F6),
-      iconBgColor: const Color(0xFFEFF6FF),
-    ),
-    CategoryModel(
-      name: "Home Cleaning",
-      description: "Home, room, sofa, kitchen and other cleaning services",
-      totalServices: 32,
-      status: "Active",
-      createdOn: "May 10, 2024",
-      icon: Icons.home_rounded,
-      iconColor: const Color(0xFFF59E0B),
-      iconBgColor: const Color(0xFFFEF3C7),
-    ),
-    CategoryModel(
-      name: "Pet Grooming",
-      description: "Pet grooming, bathing and related services",
-      totalServices: 18,
-      status: "Active",
-      createdOn: "May 11, 2024",
-      icon: Icons.pets_rounded,
-      iconColor: const Color(0xFF8B5CF6),
-      iconBgColor: const Color(0xFFF5F3FF),
-    ),
-    CategoryModel(
-      name: "Garden Services",
-      description: "Lawn mowing, trimming, planting and garden care",
-      totalServices: 12,
-      status: "Active",
-      createdOn: "May 11, 2024",
-      icon: Icons.local_florist_rounded,
-      iconColor: const Color(0xFF10B981),
-      iconBgColor: const Color(0xFFECFDF5),
-    ),
-    CategoryModel(
-      name: "Office Cleaning",
-      description: "Office, commercial and workspace cleaning services",
-      totalServices: 15,
-      status: "Active",
-      createdOn: "May 12, 2024",
-      icon: Icons.business_rounded,
-      iconColor: const Color(0xFF3B82F6),
-      iconBgColor: const Color(0xFFEFF6FF),
-    ),
-    CategoryModel(
-      name: "Interior Cleaning",
-      description: "Interior deep cleaning for homes and offices",
-      totalServices: 10,
-      status: "Active",
-      createdOn: "May 12, 2024",
-      icon: Icons.chair_rounded,
-      iconColor: const Color(0xFF06B6D4),
-      iconBgColor: const Color(0xFFECFEFF),
-    ),
-    CategoryModel(
-      name: "Bathroom Cleaning",
-      description: "Bathroom, toilet and wash area cleaning",
-      totalServices: 6,
-      status: "Active",
-      createdOn: "May 13, 2024",
-      icon: Icons.bathtub_rounded,
-      iconColor: const Color(0xFFF59E0B),
-      iconBgColor: const Color(0xFFFEF3C7),
-    ),
-    CategoryModel(
-      name: "Water Tank Cleaning",
-      description: "Water tank cleaning and maintenance services",
-      totalServices: 5,
-      status: "Active",
-      createdOn: "May 13, 2024",
-      icon: Icons.opacity_rounded,
-      iconColor: const Color(0xFF3B82F6),
-      iconBgColor: const Color(0xFFEFF6FF),
-    ),
-    CategoryModel(
-      name: "AC Duct Cleaning",
-      description: "AC duct, vent and air system cleaning services",
-      totalServices: 5,
-      status: "Inactive",
-      createdOn: "May 14, 2024",
-      icon: Icons.toys_rounded,
-      iconColor: const Color(0xFFEF4444),
-      iconBgColor: const Color(0xFFFEF2F2),
-    ),
-  ];
+  // The hardcoded _categoriesList has been removed. We now stream from Firestore.
 
   @override
   void dispose() {
@@ -138,8 +80,7 @@ class _ServiceCategoriesPageState extends State<ServiceCategoriesPage> {
   }
 
   void _openCreateCategoryDialog() {
-    String? tempIconType;
-    final TextEditingController nameController = TextEditingController();
+    final TextEditingController titleController = TextEditingController();
     final TextEditingController descController = TextEditingController();
 
     showDialog(
@@ -148,6 +89,8 @@ class _ServiceCategoriesPageState extends State<ServiceCategoriesPage> {
           (context) => StatefulBuilder(
             builder:
                 (context, setDialogState) => Dialog(
+                  backgroundColor: Colors.white,
+                  surfaceTintColor: Colors.white,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),
@@ -180,105 +123,108 @@ class _ServiceCategoriesPageState extends State<ServiceCategoriesPage> {
                               ),
                             ],
                           ),
-                          const Divider(color: Color(0xFFE2E8F0), height: 24),
                           const SizedBox(height: 8),
                           Text(
-                            "Category Name",
+                            "Add a new category to organize your services.",
                             style: GoogleFonts.inter(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: const Color(0xFF475569),
+                              color: const Color(0xFF64748B),
+                              fontSize: 14,
                             ),
                           ),
-                          const SizedBox(height: 6),
+                          const SizedBox(height: 16),
+                          const Divider(color: Color(0xFFE2E8F0), height: 1),
+                          const SizedBox(height: 24),
+                          Row(
+                            children: [
+                              Text(
+                                "Title ",
+                                style: GoogleFonts.inter(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: const Color(0xFF1E293B),
+                                ),
+                              ),
+                              Text(
+                                "*",
+                                style: GoogleFonts.inter(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.red,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
                           TextFormField(
-                            controller: nameController,
+                            controller: titleController,
+                            maxLength: 80,
                             decoration: InputDecoration(
                               isDense: true,
-                              hintText: "Enter category name",
+                              prefixIcon: const Icon(
+                                Icons.local_offer_outlined,
+                                color: Color(0xFF047857),
+                                size: 20,
+                              ),
+                              hintText: "Enter category title",
                               hintStyle: GoogleFonts.inter(
                                 color: const Color(0xFF94A3B8),
-                                fontSize: 13,
+                                fontSize: 14,
                               ),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
+                                borderSide: const BorderSide(
+                                  color: Color(0xFF047857),
+                                ),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: const BorderSide(
+                                  color: Color(0xFF047857),
+                                  width: 1.5,
+                                ),
                               ),
                             ),
-                            style: GoogleFonts.inter(fontSize: 13),
+                            style: GoogleFonts.inter(fontSize: 14),
                           ),
                           const SizedBox(height: 16),
                           Text(
                             "Description",
                             style: GoogleFonts.inter(
-                              fontSize: 12,
+                              fontSize: 13,
                               fontWeight: FontWeight.w600,
-                              color: const Color(0xFF475569),
+                              color: const Color(0xFF1E293B),
                             ),
                           ),
-                          const SizedBox(height: 6),
+                          const SizedBox(height: 8),
                           TextFormField(
                             controller: descController,
-                            maxLines: 2,
+                            maxLines: 4,
+                            maxLength: 200,
                             decoration: InputDecoration(
-                              hintText: "Enter category description",
+                              prefixIcon: const Padding(
+                                padding: EdgeInsets.only(bottom: 60),
+                                child: Icon(
+                                  Icons.description_outlined,
+                                  color: Color(0xFF047857),
+                                  size: 20,
+                                ),
+                              ),
+                              hintText:
+                                  "Enter a short description of this category",
                               hintStyle: GoogleFonts.inter(
                                 color: const Color(0xFF94A3B8),
-                                fontSize: 13,
+                                fontSize: 14,
                               ),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
+                                borderSide: const BorderSide(
+                                  color: Color(0xFFE2E8F0),
+                                ),
                               ),
                             ),
-                            style: GoogleFonts.inter(fontSize: 13),
+                            style: GoogleFonts.inter(fontSize: 14),
                           ),
-                          const SizedBox(height: 16),
-                          Text(
-                            "Category Icon Type",
-                            style: GoogleFonts.inter(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: const Color(0xFF475569),
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          DropdownButtonFormField<String>(
-                            isExpanded: true,
-                            value: tempIconType,
-                            hint: Text(
-                              "Select Icon style",
-                              style: GoogleFonts.inter(
-                                fontSize: 13,
-                                color: const Color(0xFF94A3B8),
-                              ),
-                            ),
-                            decoration: InputDecoration(
-                              isDense: true,
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 8,
-                              ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                            items: const [
-                              DropdownMenuItem(
-                                value: "Vehicle",
-                                child: Text("Vehicle"),
-                              ),
-                              DropdownMenuItem(
-                                value: "Home",
-                                child: Text("Home"),
-                              ),
-                              DropdownMenuItem(
-                                value: "Pet",
-                                child: Text("Pet"),
-                              ),
-                            ],
-                            onChanged:
-                                (val) =>
-                                    setDialogState(() => tempIconType = val),
-                          ),
+
                           const SizedBox(height: 24),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.end,
@@ -304,10 +250,8 @@ class _ServiceCategoriesPageState extends State<ServiceCategoriesPage> {
                               ),
                               const SizedBox(width: 12),
                               ElevatedButton(
-                                onPressed: () {
-                                  if (nameController.text.isEmpty ||
-                                      descController.text.isEmpty ||
-                                      tempIconType == null) {
+                                onPressed: () async {
+                                  if (titleController.text.isEmpty) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
                                         content: Text(
@@ -318,43 +262,50 @@ class _ServiceCategoriesPageState extends State<ServiceCategoriesPage> {
                                     return;
                                   }
 
-                                  IconData newIcon = Icons.home_rounded;
-                                  Color newColor = const Color(0xFFF59E0B);
-                                  Color newBgColor = const Color(0xFFFEF3C7);
+                                  try {
+                                    final newCategory = CategoryModel(
+                                      id: '', // Will be assigned by Firestore
+                                      title: titleController.text,
+                                      description: descController.text,
+                                      totalServices: 0,
+                                      status: "Active",
+                                      createdOn: DateFormat(
+                                        'MMM dd, yyyy',
+                                      ).format(DateTime.now()),
+                                      iconType: "Home",
+                                      price: 0.0,
+                                      imageUrl: '',
+                                    );
 
-                                  if (tempIconType == "Vehicle") {
-                                    newIcon = Icons.directions_car_rounded;
-                                    newColor = const Color(0xFF3B82F6);
-                                    newBgColor = const Color(0xFFEFF6FF);
-                                  } else if (tempIconType == "Pet") {
-                                    newIcon = Icons.pets_rounded;
-                                    newColor = const Color(0xFF8B5CF6);
-                                    newBgColor = const Color(0xFFF5F3FF);
+                                    await FirebaseFirestore.instance
+                                        .collection('categories')
+                                        .add(newCategory.toMap());
+
+                                    if (context.mounted) {
+                                      Navigator.pop(context);
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            "New category added successfully!",
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                  } catch (error) {
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            "Failed to add category: $error",
+                                          ),
+                                        ),
+                                      );
+                                    }
                                   }
-
-                                  final newCategory = CategoryModel(
-                                    name: nameController.text,
-                                    description: descController.text,
-                                    totalServices: 0,
-                                    status: "Active",
-                                    createdOn: "May 18, 2024",
-                                    icon: newIcon,
-                                    iconColor: newColor,
-                                    iconBgColor: newBgColor,
-                                  );
-
-                                  setState(() {
-                                    _categoriesList.insert(0, newCategory);
-                                  });
-
-                                  Navigator.pop(context);
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        "New category added successfully!",
-                                      ),
-                                    ),
-                                  );
                                 },
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: const Color(0xFF047857),
@@ -393,35 +344,53 @@ class _ServiceCategoriesPageState extends State<ServiceCategoriesPage> {
         final double width = constraints.maxWidth;
         final bool isSmall = width < 950;
 
-        final filteredList =
-            _categoriesList.where((cat) {
-              return cat.name.toLowerCase().contains(
-                    _searchQuery.toLowerCase(),
-                  ) ||
-                  cat.description.toLowerCase().contains(
-                    _searchQuery.toLowerCase(),
-                  );
-            }).toList();
+        return StreamBuilder<QuerySnapshot>(
+          stream:
+              FirebaseFirestore.instance.collection('categories').snapshots(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
 
-        return Scrollbar(
-          controller: _verticalScrollController,
-          thumbVisibility: true,
-          child: SingleChildScrollView(
-            controller: _verticalScrollController,
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildHeaderAndBreadcrumbs(),
-                const SizedBox(height: 24),
-                _buildStatsGrid(isSmall),
-                const SizedBox(height: 24),
-                _buildFiltersCard(isSmall),
-                const SizedBox(height: 20),
-                _buildTableCard(filteredList, width),
-              ],
-            ),
-          ),
+            final List<CategoryModel> categoriesList = [];
+            if (snapshot.hasData) {
+              for (var doc in snapshot.data!.docs) {
+                final data = doc.data() as Map<String, dynamic>;
+                categoriesList.add(CategoryModel.fromMap(data, doc.id));
+              }
+            }
+
+            final filteredList =
+                categoriesList.where((cat) {
+                  return cat.title.toLowerCase().contains(
+                        _searchQuery.toLowerCase(),
+                      ) ||
+                      cat.description.toLowerCase().contains(
+                        _searchQuery.toLowerCase(),
+                      );
+                }).toList();
+
+            return Scrollbar(
+              controller: _verticalScrollController,
+              thumbVisibility: true,
+              child: SingleChildScrollView(
+                controller: _verticalScrollController,
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildHeaderAndBreadcrumbs(),
+                    const SizedBox(height: 24),
+                    _buildStatsGrid(isSmall, categoriesList),
+                    const SizedBox(height: 24),
+                    _buildFiltersCard(isSmall),
+                    const SizedBox(height: 20),
+                    _buildTableCard(filteredList, width),
+                  ],
+                ),
+              ),
+            );
+          },
         );
       },
     );
@@ -503,11 +472,21 @@ class _ServiceCategoriesPageState extends State<ServiceCategoriesPage> {
     );
   }
 
-  Widget _buildStatsGrid(bool isSmall) {
+  Widget _buildStatsGrid(bool isSmall, List<CategoryModel> categoriesList) {
     int crossAxisCount = 5;
     if (isSmall) {
       crossAxisCount = 2;
     }
+
+    final totalCategories = categoriesList.length;
+    final activeCategories =
+        categoriesList.where((c) => c.status == 'Active').length;
+    final inactiveCategories =
+        categoriesList.where((c) => c.status != 'Active').length;
+    int totalServices = categoriesList.fold(
+      0,
+      (sum, item) => sum + item.totalServices,
+    );
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -519,7 +498,7 @@ class _ServiceCategoriesPageState extends State<ServiceCategoriesPage> {
         final cards = [
           _buildStatsCard(
             title: "Total Categories",
-            value: "9",
+            value: "$totalCategories",
             subtitle: "All service categories",
             icon: Icons.grid_view_rounded,
             color: const Color(0xFF3B82F6),
@@ -527,35 +506,11 @@ class _ServiceCategoriesPageState extends State<ServiceCategoriesPage> {
           ),
           _buildStatsCard(
             title: "Active Categories",
-            value: "8",
+            value: "$activeCategories",
             subtitle: "Currently active",
             icon: Icons.check_circle_outline_rounded,
             color: const Color(0xFF10B981),
             bgColor: const Color(0xFFECFDF5),
-          ),
-          _buildStatsCard(
-            title: "Inactive Categories",
-            value: "1",
-            subtitle: "Currently inactive",
-            icon: Icons.pause_circle_outline_rounded,
-            color: const Color(0xFFF59E0B),
-            bgColor: const Color(0xFFFEF3C7),
-          ),
-          _buildStatsCard(
-            title: "Most Used",
-            value: "Home Services",
-            subtitle: "Top performing category",
-            icon: Icons.star_border_rounded,
-            color: const Color(0xFF8B5CF6),
-            bgColor: const Color(0xFFF5F3FF),
-          ),
-          _buildStatsCard(
-            title: "Total Services",
-            value: "128",
-            subtitle: "Under all categories",
-            icon: Icons.local_offer_outlined,
-            color: const Color(0xFFEF4444),
-            bgColor: const Color(0xFFFEF2F2),
           ),
         ];
 
@@ -684,22 +639,6 @@ class _ServiceCategoriesPageState extends State<ServiceCategoriesPage> {
       ),
     );
 
-    final filterButton = Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-      ),
-      child: IconButton(
-        icon: const Icon(
-          Icons.filter_list_rounded,
-          size: 18,
-          color: Color(0xFF64748B),
-        ),
-        onPressed: () {},
-      ),
-    );
-
     final exportButton = ElevatedButton.icon(
       onPressed: () {},
       icon: const Icon(Icons.download_rounded, size: 14),
@@ -724,7 +663,7 @@ class _ServiceCategoriesPageState extends State<ServiceCategoriesPage> {
           const SizedBox(height: 16),
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
-            children: [filterButton, const SizedBox(width: 12), exportButton],
+            children: [exportButton],
           ),
         ],
       );
@@ -737,15 +676,7 @@ class _ServiceCategoriesPageState extends State<ServiceCategoriesPage> {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
-      child: Row(
-        children: [
-          searchField,
-          const Spacer(),
-          filterButton,
-          const SizedBox(width: 12),
-          exportButton,
-        ],
-      ),
+      child: Row(children: [searchField, const Spacer(), exportButton]),
     );
   }
 
@@ -759,166 +690,142 @@ class _ServiceCategoriesPageState extends State<ServiceCategoriesPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Scrollbar(
-            controller: _horizontalScrollController,
-            thumbVisibility: true,
-            child: SingleChildScrollView(
-              controller: _horizontalScrollController,
-              scrollDirection: Axis.horizontal,
-              child: SizedBox(
-                width: 1200,
-                child: Table(
-                  columnWidths: const {
-                    0: FlexColumnWidth(2.2), // Category
-                    1: FlexColumnWidth(3.0), // Description
-                    2: FlexColumnWidth(1.4), // Total Services
-                    3: FlexColumnWidth(1.4), // Status
-                    4: FlexColumnWidth(1.6), // Created On
-                    5: FlexColumnWidth(1.4), // Actions
-                  },
-                  defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-                  children: [
-                    TableRow(
-                      decoration: const BoxDecoration(
-                        color: Color(0xFFF8FAFC),
-                        border: Border(
-                          bottom: BorderSide(
-                            color: Color(0xFFE2E8F0),
-                            width: 1,
-                          ),
-                        ),
-                      ),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              return Scrollbar(
+                controller: _horizontalScrollController,
+                thumbVisibility: true,
+                child: SingleChildScrollView(
+                  controller: _horizontalScrollController,
+                  scrollDirection: Axis.horizontal,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minWidth:
+                          constraints.maxWidth > 800
+                              ? constraints.maxWidth
+                              : 800,
+                    ),
+                    child: Table(
+                      columnWidths: const {
+                        0: FlexColumnWidth(1.0), // No.
+                        1: FlexColumnWidth(5.0), // Title
+                        2: FlexColumnWidth(3.0), // Created On
+                        3: FlexColumnWidth(2.0), // Actions
+                      },
+                      defaultVerticalAlignment:
+                          TableCellVerticalAlignment.middle,
                       children: [
-                        _buildHeaderCell("Category"),
-                        _buildHeaderCell("Description"),
-                        _buildHeaderCell("Total Services"),
-                        _buildHeaderCell("Status"),
-                        _buildHeaderCell("Created On"),
-                        _buildHeaderCell("Actions"),
+                        TableRow(
+                          decoration: const BoxDecoration(
+                            color: Color(0xFFF8FAFC),
+                            border: Border(
+                              bottom: BorderSide(
+                                color: Color(0xFFE2E8F0),
+                                width: 1,
+                              ),
+                            ),
+                          ),
+                          children: [
+                            _buildHeaderCell("No."),
+                            _buildHeaderCell("Category"),
+                            _buildHeaderCell("Created On"),
+                            _buildHeaderCell("Actions"),
+                          ],
+                        ),
+                        ...categories.asMap().entries.map((entry) {
+                          final index = entry.key;
+                          final cat = entry.value;
+                          return TableRow(
+                            decoration: const BoxDecoration(
+                              border: Border(
+                                bottom: BorderSide(
+                                  color: Color(0xFFF1F5F9),
+                                  width: 1,
+                                ),
+                              ),
+                            ),
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12.0,
+                                  horizontal: 16.0,
+                                ),
+                                child: Text(
+                                  (index + 1).toString(),
+                                  style: GoogleFonts.inter(
+                                    fontSize: 13,
+                                    color: const Color(0xFF64748B),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12.0,
+                                  horizontal: 16.0,
+                                ),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        cat.title,
+                                        style: GoogleFonts.inter(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.bold,
+                                          color: const Color(0xFF0F172A),
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12.0,
+                                  horizontal: 16.0,
+                                ),
+                                child: Text(
+                                  cat.createdOn,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    color: const Color(0xFF64748B),
+                                  ),
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12.0,
+                                  horizontal: 16.0,
+                                ),
+                                child: Row(
+                                  children: [
+                                    _buildActionButton(
+                                      Icons.edit_outlined,
+                                      Colors.blue,
+                                      () {},
+                                    ),
+                                    const SizedBox(width: 8),
+                                    _buildActionButton(
+                                      Icons.delete_outline_rounded,
+                                      Colors.red,
+                                      () {
+                                        _showDeleteConfirmationDialog(cat);
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          );
+                        }),
                       ],
                     ),
-                    ...categories.map((cat) {
-                      return TableRow(
-                        decoration: const BoxDecoration(
-                          border: Border(
-                            bottom: BorderSide(
-                              color: Color(0xFFF1F5F9),
-                              width: 1,
-                            ),
-                          ),
-                        ),
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 12.0,
-                              horizontal: 16.0,
-                            ),
-                            child: Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    color: cat.iconBgColor,
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: Icon(
-                                    cat.icon,
-                                    color: cat.iconColor,
-                                    size: 18,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Text(
-                                    cat.name,
-                                    style: GoogleFonts.inter(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.bold,
-                                      color: const Color(0xFF0F172A),
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 12.0,
-                              horizontal: 16.0,
-                            ),
-                            child: Text(
-                              cat.description,
-                              style: GoogleFonts.inter(
-                                fontSize: 12,
-                                color: const Color(0xFF475569),
-                              ),
-                            ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 12.0,
-                              horizontal: 16.0,
-                            ),
-                            child: Text(
-                              cat.totalServices.toString(),
-                              style: GoogleFonts.inter(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: const Color(0xFF0F172A),
-                              ),
-                            ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 12.0,
-                              horizontal: 16.0,
-                            ),
-                            child: _buildStatusBadge(cat.status),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 12.0,
-                              horizontal: 16.0,
-                            ),
-                            child: Text(
-                              cat.createdOn,
-                              style: GoogleFonts.inter(
-                                fontSize: 12,
-                                color: const Color(0xFF64748B),
-                              ),
-                            ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 12.0,
-                              horizontal: 4.0,
-                            ),
-                            child: Row(
-                              children: [
-                                _buildActionButton(
-                                  Icons.edit_outlined,
-                                  Colors.blue,
-                                  () {},
-                                ),
-                                const SizedBox(width: 8),
-                                _buildActionButton(
-                                  Icons.delete_outline_rounded,
-                                  Colors.red,
-                                  () {
-                                    _showDeleteConfirmationDialog(cat);
-                                  },
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      );
-                    }),
-                  ],
+                  ),
                 ),
-              ),
-            ),
+              );
+            },
           ),
           Padding(
             padding: const EdgeInsets.all(16.0),
@@ -986,12 +893,12 @@ class _ServiceCategoriesPageState extends State<ServiceCategoriesPage> {
       onTap: onTap,
       borderRadius: BorderRadius.circular(6),
       child: Container(
-        padding: const EdgeInsets.all(4),
+        padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(6),
           border: Border.all(color: const Color(0xFFE2E8F0)),
         ),
-        child: Icon(icon, size: 14, color: color),
+        child: Icon(icon, size: 18, color: color),
       ),
     );
   }
@@ -1090,7 +997,7 @@ class _ServiceCategoriesPageState extends State<ServiceCategoriesPage> {
               style: GoogleFonts.inter(fontWeight: FontWeight.bold),
             ),
             content: Text(
-              "Are you sure you want to delete ${cat.name}? This action cannot be undone.",
+              "Are you sure you want to delete ${cat.title}? This action cannot be undone.",
             ),
             actions: [
               TextButton(
@@ -1101,16 +1008,33 @@ class _ServiceCategoriesPageState extends State<ServiceCategoriesPage> {
                 ),
               ),
               TextButton(
-                onPressed: () {
-                  setState(() {
-                    _categoriesList.remove(cat);
-                  });
+                onPressed: () async {
+                  // Close the dialog first
                   Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text("Category deleted successfully."),
-                    ),
-                  );
+
+                  try {
+                    // Delete the document from Firestore
+                    await FirebaseFirestore.instance
+                        .collection('categories')
+                        .doc(cat.id)
+                        .delete();
+
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text("Category deleted successfully."),
+                        ),
+                      );
+                    }
+                  } catch (error) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text("Failed to delete category: $error"),
+                        ),
+                      );
+                    }
+                  }
                 },
                 child: Text(
                   "Delete",

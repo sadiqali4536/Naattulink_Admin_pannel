@@ -17,7 +17,7 @@ service cloud.firestore {
     //      (developers, super admins who haven't set up a separate web account yet).
     //      → looks up admin_users/{request.auth.uid} directly.
     //   B) The caller is signed in with a web-panel account
-    //      (email: {uid}_adm@naattulink).
+    //      (email: {uid}_adm@naattulink.internal).
     //      → looks up web_auth_index/{request.auth.uid} to resolve the original uid,
     //        then reads admin_users/{originalUid}.
     function getAdminData() {
@@ -280,6 +280,14 @@ service cloud.firestore {
 
       // Super Admin only can delete index entries
       allow delete: if isSuperAdmin();
+    }
+
+    // =========================================================================
+    // advertisements collection
+    // =========================================================================
+    match /advertisements/{adId} {
+      allow read: if true;
+      allow write: if isActiveAdmin();
     }
 
     // =========================================================================
