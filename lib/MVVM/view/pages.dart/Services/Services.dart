@@ -6,6 +6,7 @@ import 'package:file_picker/file_picker.dart';
 import 'dart:typed_data';
 import 'dart:async';
 import 'package:swiftclean_admin/modules/services/service_image_service.dart';
+import 'package:swiftclean_admin/MVVM/utils/printer_helper.dart';
 
 class ServiceModel {
   final String id;
@@ -762,7 +763,7 @@ class _ServicesState extends State<Services> {
                         const SizedBox(height: 24),
                         _buildStatsGrid(isSmall, fetchedServices),
                         const SizedBox(height: 24),
-                        _buildFiltersCard(isSmall),
+                        _buildFiltersCard(isSmall, filteredList),
                         const SizedBox(height: 20),
                         _buildTableCard(
                           filteredList,
@@ -1002,7 +1003,7 @@ class _ServicesState extends State<Services> {
     );
   }
 
-  Widget _buildFiltersCard(bool isSmall) {
+  Widget _buildFiltersCard(bool isSmall, List<ServiceModel> filteredList) {
     final searchField = SizedBox(
       width: isSmall ? double.infinity : 260,
       height: 38,
@@ -1121,24 +1122,8 @@ class _ServicesState extends State<Services> {
       ),
     );
 
-    final filterButton = Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-      ),
-      child: IconButton(
-        icon: const Icon(
-          Icons.filter_list_rounded,
-          size: 18,
-          color: Color(0xFF64748B),
-        ),
-        onPressed: () {},
-      ),
-    );
-
     final exportButton = ElevatedButton.icon(
-      onPressed: () {},
+      onPressed: () => _exportToPdf(filteredList),
       icon: const Icon(Icons.download_rounded, size: 14),
       label: Text(
         "Export",
@@ -1165,7 +1150,7 @@ class _ServicesState extends State<Services> {
           const SizedBox(height: 16),
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
-            children: [filterButton, const SizedBox(width: 12), exportButton],
+            children: [exportButton],
           ),
         ],
       );
@@ -1186,8 +1171,6 @@ class _ServicesState extends State<Services> {
           const SizedBox(width: 12),
           statusDropdown,
           const Spacer(),
-          filterButton,
-          const SizedBox(width: 12),
           exportButton,
         ],
       ),
@@ -1786,5 +1769,20 @@ class _ServicesState extends State<Services> {
             ],
           ),
     );
+  }
+
+  Future<void> _exportToPdf(List<ServiceModel> filteredList) async {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Preparing export... Please wait.")),
+    );
+    try {
+      printServicesList(filteredList);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Error exporting: $e")));
+      }
+    }
   }
 }

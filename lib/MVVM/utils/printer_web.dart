@@ -4,6 +4,8 @@ import 'package:swiftclean_admin/MVVM/view/pages.dart/User/User_roles.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/User/Banned_users.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/worker/All_workers.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/Bookings/Bookings.dart';
+import 'package:swiftclean_admin/MVVM/view/pages.dart/Services/Services.dart';
+import 'package:swiftclean_admin/MVVM/view/pages.dart/Services/Categories.dart';
 
 void printUsersList(List<UserModel> users) {
   final htmlBuffer = StringBuffer();
@@ -284,9 +286,12 @@ void printRolesList(List<RoleModel> roles) {
 
   for (final role in roles) {
     final statusClass =
-        role.status.toLowerCase() == 'active' ? 'status-active' : 'status-inactive';
+        role.status.toLowerCase() == 'active'
+            ? 'status-active'
+            : 'status-inactive';
 
-    final colorHex = '#${role.badgeColor.toARGB32().toRadixString(16).substring(2).padLeft(6, '0').toUpperCase()}';
+    final colorHex =
+        '#${role.badgeColor.toARGB32().toRadixString(16).substring(2).padLeft(6, '0').toUpperCase()}';
 
     htmlBuffer.write('''
           <tr>
@@ -346,11 +351,30 @@ String _formatDisplayDate(String dateStr) {
       final yearVal = int.tryParse(parts[2]);
       if (dayVal != null && yearVal != null) {
         const months = {
-          'jan': 1, 'feb': 2, 'mar': 3, 'apr': 4, 'may': 5, 'jun': 6,
-          'jul': 7, 'aug': 8, 'sep': 9, 'oct': 10, 'nov': 11, 'dec': 12,
-          'january': 1, 'february': 2, 'march': 3, 'april': 4, 'may_full': 5,
-          'june': 6, 'july': 7, 'august': 8, 'september': 9, 'october': 10,
-          'november': 11, 'december': 12
+          'jan': 1,
+          'feb': 2,
+          'mar': 3,
+          'apr': 4,
+          'may': 5,
+          'jun': 6,
+          'jul': 7,
+          'aug': 8,
+          'sep': 9,
+          'oct': 10,
+          'nov': 11,
+          'dec': 12,
+          'january': 1,
+          'february': 2,
+          'march': 3,
+          'april': 4,
+          'may_full': 5,
+          'june': 6,
+          'july': 7,
+          'august': 8,
+          'september': 9,
+          'october': 10,
+          'november': 11,
+          'december': 12,
         };
         int? monthVal;
         months.forEach((key, val) {
@@ -557,9 +581,9 @@ void printWorkersList(List<WorkerModel> workers) {
   for (final w in workers) {
     final statusClass = switch (w.status.toLowerCase()) {
       'approved' => 'status-approved',
-      'pending'  => 'status-pending',
+      'pending' => 'status-pending',
       'rejected' => 'status-rejected',
-      _          => 'status-suspended',
+      _ => 'status-suspended',
     };
     final name = _escapeHtml(w.name);
     final id = _escapeHtml(w.id);
@@ -577,20 +601,20 @@ void printWorkersList(List<WorkerModel> workers) {
     htmlBuffer.write('''
           <tr>
             <td>
-              <div style="font-weight: 600; color: #0F172A;">${name}</div>
-              <div style="color: #64748B; font-size: 11px; margin-top: 2px;">${id}</div>
+              <div style="font-weight: 600; color: #0F172A;">$name</div>
+              <div style="color: #64748B; font-size: 11px; margin-top: 2px;">$id</div>
             </td>
             <td>
-              <div style="font-size: 12px;">${phone}</div>
-              <div style="color: #64748B; font-size: 11px; margin-top: 2px;">${email}</div>
+              <div style="font-size: 12px;">$phone</div>
+              <div style="color: #64748B; font-size: 11px; margin-top: 2px;">$email</div>
             </td>
-            <td>${category}</td>
-            <td>${experience}</td>
-            <td><span class="verified-badge">${verification}</span></td>
-            <td><span class="status ${statusClass}">${status}</span></td>
-            <td><strong style="color: #F59E0B;">&#9733;</strong> ${rating} <span style="color:#94A3B8;font-size:10px;">(${ratingsCount})</span></td>
-            <td><strong>${jobsCompleted}</strong></td>
-            <td>${joinedOn}</td>
+            <td>$category</td>
+            <td>$experience</td>
+            <td><span class="verified-badge">$verification</span></td>
+            <td><span class="status $statusClass">$status</span></td>
+            <td><strong style="color: #F59E0B;">&#9733;</strong> $rating <span style="color:#94A3B8;font-size:10px;">($ratingsCount)</span></td>
+            <td><strong>$jobsCompleted</strong></td>
+            <td>$joinedOn</td>
           </tr>
     ''');
   }
@@ -674,12 +698,12 @@ void printBookingsList(List<BookingModel> bookings) {
       'completed' => 'status-completed',
       'confirmed' => 'status-confirmed',
       'cancelled' => 'status-cancelled',
-      _          => 'status-pending',
+      _ => 'status-pending',
     };
     final paymentClass = switch (b.paymentStatus.toLowerCase()) {
-      'paid'   => 'payment-paid',
+      'paid' => 'payment-paid',
       'failed' => 'payment-failed',
-      _        => 'payment-pending',
+      _ => 'payment-pending',
     };
 
     final id = _escapeHtml(b.id);
@@ -697,24 +721,24 @@ void printBookingsList(List<BookingModel> bookings) {
     htmlBuffer.write('''
           <tr>
             <td>
-              <div style="font-weight: 600; color: #0F172A;">${id}</div>
-              <div style="color: #64748B; font-size: 11px; margin-top: 2px;">${dateTime}</div>
+              <div style="font-weight: 600; color: #0F172A;">$id</div>
+              <div style="color: #64748B; font-size: 11px; margin-top: 2px;">$dateTime</div>
             </td>
             <td>
-              <div style="font-weight: 600;">${customerName}</div>
-              <div style="color: #64748B; font-size: 11px; margin-top: 2px;">${customerPhone}</div>
+              <div style="font-weight: 600;">$customerName</div>
+              <div style="color: #64748B; font-size: 11px; margin-top: 2px;">$customerPhone</div>
             </td>
             <td>
-              <div style="font-weight: 600;">${workerName}</div>
-              <div style="color: #64748B; font-size: 11px; margin-top: 2px;">${workerPhone}</div>
+              <div style="font-weight: 600;">$workerName</div>
+              <div style="color: #64748B; font-size: 11px; margin-top: 2px;">$workerPhone</div>
             </td>
             <td>
-              <div style="font-weight: 600;">${serviceName}</div>
-              <div style="color: #64748B; font-size: 11px; margin-top: 2px;">${category}</div>
+              <div style="font-weight: 600;">$serviceName</div>
+              <div style="color: #64748B; font-size: 11px; margin-top: 2px;">$category</div>
             </td>
-            <td><strong>₹${amount}</strong></td>
-            <td><span class="payment-status ${paymentClass}">${paymentStatus}</span></td>
-            <td><span class="status ${statusClass}">${status}</span></td>
+            <td><strong>₹$amount</strong></td>
+            <td><span class="payment-status $paymentClass">$paymentStatus</span></td>
+            <td><span class="status $statusClass">$status</span></td>
           </tr>
     ''');
   }
@@ -734,6 +758,234 @@ void printBookingsList(List<BookingModel> bookings) {
   final finalHtml = htmlBuffer
       .toString()
       .replaceFirst('TOTAL_COUNT', bookings.length.toString())
+      .replaceFirst('GENERATED_DATE', DateTime.now().toString().split('.')[0]);
+
+  final blob = html.Blob([finalHtml], 'text/html');
+  final url = html.Url.createObjectUrlFromBlob(blob);
+  html.window.open(url, '_blank');
+}
+
+void printServicesList(List<ServiceModel> services) {
+  final htmlBuffer = StringBuffer();
+  htmlBuffer.write('''
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>Services Directory Export</title>
+      <style>
+        body { font-family: 'Inter', sans-serif; margin: 40px; color: #1E293B; background-color: #FFFFFF; }
+        h1 { font-size: 22px; margin: 0; color: #0F172A; font-weight: 700; }
+        .header-container { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; border-bottom: 2px solid #DBEAFE; padding-bottom: 16px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #E2E8F0; padding: 10px 12px; text-align: left; font-size: 12px; }
+        th { background-color: #EFF6FF; font-weight: 600; color: #1E40AF; text-transform: uppercase; font-size: 11px; }
+        tr:nth-child(even) { background-color: #F8FAFC; }
+      </style>
+    </head>
+    <body>
+      <div class="header-container">
+        <div>
+          <h1>Services Directory</h1>
+          <p style="margin: 4px 0 0 0; font-size: 12px; color: #64748B;">Total Services: TOTAL_COUNT | Generated on GENERATED_DATE</p>
+        </div>
+        <button onclick="window.print()" style="padding: 10px 20px; background-color: #3B82F6; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-family: inherit; font-size: 13px;">Print / Save PDF</button>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Service ID</th>
+            <th>Name</th>
+            <th>Category</th>
+            <th>Original Price</th>
+            <th>Final Price</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+  ''');
+
+  for (final s in services) {
+    final id = _escapeHtml(s.id);
+    final name = _escapeHtml(s.name);
+    final category = _escapeHtml(s.category);
+    final originalPrice = s.originalPrice.toStringAsFixed(2);
+    final finalPrice = s.finalPrice.toStringAsFixed(2);
+    final status = _escapeHtml(s.status);
+
+    htmlBuffer.write('''
+          <tr>
+            <td>$id</td>
+            <td><strong>$name</strong></td>
+            <td>$category</td>
+            <td>₹$originalPrice</td>
+            <td>₹$finalPrice</td>
+            <td>$status</td>
+          </tr>
+    ''');
+  }
+
+  htmlBuffer.write('''
+        </tbody>
+      </table>
+      <script> window.addEventListener('load', () => { setTimeout(() => { window.print(); }, 500); }); </script>
+    </body>
+    </html>
+  ''');
+
+  final finalHtml = htmlBuffer
+      .toString()
+      .replaceFirst('TOTAL_COUNT', services.length.toString())
+      .replaceFirst('GENERATED_DATE', DateTime.now().toString().split('.')[0]);
+
+  final blob = html.Blob([finalHtml], 'text/html');
+  final url = html.Url.createObjectUrlFromBlob(blob);
+  html.window.open(url, '_blank');
+}
+
+void printCategoriesList(List<CategoryModel> categories) {
+  final htmlBuffer = StringBuffer();
+  htmlBuffer.write('''
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>Categories Directory Export</title>
+      <style>
+        body { font-family: 'Inter', sans-serif; margin: 40px; color: #1E293B; background-color: #FFFFFF; }
+        h1 { font-size: 22px; margin: 0; color: #0F172A; font-weight: 700; }
+        .header-container { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; border-bottom: 2px solid #DBEAFE; padding-bottom: 16px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #E2E8F0; padding: 10px 12px; text-align: left; font-size: 12px; }
+        th { background-color: #EFF6FF; font-weight: 600; color: #1E40AF; text-transform: uppercase; font-size: 11px; }
+        tr:nth-child(even) { background-color: #F8FAFC; }
+      </style>
+    </head>
+    <body>
+      <div class="header-container">
+        <div>
+          <h1>Categories Directory</h1>
+          <p style="margin: 4px 0 0 0; font-size: 12px; color: #64748B;">Total Categories: TOTAL_COUNT | Generated on GENERATED_DATE</p>
+        </div>
+        <button onclick="window.print()" style="padding: 10px 20px; background-color: #3B82F6; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-family: inherit; font-size: 13px;">Print / Save PDF</button>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Category ID</th>
+            <th>Name</th>
+          </tr>
+        </thead>
+        <tbody>
+  ''');
+
+  for (final c in categories) {
+    final id = _escapeHtml(c.id);
+    final name = _escapeHtml(c.title);
+
+    htmlBuffer.write('''
+          <tr>
+            <td>$id</td>
+            <td><strong>$name</strong></td>
+          </tr>
+    ''');
+  }
+
+  htmlBuffer.write('''
+        </tbody>
+      </table>
+      <script> window.addEventListener('load', () => { setTimeout(() => { window.print(); }, 500); }); </script>
+    </body>
+    </html>
+  ''');
+
+  final finalHtml = htmlBuffer
+      .toString()
+      .replaceFirst('TOTAL_COUNT', categories.length.toString())
+      .replaceFirst('GENERATED_DATE', DateTime.now().toString().split('.')[0]);
+
+  final blob = html.Blob([finalHtml], 'text/html');
+  final url = html.Url.createObjectUrlFromBlob(blob);
+  html.window.open(url, '_blank');
+}
+
+void exportPaymentsToPdfWeb(List<Map<String, String>> payments) {
+  final htmlBuffer = StringBuffer();
+  htmlBuffer.write('''
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>Payments Directory Export</title>
+      <style>
+        body { font-family: 'Inter', sans-serif; margin: 40px; color: #1E293B; background-color: #FFFFFF; }
+        h1 { font-size: 22px; margin: 0; color: #0F172A; font-weight: 700; }
+        .header-container { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; border-bottom: 2px solid #DBEAFE; padding-bottom: 16px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #E2E8F0; padding: 10px 12px; text-align: left; font-size: 12px; }
+        th { background-color: #EFF6FF; font-weight: 600; color: #1E40AF; text-transform: uppercase; font-size: 11px; }
+        tr:nth-child(even) { background-color: #F8FAFC; }
+      </style>
+    </head>
+    <body>
+      <div class="header-container">
+        <div>
+          <h1>Payments Directory</h1>
+          <p style="margin: 4px 0 0 0; font-size: 12px; color: #64748B;">Total Payments: TOTAL_COUNT | Generated on GENERATED_DATE</p>
+        </div>
+        <button onclick="window.print()" style="padding: 10px 20px; background-color: #3B82F6; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-family: inherit; font-size: 13px;">Print / Save PDF</button>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>No.</th>
+            <th>Transaction ID</th>
+            <th>Item Name</th>
+            <th>Amount</th>
+            <th>Booking ID</th>
+            <th>Payment Mode</th>
+            <th>Status</th>
+            <th>Date &amp; Time</th>
+          </tr>
+        </thead>
+        <tbody>
+  ''');
+
+  int index = 1;
+  for (final p in payments) {
+    final transactionId = _escapeHtml(p['transactionId'] ?? '');
+    final itemName = _escapeHtml(p['itemName'] ?? '');
+    final amount = _escapeHtml(p['amount'] ?? '');
+    final bookingId = _escapeHtml(p['bookingId'] ?? '');
+    final paymentMode = _escapeHtml(p['paymentMode'] ?? '');
+    final status = _escapeHtml(p['status'] ?? '');
+    final dateTime = _escapeHtml(p['dateTime'] ?? '');
+
+    htmlBuffer.write('''
+          <tr>
+            <td>${index++}</td>
+            <td><strong>$transactionId</strong></td>
+            <td>$itemName</td>
+            <td>$amount</td>
+            <td>$bookingId</td>
+            <td>$paymentMode</td>
+            <td>$status</td>
+            <td>$dateTime</td>
+          </tr>
+    ''');
+  }
+
+  htmlBuffer.write('''
+        </tbody>
+      </table>
+      <script> window.addEventListener('load', () => { setTimeout(() => { window.print(); }, 500); }); </script>
+    </body>
+    </html>
+  ''');
+
+  final finalHtml = htmlBuffer
+      .toString()
+      .replaceFirst('TOTAL_COUNT', payments.length.toString())
       .replaceFirst('GENERATED_DATE', DateTime.now().toString().split('.')[0]);
 
   final blob = html.Blob([finalHtml], 'text/html');

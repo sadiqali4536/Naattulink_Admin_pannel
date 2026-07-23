@@ -3,6 +3,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:swiftclean_admin/MVVM/utils/printer_helper.dart';
 
 import 'package:intl/intl.dart';
 
@@ -383,7 +384,7 @@ class _ServiceCategoriesPageState extends State<ServiceCategoriesPage> {
                     const SizedBox(height: 24),
                     _buildStatsGrid(isSmall, categoriesList),
                     const SizedBox(height: 24),
-                    _buildFiltersCard(isSmall),
+                    _buildFiltersCard(isSmall, filteredList),
                     const SizedBox(height: 20),
                     _buildTableCard(filteredList, width),
                   ],
@@ -602,7 +603,7 @@ class _ServiceCategoriesPageState extends State<ServiceCategoriesPage> {
     );
   }
 
-  Widget _buildFiltersCard(bool isSmall) {
+  Widget _buildFiltersCard(bool isSmall, List<CategoryModel> filteredList) {
     final searchField = SizedBox(
       width: isSmall ? double.infinity : 280,
       height: 38,
@@ -640,7 +641,7 @@ class _ServiceCategoriesPageState extends State<ServiceCategoriesPage> {
     );
 
     final exportButton = ElevatedButton.icon(
-      onPressed: () {},
+      onPressed: () => _exportToPdf(filteredList),
       icon: const Icon(Icons.download_rounded, size: 14),
       label: Text(
         "Export",
@@ -1047,5 +1048,20 @@ class _ServiceCategoriesPageState extends State<ServiceCategoriesPage> {
             ],
           ),
     );
+  }
+
+  Future<void> _exportToPdf(List<CategoryModel> filteredList) async {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Preparing export... Please wait.")),
+    );
+    try {
+      printCategoriesList(filteredList);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Error exporting: $e")));
+      }
+    }
   }
 }
