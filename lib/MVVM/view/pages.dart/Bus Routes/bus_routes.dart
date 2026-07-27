@@ -1,85 +1,101 @@
 import 'package:flutter/material.dart';
 
-class Notifications extends StatefulWidget {
-  const Notifications({super.key});
+class BusRoutesPage extends StatefulWidget {
+  const BusRoutesPage({super.key});
 
   @override
-  State<Notifications> createState() => _NotificationsState();
+  State<BusRoutesPage> createState() => _BusRoutesPageState();
 }
 
-class _NotificationsState extends State<Notifications> {
+class _BusRoutesPageState extends State<BusRoutesPage> {
   final List<Map<String, dynamic>> _dummyData = [
     {
-      'title': 'New Bus Route Added',
-      'message': 'New bus route Kozhikode - Vadakara is now available.',
-      'type': 'Bus',
-      'audience': 'All Users',
-      'date': '21 May 2024\n10:30 AM',
-      'status': 'Sent',
-      'recipients': '12,456',
+      'number': 'KLK-01',
+      'name': 'Kozhikode - Mukkam',
+      'from': 'Kozhikode',
+      'to': 'Mukkam',
+      'via': 'Feroke, Kuttikkattoor',
+      'firstBus': '05:30 AM',
+      'lastBus': '09:15 PM',
+      'frequency': '15 mins',
+      'status': 'Active',
     },
     {
-      'title': 'Taxi Service Update',
-      'message': 'We\'ve updated our taxi pricing. Check now for the latest rates.',
-      'type': 'Taxi',
-      'audience': 'All Users',
-      'date': '20 May 2024\n09:15 AM',
-      'status': 'Sent',
-      'recipients': '11,302',
+      'number': 'KLK-02',
+      'name': 'Kozhikode - Vadakara',
+      'from': 'Kozhikode',
+      'to': 'Vadakara',
+      'via': 'Balussery, Koyilandy',
+      'firstBus': '05:45 AM',
+      'lastBus': '09:30 PM',
+      'frequency': '20 mins',
+      'status': 'Active',
     },
     {
-      'title': 'Weekend Special Offer',
-      'message': 'Get 20% off on all taxi rides this weekend! Use code: WEEKEND20',
-      'type': 'Promotion',
-      'audience': 'All Users',
-      'date': '19 May 2024\n06:00 PM',
-      'status': 'Sent',
-      'recipients': '10,875',
+      'number': 'KLK-03',
+      'name': 'Kozhikode - Beypore',
+      'from': 'Kozhikode',
+      'to': 'Beypore',
+      'via': 'Feroke',
+      'firstBus': '06:00 AM',
+      'lastBus': '08:45 PM',
+      'frequency': '30 mins',
+      'status': 'Active',
     },
     {
-      'title': 'Driver KYC Reminder',
-      'message': 'Please complete your KYC verification to continue using NaattuLink.',
-      'type': 'System',
-      'audience': 'Taxi Drivers',
-      'date': '19 May 2024\n11:00 AM',
-      'status': 'Sent',
-      'recipients': '2,145',
+      'number': 'KLK-04',
+      'name': 'Kozhikode - Meppadi',
+      'from': 'Kozhikode',
+      'to': 'Meppadi',
+      'via': 'Perambra, Thamarassery',
+      'firstBus': '08:15 AM',
+      'lastBus': '08:30 PM',
+      'frequency': '45 mins',
+      'status': 'Inactive',
     },
     {
-      'title': 'Maintenance Notice',
-      'message': 'Scheduled maintenance on 22 May 2024 from 01:00 AM to 03:00 AM.',
-      'type': 'System',
-      'audience': 'All Users',
-      'date': '22 May 2024\n01:00 AM',
-      'status': 'Scheduled',
-      'recipients': '48,756',
+      'number': 'KLK-05',
+      'name': 'Kozhikode - Malappuram',
+      'from': 'Kozhikode',
+      'to': 'Malappuram',
+      'via': 'Kondotty',
+      'firstBus': '05:30 AM',
+      'lastBus': '09:00 PM',
+      'frequency': '20 mins',
+      'status': 'Active',
     },
     {
-      'title': 'New Local Ads Feature',
-      'message': 'Now you can promote your business locally with Local Ads.',
-      'type': 'Update',
-      'audience': 'All Users',
-      'date': '23 May 2024\n10:00 AM',
-      'status': 'Scheduled',
-      'recipients': '48,756',
+      'number': 'KLK-06',
+      'name': 'Kozhikode - Wayanad',
+      'from': 'Kozhikode',
+      'to': 'Kalpetta',
+      'via': 'Meppadi',
+      'firstBus': '06:30 AM',
+      'lastBus': '07:30 PM',
+      'frequency': '60 mins',
+      'status': 'Inactive',
     },
     {
-      'title': 'Payment Successful',
-      'message': 'Your payment of ₹560 was successful.',
-      'type': 'Transaction',
-      'audience': 'Specific Users',
-      'date': '18 May 2024\n04:45 PM',
-      'status': 'Sent',
-      'recipients': '1',
+      'number': 'KLK-07',
+      'name': 'Kozhikode - Kannur',
+      'from': 'Kozhikode',
+      'to': 'Kannur',
+      'via': 'Thalassery',
+      'firstBus': '05:15 AM',
+      'lastBus': '09:45 PM',
+      'frequency': '30 mins',
+      'status': 'Active',
     },
     {
-      'title': 'Account Suspended',
-      'message': 'Your account has been temporarily suspended due to policy violation.',
-      'type': 'Alert',
-      'audience': 'Specific Users',
-      'date': '18 May 2024\n03:20 PM',
-      'status': 'Failed',
-      'recipients': '1',
+      'number': 'KLK-08',
+      'name': 'Kozhikode - Nilambur',
+      'from': 'Kozhikode',
+      'to': 'Nilambur',
+      'via': 'Kondotty',
+      'firstBus': '06:00 AM',
+      'lastBus': '08:00 PM',
+      'frequency': '45 mins',
+      'status': 'Removed',
     },
   ];
 
@@ -92,6 +108,8 @@ class _NotificationsState extends State<Notifications> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            _buildBreadcrumb(),
+            const SizedBox(height: 24),
             _buildHeader(),
             const SizedBox(height: 24),
             _buildStatsCards(),
@@ -100,6 +118,33 @@ class _NotificationsState extends State<Notifications> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildBreadcrumb() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Row(
+          children: [
+            const Text(
+              'Dashboard',
+              style: TextStyle(color: Colors.grey, fontSize: 14),
+            ),
+            const SizedBox(width: 8),
+            const Icon(Icons.chevron_right, color: Colors.grey, size: 16),
+            const SizedBox(width: 8),
+            const Text(
+              'Bus Routes',
+              style: TextStyle(
+                color: Colors.black87,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -112,7 +157,7 @@ class _NotificationsState extends State<Notifications> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: const [
             Text(
-              'Notifications',
+              'Bus Routes',
               style: TextStyle(
                 fontSize: 28,
                 fontWeight: FontWeight.bold,
@@ -121,7 +166,7 @@ class _NotificationsState extends State<Notifications> {
             ),
             SizedBox(height: 8),
             Text(
-              'Manage and send notifications to users.',
+              'Manage bus routes, stops, timings and status.',
               style: TextStyle(fontSize: 14, color: Colors.grey),
             ),
           ],
@@ -130,13 +175,20 @@ class _NotificationsState extends State<Notifications> {
           children: [
             OutlinedButton.icon(
               onPressed: () {},
-              icon: const Icon(Icons.send_outlined, color: Colors.black87, size: 20),
+              icon: const Icon(
+                Icons.download_rounded,
+                color: Colors.black87,
+                size: 20,
+              ),
               label: const Text(
-                'Send Notification',
+                'Export',
                 style: TextStyle(color: Colors.black87),
               ),
               style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 16,
+                ),
                 side: const BorderSide(color: Colors.black12),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -148,7 +200,7 @@ class _NotificationsState extends State<Notifications> {
               onPressed: () {},
               icon: const Icon(Icons.add, color: Colors.black87, size: 20),
               label: const Text(
-                'Create Notification',
+                'Add Bus Route',
                 style: TextStyle(
                   color: Colors.black87,
                   fontWeight: FontWeight.w600,
@@ -156,7 +208,10 @@ class _NotificationsState extends State<Notifications> {
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFFFC107),
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 16,
+                ),
                 elevation: 0,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -174,9 +229,9 @@ class _NotificationsState extends State<Notifications> {
       children: [
         Expanded(
           child: _buildStatCard(
-            title: 'Total Notifications',
-            value: '256',
-            icon: Icons.notifications,
+            title: 'Total Routes',
+            value: '48',
+            icon: Icons.directions_bus_filled,
             iconBgColor: Colors.blue.shade50,
             iconColor: Colors.blue,
           ),
@@ -184,9 +239,9 @@ class _NotificationsState extends State<Notifications> {
         const SizedBox(width: 16),
         Expanded(
           child: _buildStatCard(
-            title: 'Sent',
-            value: '198',
-            icon: Icons.send,
+            title: 'Active Routes',
+            value: '38',
+            icon: Icons.check_circle_outline,
             iconBgColor: Colors.green.shade50,
             iconColor: Colors.green,
           ),
@@ -194,8 +249,8 @@ class _NotificationsState extends State<Notifications> {
         const SizedBox(width: 16),
         Expanded(
           child: _buildStatCard(
-            title: 'Scheduled',
-            value: '23',
+            title: 'Inactive Routes',
+            value: '6',
             icon: Icons.access_time,
             iconBgColor: Colors.orange.shade50,
             iconColor: Colors.orange,
@@ -204,19 +259,9 @@ class _NotificationsState extends State<Notifications> {
         const SizedBox(width: 16),
         Expanded(
           child: _buildStatCard(
-            title: 'Total Recipients',
-            value: '48,756',
-            icon: Icons.group,
-            iconBgColor: Colors.purple.shade50,
-            iconColor: Colors.purple,
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: _buildStatCard(
-            title: 'Failed',
-            value: '7',
-            icon: Icons.notifications_off,
+            title: 'Removed Routes',
+            value: '4',
+            icon: Icons.cancel_outlined,
             iconBgColor: Colors.red.shade50,
             iconColor: Colors.red,
           ),
@@ -237,15 +282,10 @@ class _NotificationsState extends State<Notifications> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: const Border(
-          bottom: BorderSide(color: Colors.black12, width: 0.5),
-          top: BorderSide(color: Colors.black12, width: 0.5),
-          left: BorderSide(color: Colors.black12, width: 0.5),
-          right: BorderSide(color: Colors.black12, width: 0.5),
-        ),
+        border: Border.all(color: Colors.black12.withOpacity(0.05)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withAlpha(5),
+            color: Colors.black.withOpacity(0.02),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -262,30 +302,27 @@ class _NotificationsState extends State<Notifications> {
             child: Icon(icon, color: iconColor, size: 28),
           ),
           const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: Colors.grey,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
-                  overflow: TextOverflow.ellipsis,
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  color: Colors.grey,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1E293B),
-                  ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1E293B),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ],
       ),
@@ -297,15 +334,10 @@ class _NotificationsState extends State<Notifications> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: const Border(
-          bottom: BorderSide(color: Colors.black12, width: 0.5),
-          top: BorderSide(color: Colors.black12, width: 0.5),
-          left: BorderSide(color: Colors.black12, width: 0.5),
-          right: BorderSide(color: Colors.black12, width: 0.5),
-        ),
+        border: Border.all(color: Colors.black12.withOpacity(0.05)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withAlpha(5),
+            color: Colors.black.withOpacity(0.02),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -332,10 +364,13 @@ class _NotificationsState extends State<Notifications> {
             flex: 2,
             child: TextField(
               decoration: InputDecoration(
-                hintText: 'Search by title or message...',
+                hintText: 'Search by route name or number...',
                 hintStyle: const TextStyle(color: Colors.black38, fontSize: 14),
                 prefixIcon: const Icon(Icons.search, color: Colors.black38),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                   borderSide: const BorderSide(color: Colors.black12),
@@ -352,33 +387,10 @@ class _NotificationsState extends State<Notifications> {
             flex: 1,
             child: DropdownButtonFormField<String>(
               decoration: InputDecoration(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: Colors.black12),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
                 ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: Colors.black12),
-                ),
-              ),
-              hint: const Text('All Types'),
-              items: ['Bus', 'Taxi', 'Promotion', 'System', 'Update', 'Transaction', 'Alert']
-                  .map((String value) {
-                return DropdownMenuItem<String>(
-                  value: value,
-                  child: Text(value),
-                );
-              }).toList(),
-              onChanged: (_) {},
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            flex: 1,
-            child: DropdownButtonFormField<String>(
-              decoration: InputDecoration(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                   borderSide: const BorderSide(color: Colors.black12),
@@ -389,24 +401,25 @@ class _NotificationsState extends State<Notifications> {
                 ),
               ),
               hint: const Text('All Status'),
-              items: ['Sent', 'Scheduled', 'Failed'].map((String value) {
-                return DropdownMenuItem<String>(
-                  value: value,
-                  child: Text(value),
-                );
-              }).toList(),
+              items:
+                  ['Active', 'Inactive', 'Removed'].map((String value) {
+                    return DropdownMenuItem<String>(
+                      value: value,
+                      child: Text(value),
+                    );
+                  }).toList(),
               onChanged: (_) {},
             ),
           ),
           const SizedBox(width: 16),
           Expanded(
             flex: 1,
-            child: TextField(
+            child: DropdownButtonFormField<String>(
               decoration: InputDecoration(
-                hintText: 'Select date range',
-                hintStyle: const TextStyle(color: Colors.black87, fontSize: 14),
-                suffixIcon: const Icon(Icons.calendar_today, color: Colors.black54, size: 20),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                   borderSide: const BorderSide(color: Colors.black12),
@@ -416,7 +429,15 @@ class _NotificationsState extends State<Notifications> {
                   borderSide: const BorderSide(color: Colors.black12),
                 ),
               ),
-              readOnly: true,
+              hint: const Text('All Types'),
+              items:
+                  ['Type A', 'Type B'].map((String value) {
+                    return DropdownMenuItem<String>(
+                      value: value,
+                      child: Text(value),
+                    );
+                  }).toList(),
+              onChanged: (_) {},
             ),
           ),
           const SizedBox(width: 16),
@@ -441,21 +462,23 @@ class _NotificationsState extends State<Notifications> {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: SizedBox(
-        width: 1400,
+        width: 1200, // Fixed width to enable horizontal scrolling
         child: Table(
           columnWidths: const {
-            0: FlexColumnWidth(0.5), // Checkbox
-            1: FlexColumnWidth(2.5), // Title
-            2: FlexColumnWidth(4.0), // Message
-            3: FlexColumnWidth(1.2), // Type
-            4: FlexColumnWidth(1.2), // Audience
-            5: FlexColumnWidth(1.5), // Date
-            6: FlexColumnWidth(1.0), // Status
-            7: FlexColumnWidth(1.0), // Recipients
-            8: FlexColumnWidth(1.2), // Actions
+            0: FlexColumnWidth(1.2), // Route Number
+            1: FlexColumnWidth(1.5), // Route Name
+            2: FlexColumnWidth(1.0), // From
+            3: FlexColumnWidth(1.0), // To
+            4: FlexColumnWidth(1.5), // Via
+            5: FlexColumnWidth(1.0), // First Bus
+            6: FlexColumnWidth(1.0), // Last Bus
+            7: FlexColumnWidth(1.0), // Frequency
+            8: FlexColumnWidth(1.0), // Status
+            9: FlexColumnWidth(1.2), // Actions
           },
           defaultVerticalAlignment: TableCellVerticalAlignment.middle,
           children: [
+            // Header Row
             TableRow(
               decoration: BoxDecoration(
                 color: Colors.grey.shade50,
@@ -464,17 +487,19 @@ class _NotificationsState extends State<Notifications> {
                 ),
               ),
               children: [
-                _buildHeaderCheckbox(),
-                _buildHeaderCell('Title'),
-                _buildHeaderCell('Message'),
-                _buildHeaderCell('Type'),
-                _buildHeaderCell('Audience'),
-                _buildHeaderCell('Sent / Scheduled On'),
+                _buildHeaderCell('Route Number'),
+                _buildHeaderCell('Route Name'),
+                _buildHeaderCell('From'),
+                _buildHeaderCell('To'),
+                _buildHeaderCell('Via'),
+                _buildHeaderCell('First Bus'),
+                _buildHeaderCell('Last Bus'),
+                _buildHeaderCell('Frequency'),
                 _buildHeaderCell('Status'),
-                _buildHeaderCell('Recipients'),
                 _buildHeaderCell('Actions'),
               ],
             ),
+            // Data Rows
             ..._dummyData.map((data) {
               return TableRow(
                 decoration: const BoxDecoration(
@@ -483,63 +508,85 @@ class _NotificationsState extends State<Notifications> {
                   ),
                 ),
                 children: [
-                  _buildDataCheckbox(),
                   Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 16.0),
-                    child: Text(
-                      data['title'],
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
-                        color: Colors.black87,
-                      ),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 12.0,
+                      horizontal: 16.0,
+                    ),
+                    child: Row(
+                      children: [
+                        Checkbox(
+                          value: false,
+                          onChanged: (val) {},
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          side: const BorderSide(color: Colors.black26),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          data['number'],
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w500,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
+                  _buildDataCell(data['name']),
+                  _buildDataCell(data['from']),
+                  _buildDataCell(data['to']),
+                  _buildDataCell(data['via']),
+                  _buildDataCell(data['firstBus']),
+                  _buildDataCell(data['lastBus']),
+                  _buildDataCell(data['frequency']),
                   Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 16.0),
-                    child: Text(
-                      data['message'],
-                      style: const TextStyle(fontSize: 13, color: Colors.black54),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 12.0,
+                      horizontal: 16.0,
                     ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 16.0),
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: _buildTypeBadge(data['type']),
-                    ),
-                  ),
-                  _buildDataCell(data['audience']),
-                  _buildDataCell(data['date']),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 16.0),
                     child: Align(
                       alignment: Alignment.centerLeft,
                       child: _buildStatusBadge(data['status']),
                     ),
                   ),
-                  _buildDataCell(data['recipients']),
                   Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 16.0),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 12.0,
+                      horizontal: 16.0,
+                    ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         IconButton(
-                          icon: const Icon(Icons.remove_red_eye_outlined, size: 20, color: Colors.black54),
+                          icon: const Icon(
+                            Icons.remove_red_eye_outlined,
+                            size: 20,
+                            color: Colors.black54,
+                          ),
                           onPressed: () {},
                           padding: EdgeInsets.zero,
                           constraints: const BoxConstraints(),
                         ),
                         const SizedBox(width: 12),
                         IconButton(
-                          icon: const Icon(Icons.copy_outlined, size: 20, color: Colors.black54),
+                          icon: const Icon(
+                            Icons.edit_outlined,
+                            size: 20,
+                            color: Colors.black54,
+                          ),
                           onPressed: () {},
                           padding: EdgeInsets.zero,
                           constraints: const BoxConstraints(),
                         ),
                         const SizedBox(width: 12),
                         IconButton(
-                          icon: const Icon(Icons.delete_outline, size: 20, color: Colors.redAccent),
+                          icon: const Icon(
+                            Icons.delete_outline,
+                            size: 20,
+                            color: Colors.redAccent,
+                          ),
                           onPressed: () {},
                           padding: EdgeInsets.zero,
                           constraints: const BoxConstraints(),
@@ -556,33 +603,9 @@ class _NotificationsState extends State<Notifications> {
     );
   }
 
-  Widget _buildHeaderCheckbox() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 16.0),
-      child: Checkbox(
-        value: false,
-        onChanged: (val) {},
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-        side: const BorderSide(color: Colors.black26),
-      ),
-    );
-  }
-
-  Widget _buildDataCheckbox() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 16.0),
-      child: Checkbox(
-        value: false,
-        onChanged: (val) {},
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-        side: const BorderSide(color: Colors.black26),
-      ),
-    );
-  }
-
   Widget _buildHeaderCell(String title) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 16.0),
+      padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
       child: Text(
         title,
         style: const TextStyle(
@@ -596,63 +619,8 @@ class _NotificationsState extends State<Notifications> {
 
   Widget _buildDataCell(String text) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 16.0),
-      child: Text(text, style: const TextStyle(fontSize: 13, color: Colors.black87)),
-    );
-  }
-
-  Widget _buildTypeBadge(String type) {
-    Color bgColor;
-    Color textColor;
-
-    switch (type) {
-      case 'Bus':
-        bgColor = Colors.blue.shade50;
-        textColor = Colors.blue.shade700;
-        break;
-      case 'Taxi':
-        bgColor = Colors.purple.shade50;
-        textColor = Colors.purple.shade700;
-        break;
-      case 'Promotion':
-        bgColor = Colors.green.shade50;
-        textColor = Colors.green.shade700;
-        break;
-      case 'System':
-        bgColor = Colors.grey.shade200;
-        textColor = Colors.black54;
-        break;
-      case 'Update':
-        bgColor = Colors.blue.shade50;
-        textColor = Colors.blue.shade700;
-        break;
-      case 'Transaction':
-        bgColor = Colors.orange.shade50;
-        textColor = Colors.orange.shade700;
-        break;
-      case 'Alert':
-        bgColor = Colors.red.shade50;
-        textColor = Colors.red.shade700;
-        break;
-      default:
-        bgColor = Colors.grey.shade200;
-        textColor = Colors.black54;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        type,
-        style: TextStyle(
-          color: textColor,
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
+      padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
+      child: Text(text, style: const TextStyle(fontSize: 13)),
     );
   }
 
@@ -661,17 +629,17 @@ class _NotificationsState extends State<Notifications> {
     Color textColor;
 
     switch (status) {
-      case 'Sent':
+      case 'Active':
         bgColor = Colors.green.shade50;
         textColor = Colors.green.shade700;
         break;
-      case 'Scheduled':
-        bgColor = Colors.orange.shade50;
-        textColor = Colors.orange.shade700;
-        break;
-      case 'Failed':
+      case 'Inactive':
         bgColor = Colors.red.shade50;
         textColor = Colors.red.shade700;
+        break;
+      case 'Removed':
+        bgColor = Colors.grey.shade200;
+        textColor = Colors.black54;
         break;
       default:
         bgColor = Colors.grey.shade200;
@@ -702,7 +670,7 @@ class _NotificationsState extends State<Notifications> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           const Text(
-            'Showing 1 to 8 of 256 entries',
+            'Showing 1 to 8 of 48 entries',
             style: TextStyle(color: Colors.grey, fontSize: 13),
           ),
           Row(
@@ -717,7 +685,7 @@ class _NotificationsState extends State<Notifications> {
               const SizedBox(width: 8),
               const Text('...', style: TextStyle(color: Colors.grey)),
               const SizedBox(width: 8),
-              _buildPageNumber('32', false),
+              _buildPageNumber('6', false),
               const SizedBox(width: 8),
               _buildPageButton(Icons.chevron_right, false),
               const SizedBox(width: 16),
@@ -735,7 +703,11 @@ class _NotificationsState extends State<Notifications> {
                       style: TextStyle(fontSize: 13, color: Colors.black87),
                     ),
                     SizedBox(width: 8),
-                    Icon(Icons.keyboard_arrow_down, size: 16, color: Colors.black54),
+                    Icon(
+                      Icons.keyboard_arrow_down,
+                      size: 16,
+                      color: Colors.black54,
+                    ),
                   ],
                 ),
               ),

@@ -1,85 +1,117 @@
 import 'package:flutter/material.dart';
 
-class Notifications extends StatefulWidget {
-  const Notifications({super.key});
+class TaxiDriversPage extends StatefulWidget {
+  const TaxiDriversPage({super.key});
 
   @override
-  State<Notifications> createState() => _NotificationsState();
+  State<TaxiDriversPage> createState() => _TaxiDriversPageState();
 }
 
-class _NotificationsState extends State<Notifications> {
+class _TaxiDriversPageState extends State<TaxiDriversPage> {
   final List<Map<String, dynamic>> _dummyData = [
     {
-      'title': 'New Bus Route Added',
-      'message': 'New bus route Kozhikode - Vadakara is now available.',
-      'type': 'Bus',
-      'audience': 'All Users',
-      'date': '21 May 2024\n10:30 AM',
-      'status': 'Sent',
-      'recipients': '12,456',
+      'name': 'Arun Kumar',
+      'id': 'ID: TAXI001',
+      'phone': '+91 98765 43210',
+      'license': 'KL07 2018 1235567',
+      'vehicleNumber': 'KL07 CP 1234',
+      'vehicleModel': 'Swift Dzire • White',
+      'city': 'Kozhikode',
+      'joinedOn': '12 Apr 2024',
+      'status': 'Active',
+      'earnings': '₹18,650',
+      'avatarColor': Colors.blue,
     },
     {
-      'title': 'Taxi Service Update',
-      'message': 'We\'ve updated our taxi pricing. Check now for the latest rates.',
-      'type': 'Taxi',
-      'audience': 'All Users',
-      'date': '20 May 2024\n09:15 AM',
-      'status': 'Sent',
-      'recipients': '11,302',
+      'name': 'Faisal Rahman',
+      'id': 'ID: TAXI002',
+      'phone': '+91 88991 23456',
+      'license': 'KL11 2017 7654321',
+      'vehicleNumber': 'KL11 BJ 5678',
+      'vehicleModel': 'Innova Crysta • Silver',
+      'city': 'Kozhikode',
+      'joinedOn': '28 Mar 2024',
+      'status': 'Active',
+      'earnings': '₹24,320',
+      'avatarColor': Colors.green,
     },
     {
-      'title': 'Weekend Special Offer',
-      'message': 'Get 20% off on all taxi rides this weekend! Use code: WEEKEND20',
-      'type': 'Promotion',
-      'audience': 'All Users',
-      'date': '19 May 2024\n06:00 PM',
-      'status': 'Sent',
-      'recipients': '10,875',
+      'name': 'Jibin Joseph',
+      'id': 'ID: TAXI003',
+      'phone': '+91 95678 90123',
+      'license': 'KL10 2019 3456789',
+      'vehicleNumber': 'KL10 AZ 9876',
+      'vehicleModel': 'Ertiga • Grey',
+      'city': 'Kozhikode',
+      'joinedOn': '05 May 2024',
+      'status': 'Pending',
+      'earnings': '-',
+      'avatarColor': Colors.orange,
     },
     {
-      'title': 'Driver KYC Reminder',
-      'message': 'Please complete your KYC verification to continue using NaattuLink.',
-      'type': 'System',
-      'audience': 'Taxi Drivers',
-      'date': '19 May 2024\n11:00 AM',
-      'status': 'Sent',
-      'recipients': '2,145',
+      'name': 'Nidheesh N',
+      'id': 'ID: TAXI004',
+      'phone': '+91 70123 45678',
+      'license': 'KL07 2016 9876543',
+      'vehicleNumber': 'KL07 CJ 2468',
+      'vehicleModel': 'WagonR • White',
+      'city': 'Kozhikode',
+      'joinedOn': '18 Feb 2024',
+      'status': 'Active',
+      'earnings': '₹15,920',
+      'avatarColor': Colors.purple,
     },
     {
-      'title': 'Maintenance Notice',
-      'message': 'Scheduled maintenance on 22 May 2024 from 01:00 AM to 03:00 AM.',
-      'type': 'System',
-      'audience': 'All Users',
-      'date': '22 May 2024\n01:00 AM',
-      'status': 'Scheduled',
-      'recipients': '48,756',
+      'name': 'Shafeek T',
+      'id': 'ID: TAXI005',
+      'phone': '+91 99956 78901',
+      'license': 'KL13 2018 4567890',
+      'vehicleNumber': 'KL13 AN 1357',
+      'vehicleModel': 'Swift Dzire • Silver',
+      'city': 'Kozhikode',
+      'joinedOn': '22 Jan 2024',
+      'status': 'Suspended',
+      'earnings': '₹2,450',
+      'avatarColor': Colors.teal,
     },
     {
-      'title': 'New Local Ads Feature',
-      'message': 'Now you can promote your business locally with Local Ads.',
-      'type': 'Update',
-      'audience': 'All Users',
-      'date': '23 May 2024\n10:00 AM',
-      'status': 'Scheduled',
-      'recipients': '48,756',
+      'name': 'Ramesh Babu',
+      'id': 'ID: TAXI006',
+      'phone': '+91 80890 12345',
+      'license': 'KL09 2017 2345678',
+      'vehicleNumber': 'KL09 BC 8642',
+      'vehicleModel': 'Innova • White',
+      'city': 'Kozhikode',
+      'joinedOn': '11 Apr 2024',
+      'status': 'Active',
+      'earnings': '₹21,780',
+      'avatarColor': Colors.indigo,
     },
     {
-      'title': 'Payment Successful',
-      'message': 'Your payment of ₹560 was successful.',
-      'type': 'Transaction',
-      'audience': 'Specific Users',
-      'date': '18 May 2024\n04:45 PM',
-      'status': 'Sent',
-      'recipients': '1',
+      'name': 'Sajid Ali',
+      'id': 'ID: TAXI007',
+      'phone': '+91 81234 56789',
+      'license': 'KL12 2019 8765432',
+      'vehicleNumber': 'KL12 AV 2469',
+      'vehicleModel': 'Xylo • Grey',
+      'city': 'Kozhikode',
+      'joinedOn': '30 Apr 2024',
+      'status': 'Pending',
+      'earnings': '-',
+      'avatarColor': Colors.brown,
     },
     {
-      'title': 'Account Suspended',
-      'message': 'Your account has been temporarily suspended due to policy violation.',
-      'type': 'Alert',
-      'audience': 'Specific Users',
-      'date': '18 May 2024\n03:20 PM',
-      'status': 'Failed',
-      'recipients': '1',
+      'name': 'Vishnu Madhav',
+      'id': 'ID: TAXI008',
+      'phone': '+91 97456 78912',
+      'license': 'KL07 2015 1122334',
+      'vehicleNumber': 'KL07 CH 7890',
+      'vehicleModel': 'Etios • White',
+      'city': 'Kozhikode',
+      'joinedOn': '15 Dec 2023',
+      'status': 'Inactive',
+      'earnings': '₹0',
+      'avatarColor': Colors.redAccent,
     },
   ];
 
@@ -112,7 +144,7 @@ class _NotificationsState extends State<Notifications> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: const [
             Text(
-              'Notifications',
+              'Taxi Drivers',
               style: TextStyle(
                 fontSize: 28,
                 fontWeight: FontWeight.bold,
@@ -121,7 +153,7 @@ class _NotificationsState extends State<Notifications> {
             ),
             SizedBox(height: 8),
             Text(
-              'Manage and send notifications to users.',
+              'Manage taxi drivers, vehicles and account status.',
               style: TextStyle(fontSize: 14, color: Colors.grey),
             ),
           ],
@@ -130,13 +162,20 @@ class _NotificationsState extends State<Notifications> {
           children: [
             OutlinedButton.icon(
               onPressed: () {},
-              icon: const Icon(Icons.send_outlined, color: Colors.black87, size: 20),
+              icon: const Icon(
+                Icons.download_rounded,
+                color: Colors.black87,
+                size: 20,
+              ),
               label: const Text(
-                'Send Notification',
+                'Export',
                 style: TextStyle(color: Colors.black87),
               ),
               style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 16,
+                ),
                 side: const BorderSide(color: Colors.black12),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -148,7 +187,7 @@ class _NotificationsState extends State<Notifications> {
               onPressed: () {},
               icon: const Icon(Icons.add, color: Colors.black87, size: 20),
               label: const Text(
-                'Create Notification',
+                'Add Taxi Driver',
                 style: TextStyle(
                   color: Colors.black87,
                   fontWeight: FontWeight.w600,
@@ -156,7 +195,10 @@ class _NotificationsState extends State<Notifications> {
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFFFC107),
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 16,
+                ),
                 elevation: 0,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -174,9 +216,9 @@ class _NotificationsState extends State<Notifications> {
       children: [
         Expanded(
           child: _buildStatCard(
-            title: 'Total Notifications',
-            value: '256',
-            icon: Icons.notifications,
+            title: 'Total Drivers',
+            value: '126',
+            icon: Icons.people_outline,
             iconBgColor: Colors.blue.shade50,
             iconColor: Colors.blue,
           ),
@@ -184,9 +226,9 @@ class _NotificationsState extends State<Notifications> {
         const SizedBox(width: 16),
         Expanded(
           child: _buildStatCard(
-            title: 'Sent',
-            value: '198',
-            icon: Icons.send,
+            title: 'Active Drivers',
+            value: '98',
+            icon: Icons.check_circle_outline,
             iconBgColor: Colors.green.shade50,
             iconColor: Colors.green,
           ),
@@ -194,8 +236,8 @@ class _NotificationsState extends State<Notifications> {
         const SizedBox(width: 16),
         Expanded(
           child: _buildStatCard(
-            title: 'Scheduled',
-            value: '23',
+            title: 'Pending Approval',
+            value: '12',
             icon: Icons.access_time,
             iconBgColor: Colors.orange.shade50,
             iconColor: Colors.orange,
@@ -204,21 +246,21 @@ class _NotificationsState extends State<Notifications> {
         const SizedBox(width: 16),
         Expanded(
           child: _buildStatCard(
-            title: 'Total Recipients',
-            value: '48,756',
-            icon: Icons.group,
-            iconBgColor: Colors.purple.shade50,
-            iconColor: Colors.purple,
+            title: 'Inactive / Suspended',
+            value: '14',
+            icon: Icons.block,
+            iconBgColor: Colors.red.shade50,
+            iconColor: Colors.red,
           ),
         ),
         const SizedBox(width: 16),
         Expanded(
           child: _buildStatCard(
-            title: 'Failed',
-            value: '7',
-            icon: Icons.notifications_off,
-            iconBgColor: Colors.red.shade50,
-            iconColor: Colors.red,
+            title: 'Total Vehicles',
+            value: '142',
+            icon: Icons.directions_car_outlined,
+            iconBgColor: Colors.purple.shade50,
+            iconColor: Colors.purple,
           ),
         ),
       ],
@@ -237,15 +279,10 @@ class _NotificationsState extends State<Notifications> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: const Border(
-          bottom: BorderSide(color: Colors.black12, width: 0.5),
-          top: BorderSide(color: Colors.black12, width: 0.5),
-          left: BorderSide(color: Colors.black12, width: 0.5),
-          right: BorderSide(color: Colors.black12, width: 0.5),
-        ),
+        border: Border.all(color: Colors.black12.withOpacity(0.05)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withAlpha(5),
+            color: Colors.black.withOpacity(0.02),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -255,37 +292,31 @@ class _NotificationsState extends State<Notifications> {
         children: [
           Container(
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: iconBgColor,
-              shape: BoxShape.circle,
-            ),
+            decoration: BoxDecoration(color: iconBgColor, shape: BoxShape.circle),
             child: Icon(icon, color: iconColor, size: 28),
           ),
           const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: Colors.grey,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
-                  overflow: TextOverflow.ellipsis,
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  color: Colors.grey,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1E293B),
-                  ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1E293B),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ],
       ),
@@ -297,15 +328,10 @@ class _NotificationsState extends State<Notifications> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: const Border(
-          bottom: BorderSide(color: Colors.black12, width: 0.5),
-          top: BorderSide(color: Colors.black12, width: 0.5),
-          left: BorderSide(color: Colors.black12, width: 0.5),
-          right: BorderSide(color: Colors.black12, width: 0.5),
-        ),
+        border: Border.all(color: Colors.black12.withOpacity(0.05)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withAlpha(5),
+            color: Colors.black.withOpacity(0.02),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -332,10 +358,13 @@ class _NotificationsState extends State<Notifications> {
             flex: 2,
             child: TextField(
               decoration: InputDecoration(
-                hintText: 'Search by title or message...',
+                hintText: 'Search by name, phone or license number...',
                 hintStyle: const TextStyle(color: Colors.black38, fontSize: 14),
                 prefixIcon: const Icon(Icons.search, color: Colors.black38),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                   borderSide: const BorderSide(color: Colors.black12),
@@ -352,33 +381,10 @@ class _NotificationsState extends State<Notifications> {
             flex: 1,
             child: DropdownButtonFormField<String>(
               decoration: InputDecoration(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: Colors.black12),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
                 ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: Colors.black12),
-                ),
-              ),
-              hint: const Text('All Types'),
-              items: ['Bus', 'Taxi', 'Promotion', 'System', 'Update', 'Transaction', 'Alert']
-                  .map((String value) {
-                return DropdownMenuItem<String>(
-                  value: value,
-                  child: Text(value),
-                );
-              }).toList(),
-              onChanged: (_) {},
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            flex: 1,
-            child: DropdownButtonFormField<String>(
-              decoration: InputDecoration(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                   borderSide: const BorderSide(color: Colors.black12),
@@ -389,24 +395,25 @@ class _NotificationsState extends State<Notifications> {
                 ),
               ),
               hint: const Text('All Status'),
-              items: ['Sent', 'Scheduled', 'Failed'].map((String value) {
-                return DropdownMenuItem<String>(
-                  value: value,
-                  child: Text(value),
-                );
-              }).toList(),
+              items:
+                  ['Active', 'Pending', 'Inactive', 'Suspended'].map((String value) {
+                    return DropdownMenuItem<String>(
+                      value: value,
+                      child: Text(value),
+                    );
+                  }).toList(),
               onChanged: (_) {},
             ),
           ),
           const SizedBox(width: 16),
           Expanded(
             flex: 1,
-            child: TextField(
+            child: DropdownButtonFormField<String>(
               decoration: InputDecoration(
-                hintText: 'Select date range',
-                hintStyle: const TextStyle(color: Colors.black87, fontSize: 14),
-                suffixIcon: const Icon(Icons.calendar_today, color: Colors.black54, size: 20),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                   borderSide: const BorderSide(color: Colors.black12),
@@ -416,7 +423,44 @@ class _NotificationsState extends State<Notifications> {
                   borderSide: const BorderSide(color: Colors.black12),
                 ),
               ),
-              readOnly: true,
+              hint: const Text('All Vehicle Types'),
+              items:
+                  ['Sedan', 'SUV', 'Hatchback'].map((String value) {
+                    return DropdownMenuItem<String>(
+                      value: value,
+                      child: Text(value),
+                    );
+                  }).toList(),
+              onChanged: (_) {},
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            flex: 1,
+            child: DropdownButtonFormField<String>(
+              decoration: InputDecoration(
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Colors.black12),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Colors.black12),
+                ),
+              ),
+              hint: const Text('All Cities'),
+              items:
+                  ['Kozhikode', 'Kochi'].map((String value) {
+                    return DropdownMenuItem<String>(
+                      value: value,
+                      child: Text(value),
+                    );
+                  }).toList(),
+              onChanged: (_) {},
             ),
           ),
           const SizedBox(width: 16),
@@ -441,21 +485,22 @@ class _NotificationsState extends State<Notifications> {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: SizedBox(
-        width: 1400,
+        width: 1400, // Fixed width to enable horizontal scrolling
         child: Table(
           columnWidths: const {
-            0: FlexColumnWidth(0.5), // Checkbox
-            1: FlexColumnWidth(2.5), // Title
-            2: FlexColumnWidth(4.0), // Message
-            3: FlexColumnWidth(1.2), // Type
-            4: FlexColumnWidth(1.2), // Audience
-            5: FlexColumnWidth(1.5), // Date
+            0: FlexColumnWidth(2.5), // Driver Details
+            1: FlexColumnWidth(1.5), // Phone
+            2: FlexColumnWidth(1.5), // License No.
+            3: FlexColumnWidth(2.0), // Vehicle Details
+            4: FlexColumnWidth(1.0), // City
+            5: FlexColumnWidth(1.0), // Joined On
             6: FlexColumnWidth(1.0), // Status
-            7: FlexColumnWidth(1.0), // Recipients
+            7: FlexColumnWidth(1.5), // Earnings
             8: FlexColumnWidth(1.2), // Actions
           },
           defaultVerticalAlignment: TableCellVerticalAlignment.middle,
           children: [
+            // Header Row
             TableRow(
               decoration: BoxDecoration(
                 color: Colors.grey.shade50,
@@ -464,17 +509,18 @@ class _NotificationsState extends State<Notifications> {
                 ),
               ),
               children: [
-                _buildHeaderCheckbox(),
-                _buildHeaderCell('Title'),
-                _buildHeaderCell('Message'),
-                _buildHeaderCell('Type'),
-                _buildHeaderCell('Audience'),
-                _buildHeaderCell('Sent / Scheduled On'),
+                _buildHeaderCellWithCheckbox('Driver Details'),
+                _buildHeaderCell('Phone'),
+                _buildHeaderCell('License No.'),
+                _buildHeaderCell('Vehicle Details'),
+                _buildHeaderCell('City'),
+                _buildHeaderCell('Joined On'),
                 _buildHeaderCell('Status'),
-                _buildHeaderCell('Recipients'),
+                _buildHeaderCell('Earnings (This Month)'),
                 _buildHeaderCell('Actions'),
               ],
             ),
+            // Data Rows
             ..._dummyData.map((data) {
               return TableRow(
                 decoration: const BoxDecoration(
@@ -483,63 +529,133 @@ class _NotificationsState extends State<Notifications> {
                   ),
                 ),
                 children: [
-                  _buildDataCheckbox(),
                   Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 16.0),
-                    child: Text(
-                      data['title'],
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
-                        color: Colors.black87,
-                      ),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 12.0,
+                      horizontal: 16.0,
+                    ),
+                    child: Row(
+                      children: [
+                        Checkbox(
+                          value: false,
+                          onChanged: (val) {},
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          side: const BorderSide(color: Colors.black26),
+                        ),
+                        const SizedBox(width: 8),
+                        CircleAvatar(
+                          radius: 16,
+                          backgroundColor: data['avatarColor'],
+                          child: Text(
+                            data['name'][0],
+                            style: const TextStyle(color: Colors.white, fontSize: 14),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              data['name'],
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              data['id'],
+                              style: const TextStyle(
+                                color: Colors.grey,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
+                  _buildDataCell(data['phone']),
+                  _buildDataCell(data['license']),
                   Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 16.0),
-                    child: Text(
-                      data['message'],
-                      style: const TextStyle(fontSize: 13, color: Colors.black54),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 12.0,
+                      horizontal: 16.0,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          data['vehicleNumber'],
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w500,
+                            fontSize: 13,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          data['vehicleModel'],
+                          style: const TextStyle(
+                            color: Colors.grey,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
+                  _buildDataCell(data['city']),
+                  _buildDataCell(data['joinedOn']),
                   Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 16.0),
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: _buildTypeBadge(data['type']),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 12.0,
+                      horizontal: 16.0,
                     ),
-                  ),
-                  _buildDataCell(data['audience']),
-                  _buildDataCell(data['date']),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 16.0),
                     child: Align(
                       alignment: Alignment.centerLeft,
                       child: _buildStatusBadge(data['status']),
                     ),
                   ),
-                  _buildDataCell(data['recipients']),
+                  _buildDataCell(data['earnings']),
                   Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 16.0),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 12.0,
+                      horizontal: 16.0,
+                    ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         IconButton(
-                          icon: const Icon(Icons.remove_red_eye_outlined, size: 20, color: Colors.black54),
+                          icon: const Icon(
+                            Icons.remove_red_eye_outlined,
+                            size: 20,
+                            color: Colors.black54,
+                          ),
                           onPressed: () {},
                           padding: EdgeInsets.zero,
                           constraints: const BoxConstraints(),
                         ),
                         const SizedBox(width: 12),
                         IconButton(
-                          icon: const Icon(Icons.copy_outlined, size: 20, color: Colors.black54),
+                          icon: const Icon(
+                            Icons.edit_outlined,
+                            size: 20,
+                            color: Colors.black54,
+                          ),
                           onPressed: () {},
                           padding: EdgeInsets.zero,
                           constraints: const BoxConstraints(),
                         ),
                         const SizedBox(width: 12),
                         IconButton(
-                          icon: const Icon(Icons.delete_outline, size: 20, color: Colors.redAccent),
+                          icon: const Icon(
+                            Icons.delete_outline,
+                            size: 20,
+                            color: Colors.redAccent,
+                          ),
                           onPressed: () {},
                           padding: EdgeInsets.zero,
                           constraints: const BoxConstraints(),
@@ -556,33 +672,36 @@ class _NotificationsState extends State<Notifications> {
     );
   }
 
-  Widget _buildHeaderCheckbox() {
+  Widget _buildHeaderCellWithCheckbox(String title) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 16.0),
-      child: Checkbox(
-        value: false,
-        onChanged: (val) {},
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-        side: const BorderSide(color: Colors.black26),
-      ),
-    );
-  }
-
-  Widget _buildDataCheckbox() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 16.0),
-      child: Checkbox(
-        value: false,
-        onChanged: (val) {},
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-        side: const BorderSide(color: Colors.black26),
+      padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
+      child: Row(
+        children: [
+          Checkbox(
+            value: false,
+            onChanged: (val) {},
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(4),
+            ),
+            side: const BorderSide(color: Colors.black26),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Colors.black54,
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildHeaderCell(String title) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 16.0),
+      padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
       child: Text(
         title,
         style: const TextStyle(
@@ -596,63 +715,8 @@ class _NotificationsState extends State<Notifications> {
 
   Widget _buildDataCell(String text) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 16.0),
-      child: Text(text, style: const TextStyle(fontSize: 13, color: Colors.black87)),
-    );
-  }
-
-  Widget _buildTypeBadge(String type) {
-    Color bgColor;
-    Color textColor;
-
-    switch (type) {
-      case 'Bus':
-        bgColor = Colors.blue.shade50;
-        textColor = Colors.blue.shade700;
-        break;
-      case 'Taxi':
-        bgColor = Colors.purple.shade50;
-        textColor = Colors.purple.shade700;
-        break;
-      case 'Promotion':
-        bgColor = Colors.green.shade50;
-        textColor = Colors.green.shade700;
-        break;
-      case 'System':
-        bgColor = Colors.grey.shade200;
-        textColor = Colors.black54;
-        break;
-      case 'Update':
-        bgColor = Colors.blue.shade50;
-        textColor = Colors.blue.shade700;
-        break;
-      case 'Transaction':
-        bgColor = Colors.orange.shade50;
-        textColor = Colors.orange.shade700;
-        break;
-      case 'Alert':
-        bgColor = Colors.red.shade50;
-        textColor = Colors.red.shade700;
-        break;
-      default:
-        bgColor = Colors.grey.shade200;
-        textColor = Colors.black54;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        type,
-        style: TextStyle(
-          color: textColor,
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
+      padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
+      child: Text(text, style: const TextStyle(fontSize: 13)),
     );
   }
 
@@ -661,17 +725,21 @@ class _NotificationsState extends State<Notifications> {
     Color textColor;
 
     switch (status) {
-      case 'Sent':
+      case 'Active':
         bgColor = Colors.green.shade50;
         textColor = Colors.green.shade700;
         break;
-      case 'Scheduled':
+      case 'Pending':
         bgColor = Colors.orange.shade50;
         textColor = Colors.orange.shade700;
         break;
-      case 'Failed':
+      case 'Suspended':
         bgColor = Colors.red.shade50;
         textColor = Colors.red.shade700;
+        break;
+      case 'Inactive':
+        bgColor = Colors.grey.shade200;
+        textColor = Colors.black54;
         break;
       default:
         bgColor = Colors.grey.shade200;
@@ -702,7 +770,7 @@ class _NotificationsState extends State<Notifications> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           const Text(
-            'Showing 1 to 8 of 256 entries',
+            'Showing 1 to 8 of 126 entries',
             style: TextStyle(color: Colors.grey, fontSize: 13),
           ),
           Row(
@@ -717,7 +785,7 @@ class _NotificationsState extends State<Notifications> {
               const SizedBox(width: 8),
               const Text('...', style: TextStyle(color: Colors.grey)),
               const SizedBox(width: 8),
-              _buildPageNumber('32', false),
+              _buildPageNumber('16', false),
               const SizedBox(width: 8),
               _buildPageButton(Icons.chevron_right, false),
               const SizedBox(width: 16),
@@ -735,7 +803,11 @@ class _NotificationsState extends State<Notifications> {
                       style: TextStyle(fontSize: 13, color: Colors.black87),
                     ),
                     SizedBox(width: 8),
-                    Icon(Icons.keyboard_arrow_down, size: 16, color: Colors.black54),
+                    Icon(
+                      Icons.keyboard_arrow_down,
+                      size: 16,
+                      color: Colors.black54,
+                    ),
                   ],
                 ),
               ),

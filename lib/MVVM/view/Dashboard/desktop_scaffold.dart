@@ -12,8 +12,13 @@ import 'package:swiftclean_admin/MVVM/view/pages.dart/Loyalty%20Points/Loyalty%2
 import 'package:swiftclean_admin/MVVM/view/pages.dart/Notifications/Notifications.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/Payments/Payments.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/Services/Services.dart';
+import 'package:swiftclean_admin/MVVM/view/pages.dart/Bus Routes/bus_routes.dart';
+import 'package:swiftclean_admin/MVVM/view/pages.dart/Settings/preferences_settings.dart';
+import 'package:swiftclean_admin/MVVM/view/pages.dart/Taxi Drivers/taxi_drivers.dart';
+import 'package:swiftclean_admin/MVVM/view/pages.dart/Reports/reports_overview.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/Services/Categories.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/User/Profile_user.dart';
+import 'package:swiftclean_admin/MVVM/view/pages.dart/AdminProfile/admin_profile.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/User/User_roles.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/User/Banned_users.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/User/Grant_access.dart';
@@ -90,12 +95,12 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
         .where('status', isEqualTo: 'Pending')
         .snapshots()
         .listen((snapshot) {
-      if (mounted) {
-        setState(() {
-          pendingBookingsCount = snapshot.docs.length;
+          if (mounted) {
+            setState(() {
+              pendingBookingsCount = snapshot.docs.length;
+            });
+          }
         });
-      }
-    });
   }
 
   bool _can(String module, String action) =>
@@ -105,6 +110,12 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
     switch (selectedTile) {
       case "Dashboard":
         return const Dashboard();
+      case "Settings":
+        return PermissionGuard(
+          module: Modules.settings,
+          action: Perms.view,
+          child: const PreferencesSettingsPage(),
+        );
       case "Worker Profile":
         return PermissionGuard(
           module: Modules.workerManagement,
@@ -284,19 +295,22 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
           Icons.shopping_cart_rounded,
         );
       case "Bus Routes":
-        return _buildPlaceholderPage(
-          "Bus Routes",
-          Icons.directions_bus_rounded,
-        );
+        return const BusRoutesPage();
       case "Taxi Drivers":
-        return _buildPlaceholderPage("Taxi Drivers", Icons.local_taxi_rounded);
+        return const TaxiDriversPage();
       case "Coupons":
         return _buildPlaceholderPage(
           "Coupons & Offers",
           Icons.local_offer_rounded,
         );
       case "Profile":
-        return _buildPlaceholderPage("Admin Profile", Icons.person_rounded);
+        return const AdminProfilePage();
+      case "Reports":
+        return PermissionGuard(
+          module: Modules.reports,
+          action: Perms.view,
+          child: const ReportsOverviewPage(),
+        );
       default:
         return Center(
           child: Text(
@@ -710,37 +724,22 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
                                   ),
                             ),
                           if (_can(Modules.reports, Perms.view))
-                            SidebarExpansionTile(
+                            SidebarTile(
                               title: "Reports",
                               icon: Icons.bar_chart_rounded,
-                              children: [
-                                SidebarTile(
-                                  title: "Overview",
-                                  icon: Icons.trending_up_rounded,
-                                  isSelected:
-                                      selectedTile == "Reports Overview",
-                                  onTap:
-                                      () => setState(
-                                        () => selectedTile = "Reports Overview",
-                                      ),
-                                ),
-                              ],
+                              isSelected: selectedTile == "Reports",
+                              onTap:
+                                  () =>
+                                      setState(() => selectedTile = "Reports"),
                             ),
                           if (_can(Modules.settings, Perms.view))
-                            SidebarExpansionTile(
+                            SidebarTile(
                               title: "Settings",
                               icon: Icons.settings_rounded,
-                              children: [
-                                SidebarTile(
-                                  title: "Preferences",
-                                  icon: Icons.tune_rounded,
-                                  isSelected: selectedTile == "Preferences",
-                                  onTap:
-                                      () => setState(
-                                        () => selectedTile = "Preferences",
-                                      ),
-                                ),
-                              ],
+                              isSelected: selectedTile == "Settings",
+                              onTap:
+                                  () =>
+                                      setState(() => selectedTile = "Settings"),
                             ),
                           SidebarTile(
                             title: "Profile",
@@ -788,30 +787,43 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
       child: Row(
         children: [
           Container(
-            width: 36,
-            height: 36,
-            decoration: const BoxDecoration(
-              color: Color(0xFF10B981), // Green
-              shape: BoxShape.circle,
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
             ),
-            child: const Center(
-              child: Icon(
-                Icons.spa_rounded, // Leaf style icon
-                color: Colors.white,
-                size: 20,
-              ),
+            child: Image.asset(
+              'assets/icon/logo.png',
+              width: 32,
+              height: 32,
+              errorBuilder:
+                  (context, error, stackTrace) => const Icon(
+                    Icons.location_on,
+                    color: Color(0xFFFFC107),
+                    size: 32,
+                  ),
             ),
           ),
           const SizedBox(width: 12),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                "NaattuLink",
-                style: GoogleFonts.inter(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
+              RichText(
+                text: TextSpan(
+                  style: GoogleFonts.inter(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  children: const [
+                    TextSpan(
+                      text: "Naattu",
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    TextSpan(
+                      text: "Link",
+                      style: TextStyle(color: Color(0xFFFFC107)),
+                    ),
+                  ],
                 ),
               ),
               Text(
@@ -854,7 +866,7 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
           TopBarBadgeIcon(
             icon: Icons.notifications_none_rounded,
             count: 5,
-            onTap: () => _showNotificationsDialog(context),
+            onTap: () => setState(() => selectedTile = "Notifications"),
           ),
           const SizedBox(width: 20),
 
@@ -1001,38 +1013,39 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
                                         (note) => Material(
                                           color: Colors.transparent,
                                           child: ListTile(
-                                          leading: Container(
-                                            padding: const EdgeInsets.all(8),
-                                            decoration: BoxDecoration(
-                                              color: note.color.withValues(
-                                                alpha: 0.1,
+                                            leading: Container(
+                                              padding: const EdgeInsets.all(8),
+                                              decoration: BoxDecoration(
+                                                color: note.color.withValues(
+                                                  alpha: 0.1,
+                                                ),
+                                                shape: BoxShape.circle,
                                               ),
-                                              shape: BoxShape.circle,
-                                            ),
-                                            child: Icon(
-                                              note.icon,
-                                              color: note.color,
-                                              size: 16,
-                                            ),
-                                          ),
-                                          title: Text(
-                                            note.message,
-                                            style: GoogleFonts.inter(
-                                              fontSize: 12,
-                                              color: const Color(0xFF1E293B),
-                                            ),
-                                          ),
-                                          contentPadding:
-                                              const EdgeInsets.symmetric(
-                                                horizontal: 16,
-                                                vertical: 4,
+                                              child: Icon(
+                                                note.icon,
+                                                color: note.color,
+                                                size: 16,
                                               ),
-                                          onTap: () {
-                                            Navigator.pop(context);
-                                            note.onTap();
-                                          },
+                                            ),
+                                            title: Text(
+                                              note.message,
+                                              style: GoogleFonts.inter(
+                                                fontSize: 12,
+                                                color: const Color(0xFF1E293B),
+                                              ),
+                                            ),
+                                            contentPadding:
+                                                const EdgeInsets.symmetric(
+                                                  horizontal: 16,
+                                                  vertical: 4,
+                                                ),
+                                            onTap: () {
+                                              Navigator.pop(context);
+                                              note.onTap();
+                                            },
+                                          ),
                                         ),
-                                      ))
+                                      )
                                       .toList(),
                             ),
                           ),
@@ -1119,8 +1132,8 @@ class SidebarTile extends StatelessWidget {
           decoration: BoxDecoration(
             color:
                 isSelected
-                    ? const Color(0xFF1E3A2F)
-                    : Colors.transparent, // Green capsule style tint
+                    ? const Color(0xFFFFC107) // Yellow active tint
+                    : Colors.transparent,
             borderRadius: BorderRadius.circular(8),
           ),
           child: Row(
@@ -1129,10 +1142,8 @@ class SidebarTile extends StatelessWidget {
                 icon,
                 color:
                     isSelected
-                        ? const Color(0xFF10B981)
-                        : const Color(
-                          0xFF94A3B8,
-                        ), // Emerald Selected, Slate unselected
+                        ? const Color(0xFF1E293B) // Dark text for yellow bg
+                        : const Color(0xFF94A3B8), // Slate unselected
                 size: 20,
               ),
               const SizedBox(width: 12),
@@ -1142,7 +1153,10 @@ class SidebarTile extends StatelessWidget {
                   style: GoogleFonts.inter(
                     fontSize: 13,
                     fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                    color: isSelected ? Colors.white : const Color(0xFF94A3B8),
+                    color:
+                        isSelected
+                            ? const Color(0xFF1E293B)
+                            : const Color(0xFF94A3B8),
                   ),
                 ),
               ),

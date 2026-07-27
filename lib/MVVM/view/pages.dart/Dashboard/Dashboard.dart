@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
 
 class Dashboard extends StatefulWidget {
   const Dashboard({super.key});
@@ -15,8 +17,152 @@ class _DashboardState extends State<Dashboard> {
     end: DateTime(2024, 5, 18),
   );
 
+  bool _isLoading = true;
+  int _totalUsers = 0;
+  int _totalWorkers = 0;
+  int _pendingApprovals = 0;
+  int _todaysBookings = 0;
+  int _completedBookings = 0;
+  int _cancelledBookings = 0;
+  double _revenue = 0.0;
+  int _totalProducts = 0;
+  int _totalOrders = 0;
+  int _totalAdvertisements = 0;
+  int _totalBusRoutes = 0;
+  int _totalTaxiDrivers = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDashboardData();
+  }
+
+  Future<void> _loadDashboardData() async {
+    setState(() => _isLoading = true);
+    try {
+      final db = FirebaseFirestore.instance;
+
+      final usersFuture = db.collection('users').count().get();
+      final workersFuture = db.collection('workers').count().get();
+      final pendingFuture =
+          db
+              .collection('workers')
+              .where('isVerified', isEqualTo: 0)
+              .count()
+              .get();
+
+      final now = DateTime.now();
+      final startOfDay = DateTime(now.year, now.month, now.day);
+      final todayBookingsFuture = db
+          .collection('bookings')
+          .where(
+            'timestamp',
+            isGreaterThanOrEqualTo: startOfDay.toIso8601String(),
+          )
+          .count()
+          .get()
+          .catchError((e) => db.collection('bookings').count().get());
+
+      final completedFuture =
+          db
+              .collection('bookings')
+              .where('status', isEqualTo: 'Completed')
+              .count()
+              .get();
+      final cancelledFuture =
+          db
+              .collection('bookings')
+              .where('status', isEqualTo: 'Cancelled')
+              .count()
+              .get();
+
+      final productsFuture = db
+          .collection('products')
+          .count()
+          .get()
+          .catchError((_) => null);
+      final ordersFuture = db
+          .collection('orders')
+          .count()
+          .get()
+          .catchError((_) => null);
+      final adsFuture = db
+          .collection('advertisements')
+          .count()
+          .get()
+          .catchError((_) => null);
+      final busRoutesFuture = db
+          .collection('bus_routes')
+          .count()
+          .get()
+          .catchError((_) => null);
+      final taxiDriversFuture = db
+          .collection('taxi_drivers')
+          .count()
+          .get()
+          .catchError((_) => null);
+
+      final results = await Future.wait([
+        usersFuture, // 0
+        workersFuture, // 1
+        pendingFuture, // 2
+        todayBookingsFuture, // 3
+        completedFuture, // 4
+        cancelledFuture, // 5
+      ]);
+
+      int prods = 0, ords = 0, ads = 0, routes = 0, taxis = 0;
+      try {
+        prods = (await productsFuture)?.count ?? 0;
+      } catch (_) {}
+      try {
+        ords = (await ordersFuture)?.count ?? 0;
+      } catch (_) {}
+      try {
+        ads = (await adsFuture)?.count ?? 0;
+      } catch (_) {}
+      try {
+        routes = (await busRoutesFuture)?.count ?? 0;
+      } catch (_) {}
+      try {
+        taxis = (await taxiDriversFuture)?.count ?? 0;
+      } catch (_) {}
+
+      if (mounted) {
+        setState(() {
+          _totalUsers = results[0].count ?? 0;
+          _totalWorkers = results[1].count ?? 0;
+          _pendingApprovals = results[2].count ?? 0;
+          _todaysBookings = results[3].count ?? 0;
+          _completedBookings = results[4].count ?? 0;
+          _cancelledBookings = results[5].count ?? 0;
+
+          _totalProducts = prods;
+          _totalOrders = ords;
+          _totalAdvertisements = ads;
+          _totalBusRoutes = routes;
+          _totalTaxiDrivers = taxis;
+        });
+      }
+    } catch (e) {
+      debugPrint("Error loading dashboard data: $e");
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(color: Color(0xFFFFC107)),
+        ),
+      );
+    }
+
     return SafeArea(
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -272,11 +418,13 @@ class _DashboardState extends State<Dashboard> {
   }
 
   Widget _getStatsCard(int index) {
+    final formatter = NumberFormat('#,##0');
+
     switch (index) {
       case 0:
-        return const StatsCard(
+        return StatsCard(
           title: "Total Users",
-          value: "12,458",
+          value: formatter.format(_totalUsers),
           trendPercentage: "12.5%",
           trendPeriod: "from last week",
           isPositiveTrend: true,
@@ -285,9 +433,9 @@ class _DashboardState extends State<Dashboard> {
           iconBgColor: Color(0xFFEEF2FF),
         );
       case 1:
-        return const StatsCard(
+        return StatsCard(
           title: "Total Workers",
-          value: "1,245",
+          value: formatter.format(_totalWorkers),
           trendPercentage: "8.3%",
           trendPeriod: "from last week",
           isPositiveTrend: true,
@@ -296,9 +444,9 @@ class _DashboardState extends State<Dashboard> {
           iconBgColor: Color(0xFFECFDF5),
         );
       case 2:
-        return const StatsCard(
+        return StatsCard(
           title: "Pending Approvals",
-          value: "47",
+          value: formatter.format(_pendingApprovals),
           trendPercentage: "5.6%",
           trendPeriod: "from last week",
           isPositiveTrend: false,
@@ -307,9 +455,9 @@ class _DashboardState extends State<Dashboard> {
           iconBgColor: Color(0xFFFEF3C7),
         );
       case 3:
-        return const StatsCard(
+        return StatsCard(
           title: "Today's Bookings",
-          value: "328",
+          value: formatter.format(_todaysBookings),
           trendPercentage: "15.2%",
           trendPeriod: "from yesterday",
           isPositiveTrend: true,
@@ -318,9 +466,9 @@ class _DashboardState extends State<Dashboard> {
           iconBgColor: Color(0xFFEFF6FF),
         );
       case 4:
-        return const StatsCard(
+        return StatsCard(
           title: "Completed Bookings",
-          value: "1,892",
+          value: formatter.format(_completedBookings),
           trendPercentage: "10.1%",
           trendPeriod: "from last week",
           isPositiveTrend: true,
@@ -329,9 +477,9 @@ class _DashboardState extends State<Dashboard> {
           iconBgColor: Color(0xFFECFDF5),
         );
       case 5:
-        return const StatsCard(
+        return StatsCard(
           title: "Cancelled Bookings",
-          value: "86",
+          value: formatter.format(_cancelledBookings),
           trendPercentage: "2.4%",
           trendPeriod: "from last week",
           isPositiveTrend: false,
@@ -340,9 +488,9 @@ class _DashboardState extends State<Dashboard> {
           iconBgColor: Color(0xFFFEF2F2),
         );
       case 6:
-        return const StatsCard(
+        return StatsCard(
           title: "Revenue (This Week)",
-          value: "₹2,45,680",
+          value: "₹${formatter.format(_revenue)}",
           trendPercentage: "18.6%",
           trendPeriod: "from last week",
           isPositiveTrend: true,
@@ -351,9 +499,9 @@ class _DashboardState extends State<Dashboard> {
           iconBgColor: Color(0xFFF5F3FF),
         );
       case 7:
-        return const StatsCard(
+        return StatsCard(
           title: "Products",
-          value: "1,256",
+          value: formatter.format(_totalProducts),
           trendPercentage: "7.4%",
           trendPeriod: "from last week",
           isPositiveTrend: true,
@@ -362,9 +510,9 @@ class _DashboardState extends State<Dashboard> {
           iconBgColor: Color(0xFFEFF6FF),
         );
       case 8:
-        return const StatsCard(
+        return StatsCard(
           title: "Orders (This Week)",
-          value: "1,034",
+          value: formatter.format(_totalOrders),
           trendPercentage: "13.7%",
           trendPeriod: "from last week",
           isPositiveTrend: true,
@@ -373,9 +521,9 @@ class _DashboardState extends State<Dashboard> {
           iconBgColor: Color(0xFFFFF7ED),
         );
       case 9:
-        return const StatsCard(
+        return StatsCard(
           title: "Advertisements",
-          value: "58",
+          value: formatter.format(_totalAdvertisements),
           trendPercentage: "3.2%",
           trendPeriod: "from last week",
           isPositiveTrend: true,
@@ -384,9 +532,9 @@ class _DashboardState extends State<Dashboard> {
           iconBgColor: Color(0xFFFDF2F8),
         );
       case 10:
-        return const StatsCard(
+        return StatsCard(
           title: "Bus Routes",
-          value: "126",
+          value: formatter.format(_totalBusRoutes),
           trendPercentage: "4.8%",
           trendPeriod: "from last week",
           isPositiveTrend: true,
@@ -395,9 +543,9 @@ class _DashboardState extends State<Dashboard> {
           iconBgColor: Color(0xFFF0F9FF),
         );
       case 11:
-        return const StatsCard(
+        return StatsCard(
           title: "Taxi Drivers",
-          value: "532",
+          value: formatter.format(_totalTaxiDrivers),
           trendPercentage: "6.3%",
           trendPeriod: "from last week",
           isPositiveTrend: true,

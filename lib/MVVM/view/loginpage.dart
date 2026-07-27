@@ -61,40 +61,51 @@ class _LoginpageState extends State<Loginpage>
   // ---------------------------------------------------------------------------
   Widget _buildDesktopUI(double w, double h) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF0FDF4),
-      body: Row(
+      backgroundColor: Colors.white,
+      body: Stack(
         children: [
-          // Left panel — branding
-          Expanded(
-            child: Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Color(0xFF064E3B),
-                    Color(0xFF065F46),
-                    Color(0xFF047857),
-                  ],
-                ),
-              ),
-              child: _buildBrandPanel(w, h),
-            ),
-          ),
           // Right panel — form
-          Expanded(
+          Positioned(
+            right: 0,
+            top: 0,
+            bottom: 0,
+            width: w * 0.5,
             child: FadeTransition(
               opacity: _fadeAnim,
-              child: Container(
-                color: Colors.white,
-                child: Center(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 64,
-                      vertical: 40,
-                    ),
-                    child: _buildLoginForm(desktop: true),
+              child: Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 80,
+                    vertical: 40,
                   ),
+                  child: _buildLoginForm(desktop: true),
+                ),
+              ),
+            ),
+          ),
+          // Left panel — branding (Yellow backdrop)
+          Positioned(
+            left: 0,
+            top: 0,
+            bottom: 0,
+            width: (w * 0.5) + 60,
+            child: ClipPath(
+              clipper: const LoginCurveClipper(),
+              child: Container(color: const Color(0xFFFFC107)),
+            ),
+          ),
+          // Left panel — branding (Dark Blue foreground)
+          Positioned(
+            left: 0,
+            top: 0,
+            bottom: 0,
+            width: (w * 0.5) + 40,
+            child: ClipPath(
+              clipper: const LoginCurveClipper(),
+              child: Container(
+                color: const Color(0xFF0A192F),
+                child: Center(
+                  child: SingleChildScrollView(child: _buildBrandPanel(w, h)),
                 ),
               ),
             ),
@@ -109,23 +120,29 @@ class _LoginpageState extends State<Loginpage>
   // ---------------------------------------------------------------------------
   Widget _buildMobileUI(double w, double h) {
     return Scaffold(
-      backgroundColor: const Color(0xFF064E3B),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            // Top brand area
-            SizedBox(height: h * 0.28, child: _buildBrandPanel(w, h)),
-            // Card form
-            Container(
-              constraints: const BoxConstraints(minHeight: 500),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      backgroundColor: const Color(0xFF0A192F),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          child: Column(
+            children: [
+              // Top brand area
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 40),
+                child: _buildBrandPanel(w, h, isMobile: true),
               ),
-              padding: const EdgeInsets.all(28),
-              child: _buildLoginForm(desktop: false),
-            ),
-          ],
+              // Card form
+              Container(
+                constraints: const BoxConstraints(minHeight: 500),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+                ),
+                padding: const EdgeInsets.all(28),
+                child: _buildLoginForm(desktop: false),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -134,74 +151,75 @@ class _LoginpageState extends State<Loginpage>
   // ---------------------------------------------------------------------------
   // Brand panel (left desktop / top mobile)
   // ---------------------------------------------------------------------------
-  Widget _buildBrandPanel(double w, double h) {
+  Widget _buildBrandPanel(double w, double h, {bool isMobile = false}) {
     return Padding(
-      padding: const EdgeInsets.all(40),
+      padding: EdgeInsets.symmetric(horizontal: isMobile ? 32 : 60),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Logo circle
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: const Icon(Icons.spa_rounded, color: Colors.white, size: 30),
+          // Logo
+          Image.asset(
+            'assets/icon/logo.png',
+            width: isMobile ? 100 : 140,
+            height: isMobile ? 100 : 140,
+            errorBuilder:
+                (context, error, stackTrace) => Icon(
+                  Icons.location_on,
+                  color: const Color(0xFFFFC107),
+                  size: isMobile ? 100 : 140,
+                ),
           ),
-          const SizedBox(height: 32),
-          Text(
-            'NaattuLink',
-            style: GoogleFonts.inter(
-              fontSize: 36,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
+          const SizedBox(height: 24),
+          RichText(
+            textAlign: TextAlign.center,
+            text: TextSpan(
+              style: GoogleFonts.inter(
+                fontSize: isMobile ? 32 : 42,
+                fontWeight: FontWeight.bold,
+              ),
+              children: const [
+                TextSpan(text: "Naattu", style: TextStyle(color: Colors.white)),
+                TextSpan(
+                  text: "Link",
+                  style: TextStyle(color: Color(0xFFFFC107)),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 8),
           Text(
-            'Admin Panel',
+            'Connecting Communities, Empowering Locals',
+            textAlign: TextAlign.center,
             style: GoogleFonts.inter(
-              fontSize: 16,
-              color: Colors.white.withValues(alpha: 0.7),
-              letterSpacing: 1.2,
+              fontSize: isMobile ? 12 : 14,
+              color: const Color(0xFFFFC107),
+              fontWeight: FontWeight.w500,
             ),
           ),
+          const SizedBox(height: 48),
+
+          // Divider Header
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(height: 2, width: 40, color: const Color(0xFFFFC107)),
+              const SizedBox(width: 16),
+              Text(
+                'Admin Panel',
+                style: GoogleFonts.inter(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFFFFC107),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Container(height: 2, width: 40, color: const Color(0xFFFFC107)),
+            ],
+          ),
           const SizedBox(height: 40),
-          _buildFeatureBullet(
-            Icons.shield_outlined,
-            'Role-based access control',
-          ),
-          const SizedBox(height: 16),
-          _buildFeatureBullet(
-            Icons.people_alt_outlined,
-            'Multi-level user management',
-          ),
-          const SizedBox(height: 16),
-          _buildFeatureBullet(
-            Icons.bar_chart_rounded,
-            'Real-time analytics & reports',
-          ),
         ],
       ),
-    );
-  }
-
-  Widget _buildFeatureBullet(IconData icon, String text) {
-    return Row(
-      children: [
-        Icon(icon, color: Colors.white.withValues(alpha: 0.8), size: 18),
-        const SizedBox(width: 12),
-        Text(
-          text,
-          style: GoogleFonts.inter(
-            fontSize: 14,
-            color: Colors.white.withValues(alpha: 0.8),
-          ),
-        ),
-      ],
     );
   }
 
@@ -290,7 +308,56 @@ class _LoginpageState extends State<Loginpage>
               ),
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
+
+          // Remember Me and Forgot Password
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: Checkbox(
+                      value: true, // Dummy value for UI
+                      onChanged: (v) {},
+                      activeColor: const Color(0xFFFFC107),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Remember me',
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: const Color(0xFF0F172A),
+                    ),
+                  ),
+                ],
+              ),
+              TextButton(
+                onPressed: () {},
+                style: TextButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: Text(
+                  'Forgot password?',
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF2563EB), // Blue color from mockup
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 32),
 
           // Login button
           SizedBox(
@@ -299,11 +366,11 @@ class _LoginpageState extends State<Loginpage>
             child: ElevatedButton(
               onPressed: _isLoading ? null : _handleLogin,
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF059669),
-                foregroundColor: Colors.white,
+                backgroundColor: const Color(0xFFFFC107), // Yellow
+                foregroundColor: const Color(0xFF1E293B), // Dark blue text
                 elevation: 0,
                 disabledBackgroundColor: const Color(
-                  0xFF059669,
+                  0xFFFFC107,
                 ).withValues(alpha: 0.6),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -332,11 +399,22 @@ class _LoginpageState extends State<Loginpage>
 
           // Footer
           Center(
-            child: Text(
-              'NaattuLink Admin Panel • Secure Login',
-              style: GoogleFonts.inter(
-                fontSize: 11,
-                color: const Color(0xFFCBD5E1),
+            child: RichText(
+              text: TextSpan(
+                style: GoogleFonts.inter(fontSize: 11),
+                children: const [
+                  TextSpan(
+                    text: 'NaattuLink ',
+                    style: TextStyle(
+                      color: Color(0xFF2563EB),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  TextSpan(
+                    text: 'Admin Panel • Secure Login',
+                    style: TextStyle(color: Color(0xFF94A3B8)),
+                  ),
+                ],
               ),
             ),
           ),
@@ -350,8 +428,8 @@ class _LoginpageState extends State<Loginpage>
       label,
       style: GoogleFonts.inter(
         fontSize: 13,
-        fontWeight: FontWeight.w500,
-        color: const Color(0xFF374151),
+        fontWeight: FontWeight.bold,
+        color: const Color(0xFF0F172A),
       ),
     );
   }
@@ -370,8 +448,8 @@ class _LoginpageState extends State<Loginpage>
       prefixIcon: Icon(prefixIcon, size: 20, color: const Color(0xFF94A3B8)),
       suffixIcon: suffixIcon,
       filled: true,
-      fillColor: const Color(0xFFF8FAFC),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      fillColor: Colors.white,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
@@ -382,7 +460,7 @@ class _LoginpageState extends State<Loginpage>
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Color(0xFF059669), width: 1.5),
+        borderSide: const BorderSide(color: Color(0xFFFFC107), width: 1.5),
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
@@ -493,4 +571,32 @@ class _LoginpageState extends State<Loginpage>
       ),
     );
   }
+}
+
+class LoginCurveClipper extends CustomClipper<Path> {
+  const LoginCurveClipper();
+
+  @override
+  Path getClip(Size size) {
+    Path path = Path();
+    path.lineTo(size.width - 120, 0);
+    path.quadraticBezierTo(
+      size.width,
+      size.height * 0.25,
+      size.width - 60,
+      size.height * 0.5,
+    );
+    path.quadraticBezierTo(
+      size.width - 120,
+      size.height * 0.75,
+      size.width,
+      size.height,
+    );
+    path.lineTo(0, size.height);
+    path.close();
+    return path;
+  }
+
+  @override
+  bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }

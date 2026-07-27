@@ -1532,7 +1532,8 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
       String finalProductImageUrl = _currentLocalProductImageUrl ?? '';
 
       String finalImageFileId = widget.existingBanner?.imageFileId ?? '';
-      String finalProductImageFileId = widget.existingBanner?.localAdsConfig?['productImageFileId'] ?? '';
+      String finalProductImageFileId =
+          widget.existingBanner?.localAdsConfig?['productImageFileId'] ?? '';
 
       // 1. Upload Main Banner Image via ImageKit
       if (_imageBytes != null) {
