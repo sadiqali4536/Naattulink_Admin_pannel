@@ -992,3 +992,449 @@ void exportPaymentsToPdfWeb(List<Map<String, String>> payments) {
   final url = html.Url.createObjectUrlFromBlob(blob);
   html.window.open(url, '_blank');
 }
+
+void printBusRoutesList(List<Map<String, dynamic>> busRoutes) {
+  final htmlBuffer = StringBuffer();
+  htmlBuffer.write('''
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>Bus Routes Export</title>
+      <style>
+        body { font-family: 'Inter', sans-serif; margin: 40px; color: #1E293B; background-color: #FFFFFF; }
+        h1 { font-size: 22px; margin: 0; color: #0F172A; font-weight: 700; }
+        .header-container { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; border-bottom: 2px solid #DBEAFE; padding-bottom: 16px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #E2E8F0; padding: 10px 12px; text-align: left; font-size: 12px; }
+        th { background-color: #EFF6FF; font-weight: 600; color: #1E40AF; text-transform: uppercase; font-size: 11px; }
+        tr:nth-child(even) { background-color: #F8FAFC; }
+      </style>
+    </head>
+    <body>
+      <div class="header-container">
+        <div>
+          <h1>Bus Routes Directory</h1>
+          <p style="margin: 4px 0 0 0; font-size: 12px; color: #64748B;">Total Routes: TOTAL_COUNT | Generated on GENERATED_DATE</p>
+        </div>
+        <button onclick="window.print()" style="padding: 10px 20px; background-color: #3B82F6; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-family: inherit; font-size: 13px;">Print / Save PDF</button>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Reg No</th>
+            <th>Bus Name</th>
+            <th>Stand</th>
+            <th>Type</th>
+            <th>Category</th>
+            <th>From</th>
+            <th>To</th>
+            <th>Dep</th>
+            <th>Arr</th>
+            <th>Phone</th>
+            <th>Added By</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+  ''');
+
+  for (final c in busRoutes) {
+    final regNo = _escapeHtml(c['reg_number']?.toString() ?? 'N/A');
+    final name = _escapeHtml(c['bus_name']?.toString() ?? 'N/A');
+    final stand = _escapeHtml(c['main_stand']?.toString() ?? 'N/A');
+    final type = _escapeHtml(c['bus_type']?.toString() ?? 'N/A');
+    final subType = _escapeHtml(c['bus_sub_type']?.toString() ?? 'N/A');
+    final from = _escapeHtml(c['first_stop']?.toString() ?? 'N/A');
+    final to = _escapeHtml(c['destination']?.toString() ?? 'N/A');
+    final dep = _escapeHtml(c['departure_time']?.toString() ?? 'N/A');
+    final arr = _escapeHtml(c['arrival_time']?.toString() ?? 'N/A');
+    final phone = _escapeHtml(c['phone']?.toString() ?? 'N/A');
+    
+    final role = c['role']?.toString();
+    final vehicle = c['vehicle']?.toString();
+    final addedByRaw = (role != null || vehicle != null)
+        ? '${role ?? ''} ${vehicle != null ? '($vehicle)' : ''}'.trim()
+        : 'Admin';
+    final addedBy = _escapeHtml(addedByRaw);
+    
+    final status = _escapeHtml(c['status']?.toString() ?? 'N/A').toUpperCase();
+
+    htmlBuffer.write('''
+          <tr>
+            <td>$regNo</td>
+            <td><strong>$name</strong></td>
+            <td>$stand</td>
+            <td>$type</td>
+            <td>$subType</td>
+            <td>$from</td>
+            <td>$to</td>
+            <td>$dep</td>
+            <td>$arr</td>
+            <td>$phone</td>
+            <td>$addedBy</td>
+            <td>$status</td>
+          </tr>
+    ''');
+  }
+
+  htmlBuffer.write('''
+        </tbody>
+      </table>
+      <script> window.addEventListener('load', () => { setTimeout(() => { window.print(); }, 500); }); </script>
+    </body>
+    </html>
+  ''');
+
+  final finalHtml = htmlBuffer
+      .toString()
+      .replaceFirst('TOTAL_COUNT', busRoutes.length.toString())
+      .replaceFirst('GENERATED_DATE', DateTime.now().toString().split('.')[0]);
+
+  final blob = html.Blob([finalHtml], 'text/html');
+  final url = html.Url.createObjectUrlFromBlob(blob);
+  html.window.open(url, '_blank');
+}
+
+void printTaxiDriversList(List<Map<String, dynamic>> taxiDrivers) {
+  final htmlBuffer = StringBuffer();
+  htmlBuffer.write('''
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>Taxi Drivers Export</title>
+      <style>
+        body { font-family: 'Inter', sans-serif; margin: 40px; color: #1E293B; background-color: #FFFFFF; }
+        h1 { font-size: 22px; margin: 0; color: #0F172A; font-weight: 700; }
+        .header-container { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; border-bottom: 2px solid #DBEAFE; padding-bottom: 16px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #E2E8F0; padding: 10px 12px; text-align: left; font-size: 12px; }
+        th { background-color: #EFF6FF; font-weight: 600; color: #1E40AF; text-transform: uppercase; font-size: 11px; }
+        tr:nth-child(even) { background-color: #F8FAFC; }
+      </style>
+    </head>
+    <body>
+      <div class="header-container">
+        <div>
+          <h1>Taxi Drivers Directory</h1>
+          <p style="margin: 4px 0 0 0; font-size: 12px; color: #64748B;">Total Drivers: TOTAL_COUNT | Generated on GENERATED_DATE</p>
+        </div>
+        <button onclick="window.print()" style="padding: 10px 20px; background-color: #3B82F6; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-family: inherit; font-size: 13px;">Print / Save PDF</button>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Driver Name</th>
+            <th>Email</th>
+            <th>Phone</th>
+            <th>Reg No</th>
+            <th>Vehicle</th>
+            <th>Type</th>
+            <th>Stand</th>
+            <th>Min Charge</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+  ''');
+
+  for (final c in taxiDrivers) {
+    final name = _escapeHtml(c['username']?.toString() ?? c['name']?.toString() ?? 'N/A');
+    final email = _escapeHtml(c['email']?.toString() ?? 'N/A');
+    final phone = _escapeHtml(c['phone']?.toString() ?? 'N/A');
+    final regNo = _escapeHtml(c['reg_number']?.toString() ?? 'N/A');
+    final vehicle = _escapeHtml(c['vehicle_model']?.toString() ?? 'N/A');
+    final type = _escapeHtml(c['vehicle_category']?.toString() ?? 'N/A');
+    final stand = _escapeHtml(c['main_stand']?.toString() ?? 'N/A');
+    final minCharge = _escapeHtml(c['min_charge']?.toString() ?? 'N/A');
+    final status = _escapeHtml(c['status']?.toString() ?? 'N/A').toUpperCase();
+
+    htmlBuffer.write('''
+          <tr>
+            <td><strong>$name</strong></td>
+            <td>$email</td>
+            <td>$phone</td>
+            <td>$regNo</td>
+            <td>$vehicle</td>
+            <td>$type</td>
+            <td>$stand</td>
+            <td>₹$minCharge</td>
+            <td>$status</td>
+          </tr>
+    ''');
+  }
+
+  htmlBuffer.write('''
+        </tbody>
+      </table>
+      <script> window.addEventListener('load', () => { setTimeout(() => { window.print(); }, 500); }); </script>
+    </body>
+    </html>
+  ''');
+
+  final finalHtml = htmlBuffer
+      .toString()
+      .replaceFirst('TOTAL_COUNT', taxiDrivers.length.toString())
+      .replaceFirst('GENERATED_DATE', DateTime.now().toString().split('.')[0]);
+
+  final blob = html.Blob([finalHtml], 'text/html');
+  final url = html.Url.createObjectUrlFromBlob(blob);
+  html.window.open(url, '_blank');
+}
+
+void printTruckJcbList(List<Map<String, dynamic>> truckJcbList) {
+  final htmlBuffer = StringBuffer();
+  htmlBuffer.write('''
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>Truck & JCB Export</title>
+      <style>
+        body { font-family: 'Inter', sans-serif; margin: 40px; color: #1E293B; background-color: #FFFFFF; }
+        h1 { font-size: 22px; margin: 0; color: #0F172A; font-weight: 700; }
+        .header-container { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; border-bottom: 2px solid #DBEAFE; padding-bottom: 16px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #E2E8F0; padding: 10px 12px; text-align: left; font-size: 12px; }
+        th { background-color: #EFF6FF; font-weight: 600; color: #1E40AF; text-transform: uppercase; font-size: 11px; }
+        tr:nth-child(even) { background-color: #F8FAFC; }
+      </style>
+    </head>
+    <body>
+      <div class="header-container">
+        <div>
+          <h1>Truck & JCB Directory</h1>
+          <p style="margin: 4px 0 0 0; font-size: 12px; color: #64748B;">Total Vehicles: TOTAL_COUNT | Generated on GENERATED_DATE</p>
+        </div>
+        <button onclick="window.print()" style="padding: 10px 20px; background-color: #3B82F6; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-family: inherit; font-size: 13px;">Print / Save PDF</button>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Phone</th>
+            <th>Reg No</th>
+            <th>Vehicle</th>
+            <th>Type</th>
+            <th>Stand</th>
+            <th>Load Capacity</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+  ''');
+
+  for (final c in truckJcbList) {
+    final name = _escapeHtml(c['username']?.toString() ?? c['name']?.toString() ?? 'N/A');
+    final email = _escapeHtml(c['email']?.toString() ?? 'N/A');
+    final phone = _escapeHtml(c['phone']?.toString() ?? 'N/A');
+    final regNo = _escapeHtml(c['reg_number']?.toString() ?? 'N/A');
+    final vehicle = _escapeHtml(c['vehicle_model']?.toString() ?? 'N/A');
+    final type = _escapeHtml(c['vehicle_type']?.toString() ?? 'N/A');
+    final stand = _escapeHtml(c['main_stand']?.toString() ?? 'N/A');
+    final loadCapacity = _escapeHtml(c['load_capacity']?.toString() ?? 'N/A');
+    final status = _escapeHtml(c['status']?.toString() ?? 'N/A').toUpperCase();
+
+    htmlBuffer.write('''
+          <tr>
+            <td><strong>$name</strong></td>
+            <td>$email</td>
+            <td>$phone</td>
+            <td>$regNo</td>
+            <td>$vehicle</td>
+            <td>$type</td>
+            <td>$stand</td>
+            <td>$loadCapacity Tons</td>
+            <td>$status</td>
+          </tr>
+    ''');
+  }
+
+  htmlBuffer.write('''
+        </tbody>
+      </table>
+      <script> window.addEventListener('load', () => { setTimeout(() => { window.print(); }, 500); }); </script>
+    </body>
+    </html>
+  ''');
+
+  final finalHtml = htmlBuffer
+      .toString()
+      .replaceFirst('TOTAL_COUNT', truckJcbList.length.toString())
+      .replaceFirst('GENERATED_DATE', DateTime.now().toString().split('.')[0]);
+
+  final blob = html.Blob([finalHtml], 'text/html');
+  final url = html.Url.createObjectUrlFromBlob(blob);
+  html.window.open(url, '_blank');
+}
+
+void printHealthcareList(List<Map<String, dynamic>> healthcareList) {
+  final htmlBuffer = StringBuffer();
+  htmlBuffer.write('''
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>Healthcare Directory Export</title>
+      <style>
+        body { font-family: 'Inter', sans-serif; margin: 40px; color: #1E293B; background-color: #FFFFFF; }
+        h1 { font-size: 22px; margin: 0; color: #0F172A; font-weight: 700; }
+        .header-container { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; border-bottom: 2px solid #DBEAFE; padding-bottom: 16px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #E2E8F0; padding: 10px 12px; text-align: left; font-size: 12px; }
+        th { background-color: #EFF6FF; font-weight: 600; color: #1E40AF; text-transform: uppercase; font-size: 11px; }
+        tr:nth-child(even) { background-color: #F8FAFC; }
+      </style>
+    </head>
+    <body>
+      <div class="header-container">
+        <div>
+          <h1>Healthcare Directory</h1>
+          <p style="margin: 4px 0 0 0; font-size: 12px; color: #64748B;">Total Records: TOTAL_COUNT | Generated on GENERATED_DATE</p>
+        </div>
+        <button onclick="window.print()" style="padding: 10px 20px; background-color: #3B82F6; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-family: inherit; font-size: 13px;">Print / Save PDF</button>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Provider Name</th>
+            <th>Email</th>
+            <th>Phone</th>
+            <th>Facility Name</th>
+            <th>Type</th>
+            <th>Speciality</th>
+            <th>Address</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+  ''');
+
+  for (final c in healthcareList) {
+    final name = _escapeHtml(c['username']?.toString() ?? c['name']?.toString() ?? 'N/A');
+    final email = _escapeHtml(c['email']?.toString() ?? 'N/A');
+    final phone = _escapeHtml(c['phone']?.toString() ?? 'N/A');
+    final facility = _escapeHtml(c['facility_name']?.toString() ?? 'N/A');
+    final type = _escapeHtml(c['healthcare_type']?.toString() ?? 'N/A');
+    final speciality = _escapeHtml(c['speciality']?.toString() ?? 'N/A');
+    final address = _escapeHtml(c['address']?.toString() ?? 'N/A');
+    final status = _escapeHtml(c['status']?.toString() ?? 'N/A').toUpperCase();
+
+    htmlBuffer.write('''
+          <tr>
+            <td><strong>$name</strong></td>
+            <td>$email</td>
+            <td>$phone</td>
+            <td>$facility</td>
+            <td>$type</td>
+            <td>$speciality</td>
+            <td>$address</td>
+            <td>$status</td>
+          </tr>
+    ''');
+  }
+
+  htmlBuffer.write('''
+        </tbody>
+      </table>
+      <script> window.addEventListener('load', () => { setTimeout(() => { window.print(); }, 500); }); </script>
+    </body>
+    </html>
+  ''');
+
+  final finalHtml = htmlBuffer
+      .toString()
+      .replaceFirst('TOTAL_COUNT', healthcareList.length.toString())
+      .replaceFirst('GENERATED_DATE', DateTime.now().toString().split('.')[0]);
+
+  final blob = html.Blob([finalHtml], 'text/html');
+  final url = html.Url.createObjectUrlFromBlob(blob);
+  html.window.open(url, '_blank');
+}
+
+void printBusinessesList(List<Map<String, dynamic>> businessesList) {
+  final htmlBuffer = StringBuffer();
+  htmlBuffer.write('''
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>Shops & Businesses Export</title>
+      <style>
+        body { font-family: 'Inter', sans-serif; margin: 40px; color: #1E293B; background-color: #FFFFFF; }
+        h1 { font-size: 22px; margin: 0; color: #0F172A; font-weight: 700; }
+        .header-container { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; border-bottom: 2px solid #EDE9FE; padding-bottom: 16px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #E2E8F0; padding: 10px 12px; text-align: left; font-size: 12px; }
+        th { background-color: #F5F3FF; font-weight: 600; color: #7C3AED; text-transform: uppercase; font-size: 11px; }
+        tr:nth-child(even) { background-color: #F8FAFC; }
+      </style>
+    </head>
+    <body>
+      <div class="header-container">
+        <div>
+          <h1>Shops & Businesses Directory</h1>
+          <p style="margin: 4px 0 0 0; font-size: 12px; color: #64748B;">Total Records: TOTAL_COUNT | Generated on GENERATED_DATE</p>
+        </div>
+        <button onclick="window.print()" style="padding: 10px 20px; background-color: #7C3AED; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-family: inherit; font-size: 13px;">Print / Save PDF</button>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Owner Name</th>
+            <th>Email</th>
+            <th>Phone</th>
+            <th>Business Name</th>
+            <th>Category</th>
+            <th>Address</th>
+            <th>Available Time</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+  ''');
+
+  for (final c in businessesList) {
+    final name = _escapeHtml(c['username']?.toString() ?? c['name']?.toString() ?? 'N/A');
+    final email = _escapeHtml(c['email']?.toString() ?? 'N/A');
+    final phone = _escapeHtml(c['phone']?.toString() ?? 'N/A');
+    final businessName = _escapeHtml(c['business_name']?.toString() ?? 'N/A');
+    final category = _escapeHtml(c['business_category']?.toString() ?? 'N/A');
+    final address = _escapeHtml(c['address']?.toString() ?? 'N/A');
+    final availableTime = _escapeHtml(c['available_time']?.toString() ?? 'N/A');
+    final status = _escapeHtml(c['status']?.toString() ?? 'N/A').toUpperCase();
+
+    htmlBuffer.write('''
+          <tr>
+            <td><strong>$name</strong></td>
+            <td>$email</td>
+            <td>$phone</td>
+            <td>$businessName</td>
+            <td>$category</td>
+            <td>$address</td>
+            <td>$availableTime</td>
+            <td>$status</td>
+          </tr>
+    ''');
+  }
+
+  htmlBuffer.write('''
+        </tbody>
+      </table>
+      <script> window.addEventListener('load', () => { setTimeout(() => { window.print(); }, 500); }); </script>
+    </body>
+    </html>
+  ''');
+
+  final finalHtml = htmlBuffer
+      .toString()
+      .replaceFirst('TOTAL_COUNT', businessesList.length.toString())
+      .replaceFirst('GENERATED_DATE', DateTime.now().toString().split('.')[0]);
+
+  final blob = html.Blob([finalHtml], 'text/html');
+  final url = html.Url.createObjectUrlFromBlob(blob);
+  html.window.open(url, '_blank');
+}
+

@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:swiftclean_admin/MVVM/utils/printer_helper.dart';
 
 class BusRoutesPage extends StatefulWidget {
   const BusRoutesPage({super.key});
@@ -8,114 +11,126 @@ class BusRoutesPage extends StatefulWidget {
 }
 
 class _BusRoutesPageState extends State<BusRoutesPage> {
-  final List<Map<String, dynamic>> _dummyData = [
-    {
-      'number': 'KLK-01',
-      'name': 'Kozhikode - Mukkam',
-      'from': 'Kozhikode',
-      'to': 'Mukkam',
-      'via': 'Feroke, Kuttikkattoor',
-      'firstBus': '05:30 AM',
-      'lastBus': '09:15 PM',
-      'frequency': '15 mins',
-      'status': 'Active',
-    },
-    {
-      'number': 'KLK-02',
-      'name': 'Kozhikode - Vadakara',
-      'from': 'Kozhikode',
-      'to': 'Vadakara',
-      'via': 'Balussery, Koyilandy',
-      'firstBus': '05:45 AM',
-      'lastBus': '09:30 PM',
-      'frequency': '20 mins',
-      'status': 'Active',
-    },
-    {
-      'number': 'KLK-03',
-      'name': 'Kozhikode - Beypore',
-      'from': 'Kozhikode',
-      'to': 'Beypore',
-      'via': 'Feroke',
-      'firstBus': '06:00 AM',
-      'lastBus': '08:45 PM',
-      'frequency': '30 mins',
-      'status': 'Active',
-    },
-    {
-      'number': 'KLK-04',
-      'name': 'Kozhikode - Meppadi',
-      'from': 'Kozhikode',
-      'to': 'Meppadi',
-      'via': 'Perambra, Thamarassery',
-      'firstBus': '08:15 AM',
-      'lastBus': '08:30 PM',
-      'frequency': '45 mins',
-      'status': 'Inactive',
-    },
-    {
-      'number': 'KLK-05',
-      'name': 'Kozhikode - Malappuram',
-      'from': 'Kozhikode',
-      'to': 'Malappuram',
-      'via': 'Kondotty',
-      'firstBus': '05:30 AM',
-      'lastBus': '09:00 PM',
-      'frequency': '20 mins',
-      'status': 'Active',
-    },
-    {
-      'number': 'KLK-06',
-      'name': 'Kozhikode - Wayanad',
-      'from': 'Kozhikode',
-      'to': 'Kalpetta',
-      'via': 'Meppadi',
-      'firstBus': '06:30 AM',
-      'lastBus': '07:30 PM',
-      'frequency': '60 mins',
-      'status': 'Inactive',
-    },
-    {
-      'number': 'KLK-07',
-      'name': 'Kozhikode - Kannur',
-      'from': 'Kozhikode',
-      'to': 'Kannur',
-      'via': 'Thalassery',
-      'firstBus': '05:15 AM',
-      'lastBus': '09:45 PM',
-      'frequency': '30 mins',
-      'status': 'Active',
-    },
-    {
-      'number': 'KLK-08',
-      'name': 'Kozhikode - Nilambur',
-      'from': 'Kozhikode',
-      'to': 'Nilambur',
-      'via': 'Kondotty',
-      'firstBus': '06:00 AM',
-      'lastBus': '08:00 PM',
-      'frequency': '45 mins',
-      'status': 'Removed',
-    },
-  ];
+  final ScrollController _verticalScrollController = ScrollController();
+  final ScrollController _horizontalScrollController = ScrollController();
+  String _selectedStatus = 'All Status';
+  String _selectedType = 'All Types';
+
+  Future<void> _exportToPdf(List<QueryDocumentSnapshot> docs) async {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Preparing export... Please wait.")),
+    );
+    try {
+      final routesList =
+          docs.map((doc) => doc.data() as Map<String, dynamic>).toList();
+      printBusRoutesList(routesList);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Error exporting: \$e")));
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _verticalScrollController.dispose();
+    _horizontalScrollController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildBreadcrumb(),
-            const SizedBox(height: 24),
-            _buildHeader(),
-            const SizedBox(height: 24),
-            _buildStatsCards(),
-            const SizedBox(height: 24),
-            _buildTableSection(),
-          ],
+      body: Scrollbar(
+        controller: _verticalScrollController,
+        thumbVisibility: true,
+        child: SingleChildScrollView(
+          controller: _verticalScrollController,
+          padding: const EdgeInsets.all(24.0),
+          child: StreamBuilder<QuerySnapshot>(
+            stream:
+                FirebaseFirestore.instance
+                    .collection('transports')
+                    .where('transport_category', isEqualTo: 'Bus')
+                    .snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return const Center(child: Text('Something went wrong'));
+              }
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              final docs = snapshot.data?.docs ?? [];
+              final activeCount =
+                  docs
+                      .where(
+                        (d) =>
+                            (d.data() as Map<String, dynamic>)['status']
+                                    ?.toString()
+                                    .toLowerCase() ==
+                                'active' ||
+                            (d.data() as Map<String, dynamic>)['status']
+                                    ?.toString()
+                                    .toLowerCase() ==
+                                'approved',
+                      )
+                      .length;
+              final inactiveCount =
+                  docs.where((d) {
+                    final status =
+                        (d.data() as Map<String, dynamic>)['status']
+                            ?.toString()
+                            .toLowerCase();
+                    return status == 'inactive' || status == 'pending';
+                  }).length;
+
+              var filteredDocs = docs;
+              if (_selectedStatus != 'All Status' ||
+                  _selectedType != 'All Types') {
+                filteredDocs =
+                    docs.where((d) {
+                      final data = d.data() as Map<String, dynamic>;
+                      final status =
+                          data['status']?.toString().toLowerCase() ?? '';
+                      final busType = data['bus_type']?.toString() ?? '';
+
+                      bool statusMatches = true;
+                      if (_selectedStatus == 'Active')
+                        statusMatches = (status == 'active');
+                      else if (_selectedStatus == 'Inactive')
+                        statusMatches =
+                            (status == 'inactive' || status == 'pending');
+
+                      bool typeMatches = true;
+                      if (_selectedType != 'All Types')
+                        typeMatches = (busType == _selectedType);
+
+                      return statusMatches && typeMatches;
+                    }).toList();
+              }
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildBreadcrumb(),
+                  const SizedBox(height: 24),
+                  _buildHeader(filteredDocs),
+                  const SizedBox(height: 24),
+                  _buildStatsCards(
+                    total: docs.length,
+                    active: activeCount,
+                    inactive: inactiveCount,
+                  ),
+                  const SizedBox(height: 24),
+                  _buildTableSection(filteredDocs),
+                ],
+              );
+            },
+          ),
         ),
       ),
     );
@@ -148,7 +163,7 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(List<QueryDocumentSnapshot> docs) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: CrossAxisAlignment.end,
@@ -174,7 +189,7 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
         Row(
           children: [
             OutlinedButton.icon(
-              onPressed: () {},
+              onPressed: () => _exportToPdf(docs),
               icon: const Icon(
                 Icons.download_rounded,
                 color: Colors.black87,
@@ -197,7 +212,7 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
             ),
             const SizedBox(width: 16),
             ElevatedButton.icon(
-              onPressed: () {},
+              onPressed: () => _showBusDialog(),
               icon: const Icon(Icons.add, color: Colors.black87, size: 20),
               label: const Text(
                 'Add Bus Route',
@@ -224,13 +239,17 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
     );
   }
 
-  Widget _buildStatsCards() {
+  Widget _buildStatsCards({
+    required int total,
+    required int active,
+    required int inactive,
+  }) {
     return Row(
       children: [
         Expanded(
           child: _buildStatCard(
-            title: 'Total Routes',
-            value: '48',
+            title: 'Total Buses',
+            value: total.toString(),
             icon: Icons.directions_bus_filled,
             iconBgColor: Colors.blue.shade50,
             iconColor: Colors.blue,
@@ -239,28 +258,19 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
         const SizedBox(width: 16),
         Expanded(
           child: _buildStatCard(
-            title: 'Active Routes',
-            value: '38',
+            title: 'Active Buses',
+            value: active.toString(),
             icon: Icons.check_circle_outline,
             iconBgColor: Colors.green.shade50,
             iconColor: Colors.green,
           ),
         ),
+
         const SizedBox(width: 16),
         Expanded(
           child: _buildStatCard(
-            title: 'Inactive Routes',
-            value: '6',
-            icon: Icons.access_time,
-            iconBgColor: Colors.orange.shade50,
-            iconColor: Colors.orange,
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: _buildStatCard(
-            title: 'Removed Routes',
-            value: '4',
+            title: 'Inactive Buses',
+            value: inactive.toString(),
             icon: Icons.cancel_outlined,
             iconBgColor: Colors.red.shade50,
             iconColor: Colors.red,
@@ -329,7 +339,7 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
     );
   }
 
-  Widget _buildTableSection() {
+  Widget _buildTableSection(List<QueryDocumentSnapshot> docs) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -347,7 +357,7 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
         children: [
           _buildFilters(),
           const Divider(height: 1),
-          _buildDataTable(),
+          _buildDataTable(docs),
           const Divider(height: 1),
           _buildPagination(),
         ],
@@ -386,6 +396,7 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
           Expanded(
             flex: 1,
             child: DropdownButtonFormField<String>(
+              value: _selectedStatus,
               decoration: InputDecoration(
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 16,
@@ -400,21 +411,27 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
                   borderSide: const BorderSide(color: Colors.black12),
                 ),
               ),
-              hint: const Text('All Status'),
               items:
-                  ['Active', 'Inactive', 'Removed'].map((String value) {
+                  ['All Status', 'Active', 'Inactive'].map((String value) {
                     return DropdownMenuItem<String>(
                       value: value,
                       child: Text(value),
                     );
                   }).toList(),
-              onChanged: (_) {},
+              onChanged: (val) {
+                if (val != null) {
+                  setState(() {
+                    _selectedStatus = val;
+                  });
+                }
+              },
             ),
           ),
           const SizedBox(width: 16),
           Expanded(
             flex: 1,
             child: DropdownButtonFormField<String>(
+              value: _selectedType,
               decoration: InputDecoration(
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 16,
@@ -429,28 +446,20 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
                   borderSide: const BorderSide(color: Colors.black12),
                 ),
               ),
-              hint: const Text('All Types'),
               items:
-                  ['Type A', 'Type B'].map((String value) {
+                  ['All Types', 'Private Bus', 'KSRTC'].map((String value) {
                     return DropdownMenuItem<String>(
                       value: value,
                       child: Text(value),
                     );
                   }).toList(),
-              onChanged: (_) {},
-            ),
-          ),
-          const SizedBox(width: 16),
-          OutlinedButton.icon(
-            onPressed: () {},
-            icon: const Icon(Icons.refresh, color: Colors.black54, size: 20),
-            label: const Text('Reset', style: TextStyle(color: Colors.black54)),
-            style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              side: const BorderSide(color: Colors.black12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
+              onChanged: (val) {
+                if (val != null) {
+                  setState(() {
+                    _selectedType = val;
+                  });
+                }
+              },
             ),
           ),
         ],
@@ -458,146 +467,197 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
     );
   }
 
-  Widget _buildDataTable() {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: SizedBox(
-        width: 1200, // Fixed width to enable horizontal scrolling
-        child: Table(
-          columnWidths: const {
-            0: FlexColumnWidth(1.2), // Route Number
-            1: FlexColumnWidth(1.5), // Route Name
-            2: FlexColumnWidth(1.0), // From
-            3: FlexColumnWidth(1.0), // To
-            4: FlexColumnWidth(1.5), // Via
-            5: FlexColumnWidth(1.0), // First Bus
-            6: FlexColumnWidth(1.0), // Last Bus
-            7: FlexColumnWidth(1.0), // Frequency
-            8: FlexColumnWidth(1.0), // Status
-            9: FlexColumnWidth(1.2), // Actions
-          },
-          defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-          children: [
-            // Header Row
-            TableRow(
-              decoration: BoxDecoration(
-                color: Colors.grey.shade50,
-                border: const Border(
-                  bottom: BorderSide(color: Colors.black12, width: 1),
-                ),
-              ),
-              children: [
-                _buildHeaderCell('Route Number'),
-                _buildHeaderCell('Route Name'),
-                _buildHeaderCell('From'),
-                _buildHeaderCell('To'),
-                _buildHeaderCell('Via'),
-                _buildHeaderCell('First Bus'),
-                _buildHeaderCell('Last Bus'),
-                _buildHeaderCell('Frequency'),
-                _buildHeaderCell('Status'),
-                _buildHeaderCell('Actions'),
-              ],
-            ),
-            // Data Rows
-            ..._dummyData.map((data) {
-              return TableRow(
-                decoration: const BoxDecoration(
-                  border: Border(
+  Widget _buildDataTable(List<QueryDocumentSnapshot> docs) {
+    return Scrollbar(
+      controller: _horizontalScrollController,
+      thumbVisibility: true,
+      child: SingleChildScrollView(
+        controller: _horizontalScrollController,
+        scrollDirection: Axis.horizontal,
+        child: SizedBox(
+          width: 1800, // Fixed width to enable horizontal scrolling
+          child: Table(
+            columnWidths: const {
+              0: FlexColumnWidth(1.2), // Reg Number
+              1: FlexColumnWidth(1.5), // Bus Name
+              2: FlexColumnWidth(1.5), // Main Stand
+              3: FlexColumnWidth(1.2), // Type
+              4: FlexColumnWidth(1.0), // From
+              5: FlexColumnWidth(1.0), // To
+              6: FlexColumnWidth(1.0), // Departure
+              7: FlexColumnWidth(1.0), // Arrival
+              8: FlexColumnWidth(1.2), // Phone
+              9: FlexColumnWidth(1.2), // Role/Vehicle
+              10: FlexColumnWidth(1.0), // Status
+              11: FlexColumnWidth(1.2), // Actions
+            },
+            defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+            children: [
+              // Header Row
+              TableRow(
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  border: const Border(
                     bottom: BorderSide(color: Colors.black12, width: 1),
                   ),
                 ),
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 12.0,
-                      horizontal: 16.0,
-                    ),
-                    child: Row(
-                      children: [
-                        Checkbox(
-                          value: false,
-                          onChanged: (val) {},
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          side: const BorderSide(color: Colors.black26),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          data['number'],
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w500,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  _buildDataCell(data['name']),
-                  _buildDataCell(data['from']),
-                  _buildDataCell(data['to']),
-                  _buildDataCell(data['via']),
-                  _buildDataCell(data['firstBus']),
-                  _buildDataCell(data['lastBus']),
-                  _buildDataCell(data['frequency']),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 12.0,
-                      horizontal: 16.0,
-                    ),
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: _buildStatusBadge(data['status']),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 12.0,
-                      horizontal: 16.0,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: const Icon(
-                            Icons.remove_red_eye_outlined,
-                            size: 20,
-                            color: Colors.black54,
-                          ),
-                          onPressed: () {},
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                        ),
-                        const SizedBox(width: 12),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.edit_outlined,
-                            size: 20,
-                            color: Colors.black54,
-                          ),
-                          onPressed: () {},
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                        ),
-                        const SizedBox(width: 12),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.delete_outline,
-                            size: 20,
-                            color: Colors.redAccent,
-                          ),
-                          onPressed: () {},
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                        ),
-                      ],
-                    ),
-                  ),
+                  _buildHeaderCell('Reg Number'),
+                  _buildHeaderCell('Bus Name'),
+                  _buildHeaderCell('Main Stand'),
+                  _buildHeaderCell('Type'),
+                  _buildHeaderCell('From'),
+                  _buildHeaderCell('To'),
+                  _buildHeaderCell('Departure'),
+                  _buildHeaderCell('Arrival'),
+                  _buildHeaderCell('Phone'),
+                  _buildHeaderCell('Added By'),
+                  _buildHeaderCell('Status'),
+                  _buildHeaderCell('Actions'),
                 ],
-              );
-            }).toList(),
-          ],
+              ),
+              // Data Rows
+              ...docs.map((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                return TableRow(
+                  decoration: const BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(color: Colors.black12, width: 1),
+                    ),
+                  ),
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 12.0,
+                        horizontal: 16.0,
+                      ),
+                      child: Row(
+                        children: [
+                          Checkbox(
+                            value: false,
+                            onChanged: (val) {},
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            side: const BorderSide(color: Colors.black26),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              data['reg_number']?.toString() ?? 'N/A',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w500,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    _buildDataCell(data['bus_name']?.toString() ?? 'N/A'),
+                    _buildDataCell(data['main_stand']?.toString() ?? 'N/A'),
+                    _buildDataCell(data['bus_type']?.toString() ?? 'N/A'),
+                    _buildDataCell(data['first_stop']?.toString() ?? 'N/A'),
+                    _buildDataCell(data['destination']?.toString() ?? 'N/A'),
+                    _buildDataCell(
+                      _formatTime(data['departure_time']?.toString()),
+                    ),
+                    _buildDataCell(
+                      _formatTime(data['arrival_time']?.toString()),
+                    ),
+                    _buildDataCell(data['phone']?.toString() ?? 'N/A'),
+                    _buildDataCell(
+                      (data['role'] != null ||
+                              data['role_with_vehicle'] != null ||
+                              data['vehicle'] != null ||
+                              data['username'] != null ||
+                              data['full_name'] != null ||
+                              data['fullName'] != null ||
+                              data['name'] != null)
+                          ? [
+                                data['username'] ??
+                                    data['full_name'] ??
+                                    data['fullName'] ??
+                                    data['name'],
+                                "${data['role'] ?? ''} ${data['role_with_vehicle'] ?? ''} ${data['vehicle'] != null ? '(${data['vehicle']})' : ''}"
+                                    .trim()
+                                    .replaceAll(RegExp(r'\s+'), ' '),
+                              ]
+                              .where(
+                                (e) =>
+                                    e != null && e.toString().trim().isNotEmpty,
+                              )
+                              .join(' - ')
+                          : 'Admin',
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 12.0,
+                        horizontal: 16.0,
+                      ),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: _buildStatusBadge(
+                          data['status']?.toString() ?? 'unknown',
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 12.0,
+                        horizontal: 16.0,
+                      ),
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Transform.scale(
+                              scale: 0.8,
+                              child: Switch(
+                                value: data['status'] == 'active',
+                                onChanged: (bool value) async {
+                                  final newStatus =
+                                      value ? 'active' : 'inactive';
+                                  await FirebaseFirestore.instance
+                                      .collection('transports')
+                                      .doc(doc.id)
+                                      .update({'status': newStatus});
+                                },
+                                activeColor: Colors.green,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            IconButton(
+                              icon: const Icon(
+                                Icons.edit_outlined,
+                                size: 20,
+                                color: Colors.black54,
+                              ),
+                              onPressed: () => _showBusDialog(document: doc),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                            ),
+                            const SizedBox(width: 12),
+                            IconButton(
+                              icon: const Icon(
+                                Icons.delete_outline,
+                                size: 20,
+                                color: Colors.redAccent,
+                              ),
+                              onPressed: () {},
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              }).toList(),
+            ],
+          ),
         ),
       ),
     );
@@ -628,16 +688,19 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
     Color bgColor;
     Color textColor;
 
-    switch (status) {
-      case 'Active':
+    switch (status.toLowerCase()) {
+      case 'active':
+      case 'approved':
         bgColor = Colors.green.shade50;
         textColor = Colors.green.shade700;
         break;
-      case 'Inactive':
+      case 'inactive':
+      case 'pending':
+        status = 'inactive';
         bgColor = Colors.red.shade50;
         textColor = Colors.red.shade700;
         break;
-      case 'Removed':
+      case 'removed':
         bgColor = Colors.grey.shade200;
         textColor = Colors.black54;
         break;
@@ -653,10 +716,10 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
-        status,
+        status.toUpperCase(),
         style: TextStyle(
           color: textColor,
-          fontSize: 12,
+          fontSize: 10,
           fontWeight: FontWeight.w600,
         ),
       ),
@@ -752,6 +815,620 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
         size: 16,
         color: isDisabled ? Colors.black26 : Colors.black54,
       ),
+    );
+  }
+
+  String _formatTime(String? time) {
+    if (time == null || time.isEmpty) return 'N/A';
+    try {
+      final parts = time.split(':');
+      if (parts.length >= 2) {
+        int hour = int.parse(parts[0]);
+        int minute = int.parse(parts[1]);
+        String period = hour >= 12 ? 'PM' : 'AM';
+        hour = hour % 12;
+        if (hour == 0) hour = 12;
+        return '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')} $period';
+      }
+    } catch (e) {
+      // Ignore parsing errors and return the original string
+    }
+    return time;
+  }
+
+  void _showBusDialog({QueryDocumentSnapshot? document}) {
+    final formKey = GlobalKey<FormState>();
+    final data = document?.data() as Map<String, dynamic>?;
+
+    final regNumberController = TextEditingController(
+      text: data?['reg_number']?.toString(),
+    );
+    final busNameController = TextEditingController(
+      text: data?['bus_name']?.toString(),
+    );
+    final busTypeController = TextEditingController(
+      text: data?['bus_type']?.toString(),
+    );
+    final busSubTypeController = TextEditingController(
+      text: data?['bus_sub_type']?.toString() ?? data?['category']?.toString(),
+    );
+    final firstStopController = TextEditingController(
+      text: data?['first_stop']?.toString(),
+    );
+    final destinationController = TextEditingController(
+      text: data?['destination']?.toString(),
+    );
+    final departureTimeController = TextEditingController(
+      text: data?['departure_time']?.toString(),
+    );
+    final arrivalTimeController = TextEditingController(
+      text: data?['arrival_time']?.toString(),
+    );
+    final phoneController = TextEditingController(
+      text: data?['phone']?.toString(),
+    );
+    final mainStandController = TextEditingController(
+      text: data?['main_stand']?.toString(),
+    );
+
+    bool isLoading = false;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            Widget buildTextField(
+              TextEditingController controller,
+              String label, {
+              String? hint,
+              int maxLines = 1,
+              bool isTime = false,
+              bool isPhone = false,
+              bool isUppercase = false,
+              VoidCallback? onTap,
+            }) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF1E293B),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: controller,
+                      maxLines: maxLines,
+                      readOnly: onTap != null,
+                      onTap: onTap,
+                      maxLength: isPhone ? 10 : null,
+                      keyboardType: isPhone ? TextInputType.phone : null,
+                      textCapitalization:
+                          isUppercase
+                              ? TextCapitalization.characters
+                              : TextCapitalization.none,
+                      inputFormatters:
+                          isPhone
+                              ? [FilteringTextInputFormatter.digitsOnly]
+                              : isUppercase
+                              ? [
+                                TextInputFormatter.withFunction(
+                                  (oldValue, newValue) => newValue.copyWith(
+                                    text: newValue.text.toUpperCase(),
+                                  ),
+                                ),
+                              ]
+                              : null,
+                      decoration: InputDecoration(
+                        counterText: isPhone ? '' : null,
+                        hintText: hint ?? 'Enter $label',
+                        hintStyle: const TextStyle(
+                          color: Colors.black38,
+                          fontSize: 13,
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
+                        suffixIcon:
+                            isTime
+                                ? const Icon(
+                                  Icons.access_time,
+                                  color: Colors.black38,
+                                  size: 20,
+                                )
+                                : null,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: Colors.black12),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: Colors.black12),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(
+                            color: Colors.blue,
+                            width: 1.5,
+                          ),
+                        ),
+                        errorBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: Colors.redAccent),
+                        ),
+                        filled: true,
+                        fillColor: Colors.grey.shade50,
+                      ),
+                      validator:
+                          (value) =>
+                              value == null || value.trim().isEmpty
+                                  ? 'Required'
+                                  : null,
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            Widget buildDropdownField(
+              TextEditingController controller,
+              String label,
+              List<String> items, {
+              String? hint,
+              void Function(String?)? onChanged,
+            }) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF1E293B),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<String>(
+                      key: ValueKey(items.join(',')),
+
+                      value:
+                          controller.text.isEmpty
+                              ? null
+                              : (items.contains(controller.text)
+                                  ? controller.text
+                                  : null),
+                      decoration: InputDecoration(
+                        hintText: hint ?? 'Select $label',
+                        hintStyle: const TextStyle(
+                          color: Colors.black38,
+                          fontSize: 13,
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: Colors.black12),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: Colors.black12),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(
+                            color: Colors.blue,
+                            width: 1.5,
+                          ),
+                        ),
+                        errorBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: Colors.redAccent),
+                        ),
+                        filled: true,
+                        fillColor: Colors.grey.shade50,
+                      ),
+                      items:
+                          items.map((String val) {
+                            return DropdownMenuItem(
+                              value: val,
+                              child: Text(val),
+                            );
+                          }).toList(),
+                      onChanged: (val) {
+                        if (val != null) {
+                          controller.text = val;
+                          if (onChanged != null) {
+                            onChanged(val);
+                          }
+                        }
+                      },
+                      validator:
+                          (value) =>
+                              value == null || value.trim().isEmpty
+                                  ? 'Required'
+                                  : null,
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            return Dialog(
+              backgroundColor: Colors.white,
+              surfaceTintColor: Colors.transparent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Container(
+                width: 600,
+                constraints: const BoxConstraints(maxHeight: 800),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Header
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 20,
+                      ),
+                      decoration: const BoxDecoration(
+                        border: Border(
+                          bottom: BorderSide(color: Colors.black12),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            document == null
+                                ? 'Add New Bus Route'
+                                : 'Edit Bus Route',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF1E293B),
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(
+                              Icons.close,
+                              color: Colors.black54,
+                            ),
+                            onPressed: () => Navigator.pop(context),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                          ),
+                        ],
+                      ),
+                    ),
+                    // Form Content
+                    Flexible(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(24),
+                        child: Form(
+                          key: formKey,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: buildTextField(
+                                      regNumberController,
+                                      'Registration Number',
+                                      hint: 'e.g., KL 11 AB 1234',
+                                      isUppercase: true,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    flex: 2,
+                                    child: buildTextField(
+                                      busNameController,
+                                      'Bus Name',
+                                      hint: 'e.g., Star Travels',
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: buildDropdownField(
+                                      busTypeController,
+                                      'Bus Type',
+                                      ['Private Bus', 'KSRTC'],
+                                      hint: 'Select Bus Type',
+                                      onChanged: (val) {
+                                        busSubTypeController.text = '';
+                                        setState(() {});
+                                      },
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child:
+                                        busTypeController.text == 'Private Bus'
+                                            ? buildDropdownField(
+                                              busSubTypeController,
+                                              'Bus Category',
+                                              ['limited stop', 'ordinary'],
+                                              hint: 'Select Category',
+                                            )
+                                            : busTypeController.text == 'KSRTC'
+                                            ? buildDropdownField(
+                                              busSubTypeController,
+                                              'Bus Category',
+                                              [
+                                                'ordinary',
+                                                'super fast',
+                                                'fast passenger',
+                                              ],
+                                              hint: 'Select Category',
+                                            )
+                                            : const SizedBox(),
+                                  ),
+                                ],
+                              ),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: buildTextField(
+                                      phoneController,
+                                      'Phone Number',
+                                      hint: 'Enter contact number',
+                                      isPhone: true,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: buildTextField(
+                                      mainStandController,
+                                      'Main Stand',
+                                      hint: 'e.g., Central Bus Stand',
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const Divider(height: 32, color: Colors.black12),
+                              const Text(
+                                'Route Details',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF1E293B),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: buildTextField(
+                                      firstStopController,
+                                      'From (First Stop)',
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: buildTextField(
+                                      destinationController,
+                                      'To (Destination)',
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: buildTextField(
+                                      departureTimeController,
+                                      'Departure Time',
+                                      hint: 'Select time',
+                                      isTime: true,
+                                      onTap: () async {
+                                        final TimeOfDay? time =
+                                            await showTimePicker(
+                                              context: context,
+                                              initialTime: TimeOfDay.now(),
+                                            );
+                                        if (time != null) {
+                                          departureTimeController.text =
+                                              '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+                                        }
+                                      },
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: buildTextField(
+                                      arrivalTimeController,
+                                      'Arrival Time',
+                                      hint: 'Select time',
+                                      isTime: true,
+                                      onTap: () async {
+                                        final TimeOfDay? time =
+                                            await showTimePicker(
+                                              context: context,
+                                              initialTime: TimeOfDay.now(),
+                                            );
+                                        if (time != null) {
+                                          arrivalTimeController.text =
+                                              '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+                                        }
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    // Footer
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 16,
+                      ),
+                      decoration: const BoxDecoration(
+                        border: Border(top: BorderSide(color: Colors.black12)),
+                        color: Color(0xFFF8F9FA),
+                        borderRadius: BorderRadius.only(
+                          bottomLeft: Radius.circular(12),
+                          bottomRight: Radius.circular(12),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 16,
+                              ),
+                            ),
+                            child: const Text(
+                              'Cancel',
+                              style: TextStyle(
+                                color: Colors.black54,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          ElevatedButton(
+                            onPressed:
+                                isLoading
+                                    ? null
+                                    : () async {
+                                      if (formKey.currentState!.validate()) {
+                                        setState(() => isLoading = true);
+                                        try {
+                                          final dataToSave = {
+                                            'reg_number':
+                                                regNumberController.text,
+                                            'bus_name': busNameController.text,
+                                            'bus_type': busTypeController.text,
+                                            'bus_sub_type':
+                                                busSubTypeController.text,
+                                            'first_stop':
+                                                firstStopController.text,
+                                            'destination':
+                                                destinationController.text,
+                                            'departure_time':
+                                                departureTimeController.text,
+                                            'arrival_time':
+                                                arrivalTimeController.text,
+                                            'phone': phoneController.text,
+                                            'main_stand':
+                                                mainStandController.text,
+                                            'transport_category': 'Bus',
+                                            'category': 'Transport (Travels)',
+                                            'updated_at':
+                                                FieldValue.serverTimestamp(),
+                                          };
+
+                                          if (document == null) {
+                                            dataToSave['status'] = 'inactive';
+                                            dataToSave['isVerified'] = 0;
+                                            dataToSave['ratings'] = 0;
+                                            dataToSave['total_reviews'] = 0;
+                                            dataToSave['services'] = [];
+                                            dataToSave['created_at'] =
+                                                FieldValue.serverTimestamp();
+
+                                            await FirebaseFirestore.instance
+                                                .collection('transports')
+                                                .add(dataToSave);
+                                          } else {
+                                            await FirebaseFirestore.instance
+                                                .collection('transports')
+                                                .doc(document.id)
+                                                .update(dataToSave);
+                                          }
+
+                                          if (context.mounted) {
+                                            Navigator.pop(context);
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              SnackBar(
+                                                content: Text(
+                                                  document == null
+                                                      ? 'Bus route added successfully'
+                                                      : 'Bus route updated successfully',
+                                                ),
+                                              ),
+                                            );
+                                          }
+                                        } catch (e) {
+                                          setState(() => isLoading = false);
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
+                                            SnackBar(
+                                              content: Text('Error: $e'),
+                                            ),
+                                          );
+                                        }
+                                      }
+                                    },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFFFC107),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                                vertical: 16,
+                              ),
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            child:
+                                isLoading
+                                    ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.black87,
+                                      ),
+                                    )
+                                    : Text(
+                                      document == null
+                                          ? 'Save Bus Route'
+                                          : 'Update Bus Route',
+                                      style: TextStyle(
+                                        color: Colors.black87,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }

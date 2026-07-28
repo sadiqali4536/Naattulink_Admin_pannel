@@ -4,17 +4,16 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:swiftclean_admin/MVVM/utils/printer_helper.dart';
 
-class TaxiDriversPage extends StatefulWidget {
-  const TaxiDriversPage({super.key});
+class BusinessesPage extends StatefulWidget {
+  const BusinessesPage({super.key});
 
   @override
-  State<TaxiDriversPage> createState() => _TaxiDriversPageState();
+  State<BusinessesPage> createState() => _BusinessesPageState();
 }
 
-class _TaxiDriversPageState extends State<TaxiDriversPage> {
+class _BusinessesPageState extends State<BusinessesPage> {
   String _selectedStatus = 'All Status';
-  String _selectedType = 'All Vehicle Types';
-  String _selectedCity = 'All Cities';
+  String _selectedType = 'All Types';
   String _searchQuery = '';
   final ScrollController _verticalScrollController = ScrollController();
 
@@ -27,10 +26,7 @@ class _TaxiDriversPageState extends State<TaxiDriversPage> {
         padding: const EdgeInsets.all(24.0),
         child: StreamBuilder<QuerySnapshot>(
           stream:
-              FirebaseFirestore.instance
-                  .collection('transports')
-                  .where('transport_category', isEqualTo: 'Taxi')
-                  .snapshots(),
+              FirebaseFirestore.instance.collection('businesses').snapshots(),
           builder: (context, snapshot) {
             if (snapshot.hasError) {
               return const Center(child: Text('Something went wrong'));
@@ -48,6 +44,7 @@ class _TaxiDriversPageState extends State<TaxiDriversPage> {
                           .toLowerCase();
                   return status == 'active' || status == 'approved';
                 }).length;
+
             final inactiveCount =
                 docs.where((d) {
                   final status =
@@ -61,16 +58,14 @@ class _TaxiDriversPageState extends State<TaxiDriversPage> {
 
             var filteredDocs = docs;
             if (_selectedStatus != 'All Status' ||
-                _selectedType != 'All Vehicle Types' ||
-                _selectedCity != 'All Cities' ||
+                _selectedType != 'All Types' ||
                 _searchQuery.isNotEmpty) {
               filteredDocs =
                   docs.where((d) {
                     final data = d.data() as Map<String, dynamic>;
                     final status =
                         data['status']?.toString().toLowerCase() ?? '';
-                    final type = data['vehicle_category']?.toString() ?? '';
-                    final city = data['main_stand']?.toString() ?? '';
+                    final type = data['business_category']?.toString() ?? '';
 
                     bool statusMatches = true;
                     if (_selectedStatus == 'Active')
@@ -83,52 +78,73 @@ class _TaxiDriversPageState extends State<TaxiDriversPage> {
                               status == 'suspended');
 
                     bool typeMatches = true;
-                    if (_selectedType != 'All Vehicle Types')
+                    if (_selectedType != 'All Types')
                       typeMatches =
                           (type.toLowerCase() == _selectedType.toLowerCase());
-
-                    bool cityMatches = true;
-                    if (_selectedCity != 'All Cities')
-                      cityMatches =
-                          (city.toLowerCase() == _selectedCity.toLowerCase());
 
                     bool searchMatches = true;
                     if (_searchQuery.isNotEmpty) {
                       final searchLower = _searchQuery.toLowerCase();
                       final name =
-                          data['username']?.toString().toLowerCase() ??
-                          data['name']?.toString().toLowerCase() ??
-                          '';
+                          data['username']?.toString().toLowerCase() ?? '';
+                      final business =
+                          data['business_name']?.toString().toLowerCase() ?? '';
                       final phone =
                           data['phone']?.toString().toLowerCase() ?? '';
-                      final reg =
-                          data['reg_number']?.toString().toLowerCase() ?? '';
-                      if (!name.contains(searchLower) &&
-                          !phone.contains(searchLower) &&
-                          !reg.contains(searchLower)) {
-                        searchMatches = false;
-                      }
+                      searchMatches =
+                          name.contains(searchLower) ||
+                          business.contains(searchLower) ||
+                          phone.contains(searchLower);
                     }
 
-                    return statusMatches &&
-                        typeMatches &&
-                        cityMatches &&
-                        searchMatches;
+                    return statusMatches && typeMatches && searchMatches;
                   }).toList();
             }
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildHeader(filteredDocs),
-                const SizedBox(height: 24),
-                _buildStatsCards(
-                  total: docs.length,
-                  active: activeCount,
-                  inactive: inactiveCount,
+                _buildHeader(
+                  filteredDocs,
+                  activeCount,
+                  inactiveCount,
+                  docs.length,
                 ),
                 const SizedBox(height: 24),
-                _buildTableSection(filteredDocs),
+                _buildFilters(),
+                const SizedBox(height: 24),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.black12.withOpacity(0.05)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.02),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.all(20.0),
+                        child: Text(
+                          'Businesses Directory (${filteredDocs.length})',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF1E293B),
+                          ),
+                        ),
+                      ),
+                      const Divider(height: 1, color: Colors.black12),
+                      _buildDataTable(filteredDocs),
+                    ],
+                  ),
+                ),
               ],
             );
           },
@@ -137,121 +153,126 @@ class _TaxiDriversPageState extends State<TaxiDriversPage> {
     );
   }
 
-  Widget _buildHeader(List<QueryDocumentSnapshot> docs) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      crossAxisAlignment: CrossAxisAlignment.end,
+  Widget _buildHeader(
+    List<QueryDocumentSnapshot> docs,
+    int active,
+    int inactive,
+    int total,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: const [
-            Text(
-              'Taxi Drivers',
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF1E293B),
-              ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Shops & Businesses',
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1E293B),
+                  ),
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'Manage registered shops and businesses.',
+                  style: TextStyle(fontSize: 14, color: Colors.grey),
+                ),
+              ],
             ),
-            SizedBox(height: 8),
-            Text(
-              'Manage taxi drivers, vehicles and account status.',
-              style: TextStyle(fontSize: 14, color: Colors.grey),
+            Row(
+              children: [
+                OutlinedButton.icon(
+                  onPressed: () {
+                    final listToExport =
+                        docs
+                            .map((d) => d.data() as Map<String, dynamic>)
+                            .toList();
+                    printBusinessesList(listToExport);
+                  },
+                  icon: const Icon(
+                    Icons.download_rounded,
+                    color: Colors.black87,
+                    size: 20,
+                  ),
+                  label: const Text(
+                    'Export',
+                    style: TextStyle(color: Colors.black87),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 16,
+                    ),
+                    side: const BorderSide(color: Colors.black12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                ElevatedButton.icon(
+                  onPressed: () => _showBusinessDialog(),
+                  icon: const Icon(Icons.add, color: Colors.black87, size: 20),
+                  label: const Text(
+                    'Add Business',
+                    style: TextStyle(
+                      color: Colors.black87,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFFFC107),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 16,
+                    ),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
+        const SizedBox(height: 24),
         Row(
           children: [
-            OutlinedButton.icon(
-              onPressed: () {
-                final listToExport =
-                    docs.map((d) => d.data() as Map<String, dynamic>).toList();
-                printTaxiDriversList(listToExport);
-              },
-              icon: const Icon(
-                Icons.download_rounded,
-                color: Colors.black87,
-                size: 20,
-              ),
-              label: const Text(
-                'Export',
-                style: TextStyle(color: Colors.black87),
-              ),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 16,
-                ),
-                side: const BorderSide(color: Colors.black12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
+            Expanded(
+              child: _buildStatCard(
+                title: 'Total Businesses',
+                value: total.toString(),
+                icon: Icons.store_outlined,
+                iconBgColor: Colors.purple.shade50,
+                iconColor: Colors.purple,
               ),
             ),
             const SizedBox(width: 16),
-            ElevatedButton.icon(
-              onPressed: () => _showTaxiDriverDialog(),
-              icon: const Icon(Icons.add, color: Colors.black87, size: 20),
-              label: const Text(
-                'Add Taxi Driver',
-                style: TextStyle(
-                  color: Colors.black87,
-                  fontWeight: FontWeight.w600,
-                ),
+            Expanded(
+              child: _buildStatCard(
+                title: 'Active',
+                value: active.toString(),
+                icon: Icons.check_circle_outline,
+                iconBgColor: Colors.green.shade50,
+                iconColor: Colors.green,
               ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFFFC107),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 16,
-                ),
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: _buildStatCard(
+                title: 'Pending/Inactive',
+                value: inactive.toString(),
+                icon: Icons.access_time,
+                iconBgColor: Colors.orange.shade50,
+                iconColor: Colors.orange,
               ),
             ),
           ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStatsCards({
-    required int total,
-    required int active,
-    required int inactive,
-  }) {
-    return Row(
-      children: [
-        Expanded(
-          child: _buildStatCard(
-            title: 'Total Drivers',
-            value: total.toString(),
-            icon: Icons.people_outline,
-            iconBgColor: Colors.blue.shade50,
-            iconColor: Colors.blue,
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: _buildStatCard(
-            title: 'Active Drivers',
-            value: active.toString(),
-            icon: Icons.check_circle_outline,
-            iconBgColor: Colors.green.shade50,
-            iconColor: Colors.green,
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: _buildStatCard(
-            title: 'Pending/Inactive',
-            value: inactive.toString(),
-            icon: Icons.access_time,
-            iconBgColor: Colors.orange.shade50,
-            iconColor: Colors.orange,
-          ),
         ),
       ],
     );
@@ -316,59 +337,23 @@ class _TaxiDriversPageState extends State<TaxiDriversPage> {
     );
   }
 
-  Widget _buildTableSection(List<QueryDocumentSnapshot> docs) {
+  Widget _buildFilters() {
     return Container(
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.black12.withOpacity(0.05)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.02),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
       ),
-      child: Column(
-        children: [
-          _buildFilters(docs),
-          const Divider(height: 1),
-          _buildDataTable(docs),
-          const Divider(height: 1),
-          _buildPagination(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFilters(List<QueryDocumentSnapshot> docs) {
-    final Set<String> uniqueCities = {};
-    for (var doc in docs) {
-      final data = doc.data() as Map<String, dynamic>;
-      final city = data['main_stand']?.toString();
-      if (city != null && city.trim().isNotEmpty) {
-        uniqueCities.add(city.trim());
-      }
-    }
-    final List<String> cityList = uniqueCities.toList()..sort();
-
-    return Padding(
-      padding: const EdgeInsets.all(20.0),
       child: Row(
         children: [
           Expanded(
             flex: 2,
             child: TextField(
-              onChanged: (val) {
-                setState(() {
-                  _searchQuery = val;
-                });
-              },
+              onChanged: (val) => setState(() => _searchQuery = val),
               decoration: InputDecoration(
-                hintText: 'Search by name, phone or license number...',
-                hintStyle: const TextStyle(color: Colors.black38, fontSize: 14),
-                prefixIcon: const Icon(Icons.search, color: Colors.black38),
+                hintText: 'Search by name, business or phone...',
+                prefixIcon: const Icon(Icons.search, color: Colors.grey),
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 16,
                   vertical: 12,
@@ -435,9 +420,18 @@ class _TaxiDriversPageState extends State<TaxiDriversPage> {
                 ),
               ),
               items:
-                  ['All Vehicle Types', 'Auto', 'Car', 'Van'].map((
-                    String value,
-                  ) {
+                  [
+                    'All Types',
+                    'Restaurant',
+                    'Grocery',
+                    'Electronics',
+                    'Clothing',
+                    'Pharmacy',
+                    'Hardware',
+                    'Beauty & Salon',
+                    'Bakery',
+                    'Other',
+                  ].map((String value) {
                     return DropdownMenuItem<String>(
                       value: value,
                       child: Text(value),
@@ -445,37 +439,6 @@ class _TaxiDriversPageState extends State<TaxiDriversPage> {
                   }).toList(),
               onChanged: (val) {
                 if (val != null) setState(() => _selectedType = val);
-              },
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            flex: 1,
-            child: DropdownButtonFormField<String>(
-              value: _selectedCity,
-              decoration: InputDecoration(
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: Colors.black12),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: Colors.black12),
-                ),
-              ),
-              items:
-                  ['All Cities', ...cityList].map((String value) {
-                    return DropdownMenuItem<String>(
-                      value: value,
-                      child: Text(value),
-                    );
-                  }).toList(),
-              onChanged: (val) {
-                if (val != null) setState(() => _selectedCity = val);
               },
             ),
           ),
@@ -488,23 +451,20 @@ class _TaxiDriversPageState extends State<TaxiDriversPage> {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: SizedBox(
-        width: 1800, // Increased width to fit all data
+        width: 1600,
         child: Table(
           columnWidths: const {
-            0: FlexColumnWidth(2.5), // Driver Details
-            1: FlexColumnWidth(1.5), // Phone
-            2: FlexColumnWidth(1.5), // License No.
-            3: FlexColumnWidth(2.0), // Vehicle Details
-            4: FlexColumnWidth(2.0), // Capacity & Features
-            5: FlexColumnWidth(1.5), // Main Stand
-            6: FlexColumnWidth(2.0), // Charge & Ratings
-            7: FlexColumnWidth(1.5), // Joined On
-            8: FlexColumnWidth(1.0), // Status
-            9: FlexColumnWidth(1.2), // Actions
+            0: FlexColumnWidth(2.5),
+            1: FlexColumnWidth(1.5),
+            2: FlexColumnWidth(2.0),
+            3: FlexColumnWidth(1.5),
+            4: FlexColumnWidth(2.0),
+            5: FlexColumnWidth(1.5),
+            6: FlexColumnWidth(1.0),
+            7: FlexColumnWidth(1.5),
           },
           defaultVerticalAlignment: TableCellVerticalAlignment.middle,
           children: [
-            // Header Row
             TableRow(
               decoration: BoxDecoration(
                 color: Colors.grey.shade50,
@@ -513,35 +473,22 @@ class _TaxiDriversPageState extends State<TaxiDriversPage> {
                 ),
               ),
               children: [
-                _buildHeaderCellWithCheckbox('Driver Details'),
+                _buildHeaderCellWithCheckbox('Owner Details'),
                 _buildHeaderCell('Phone'),
-                _buildHeaderCell('License No.'),
-                _buildHeaderCell('Vehicle Details'),
-                _buildHeaderCell('Capacity & Features'),
-                _buildHeaderCell('Main Stand'),
-                _buildHeaderCell('Charge & Ratings'),
+                _buildHeaderCell('Business Name'),
+                _buildHeaderCell('Category'),
+                _buildHeaderCell('Address'),
                 _buildHeaderCell('Joined On'),
                 _buildHeaderCell('Status'),
                 _buildHeaderCell('Actions'),
               ],
             ),
-            // Data Rows
             ...docs.map((doc) {
               final data = doc.data() as Map<String, dynamic>;
-
-              String driverName = [
-                    data['username'] ??
-                        data['full_name'] ??
-                        data['fullName'] ??
-                        data['name'],
-                    "${data['role'] ?? ''} ${data['role_with_vehicle'] ?? ''}"
-                        .trim()
-                        .replaceAll(RegExp(r'\s+'), ' '),
-                  ]
-                  .where((e) => e != null && e.toString().trim().isNotEmpty)
-                  .join(' - ');
-              if (driverName.isEmpty) driverName = 'Unknown';
-
+              String name =
+                  data['username']?.toString() ??
+                  data['name']?.toString() ??
+                  'Unknown';
               String dateString = 'N/A';
               if (data['created_at'] != null) {
                 try {
@@ -582,13 +529,11 @@ class _TaxiDriversPageState extends State<TaxiDriversPage> {
                         const SizedBox(width: 8),
                         CircleAvatar(
                           radius: 16,
-                          backgroundColor: Colors.blue.shade100,
+                          backgroundColor: Colors.purple.shade100,
                           child: Text(
-                            driverName.isNotEmpty
-                                ? driverName[0].toUpperCase()
-                                : '?',
+                            name.isNotEmpty ? name[0].toUpperCase() : '?',
                             style: const TextStyle(
-                              color: Colors.blue,
+                              color: Colors.purple,
                               fontSize: 14,
                             ),
                           ),
@@ -600,7 +545,7 @@ class _TaxiDriversPageState extends State<TaxiDriversPage> {
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Text(
-                                driverName,
+                                name,
                                 style: const TextStyle(
                                   fontWeight: FontWeight.w600,
                                   fontSize: 13,
@@ -630,7 +575,6 @@ class _TaxiDriversPageState extends State<TaxiDriversPage> {
                     ),
                   ),
                   _buildDataCell(data['phone']?.toString() ?? 'N/A'),
-                  _buildDataCell(data['reg_number']?.toString() ?? 'N/A'),
                   Padding(
                     padding: const EdgeInsets.symmetric(
                       vertical: 12.0,
@@ -641,7 +585,7 @@ class _TaxiDriversPageState extends State<TaxiDriversPage> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(
-                          data['vehicle_model']?.toString() ?? 'N/A',
+                          data['business_name']?.toString() ?? 'N/A',
                           style: const TextStyle(
                             fontWeight: FontWeight.w500,
                             fontSize: 13,
@@ -649,82 +593,27 @@ class _TaxiDriversPageState extends State<TaxiDriversPage> {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          data['vehicle_category']?.toString() ?? 'N/A',
+                          'Contact: ${data['contact_number']?.toString() ?? 'N/A'}',
                           style: const TextStyle(
                             color: Colors.grey,
                             fontSize: 12,
                           ),
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Type: ${data['transport_category']?.toString() ?? 'N/A'}',
-                          style: const TextStyle(
-                            color: Colors.grey,
-                            fontSize: 11,
-                          ),
-                        ),
                       ],
                     ),
                   ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 12.0,
-                      horizontal: 16.0,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          'Seat: ${data['seating_capacity']?.toString() ?? 'N/A'}',
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Luggage: ${data['luggage_capacity']?.toString() ?? 'N/A'}',
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'AC: ${data['air_conditioning'] == true ? 'Yes' : 'No'}',
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                      ],
-                    ),
+                  _buildDataCell(
+                    data['business_category']?.toString() ?? 'N/A',
                   ),
-                  _buildDataCell(data['main_stand']?.toString() ?? 'N/A'),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 12.0,
-                      horizontal: 16.0,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          'Min Charge: ₹${data['min_charge']?.toString() ?? 'N/A'}',
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Rating: ${data['ratings']?.toString() ?? '0'} (${data['total_reviews']?.toString() ?? '0'} reviews)',
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                      ],
-                    ),
-                  ),
+                  _buildDataCell(data['address']?.toString() ?? 'N/A'),
                   _buildDataCell(dateString),
                   Padding(
                     padding: const EdgeInsets.symmetric(
                       vertical: 12.0,
                       horizontal: 16.0,
                     ),
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: _buildStatusBadge(
-                        data['status']?.toString() ?? 'unknown',
-                      ),
+                    child: _buildStatusBadge(
+                      data['status']?.toString() ?? 'Pending',
                     ),
                   ),
                   Padding(
@@ -732,50 +621,45 @@ class _TaxiDriversPageState extends State<TaxiDriversPage> {
                       vertical: 12.0,
                       horizontal: 16.0,
                     ),
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Transform.scale(
-                            scale: 0.8,
-                            child: Switch(
-                              value: data['status'] == 'active',
-                              onChanged: (bool value) async {
-                                final newStatus = value ? 'active' : 'inactive';
-                                await FirebaseFirestore.instance
-                                    .collection('transports')
-                                    .doc(doc.id)
-                                    .update({'status': newStatus});
-                              },
-                              activeColor: Colors.green,
-                            ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Switch(
+                          value:
+                              data['status']?.toString().toLowerCase() ==
+                              'active',
+                          onChanged: (val) {
+                            FirebaseFirestore.instance
+                                .collection('businesses')
+                                .doc(doc.id)
+                                .update({
+                                  'status': val ? 'active' : 'inactive',
+                                });
+                          },
+                          activeColor: Colors.green,
+                        ),
+                        const SizedBox(width: 4),
+                        IconButton(
+                          icon: const Icon(
+                            Icons.edit_outlined,
+                            color: Colors.blue,
+                            size: 18,
                           ),
-                          const SizedBox(width: 12),
-                          IconButton(
-                            icon: const Icon(
-                              Icons.edit_outlined,
-                              size: 20,
-                              color: Colors.black54,
-                            ),
-                            onPressed:
-                                () => _showTaxiDriverDialog(document: doc),
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
+                          onPressed: () => _showBusinessDialog(document: doc),
+                          constraints: const BoxConstraints(),
+                          padding: const EdgeInsets.all(4),
+                        ),
+                        IconButton(
+                          icon: const Icon(
+                            Icons.delete_outline,
+                            color: Colors.red,
+                            size: 18,
                           ),
-                          const SizedBox(width: 12),
-                          IconButton(
-                            icon: const Icon(
-                              Icons.delete_outline,
-                              size: 20,
-                              color: Colors.redAccent,
-                            ),
-                            onPressed: () {},
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                          ),
-                        ],
-                      ),
+                          onPressed: () => _deleteBusiness(doc.id),
+                          constraints: const BoxConstraints(),
+                          padding: const EdgeInsets.all(4),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -804,9 +688,9 @@ class _TaxiDriversPageState extends State<TaxiDriversPage> {
           Text(
             title,
             style: const TextStyle(
-              fontSize: 13,
               fontWeight: FontWeight.w600,
-              color: Colors.black54,
+              fontSize: 12,
+              color: Colors.black87,
             ),
           ),
         ],
@@ -820,18 +704,22 @@ class _TaxiDriversPageState extends State<TaxiDriversPage> {
       child: Text(
         title,
         style: const TextStyle(
-          fontSize: 13,
           fontWeight: FontWeight.w600,
-          color: Colors.black54,
+          fontSize: 12,
+          color: Colors.black87,
         ),
       ),
     );
   }
 
-  Widget _buildDataCell(String text) {
+  Widget _buildDataCell(String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
-      child: Text(text, style: const TextStyle(fontSize: 13)),
+      child: Text(
+        value,
+        style: const TextStyle(fontSize: 13),
+        overflow: TextOverflow.ellipsis,
+      ),
     );
   }
 
@@ -839,178 +727,121 @@ class _TaxiDriversPageState extends State<TaxiDriversPage> {
     Color bgColor;
     Color textColor;
 
-    switch (status) {
-      case 'Active':
+    switch (status.toLowerCase()) {
+      case 'active':
+      case 'approved':
         bgColor = Colors.green.shade50;
         textColor = Colors.green.shade700;
         break;
-      case 'Pending':
+      case 'pending':
         bgColor = Colors.orange.shade50;
         textColor = Colors.orange.shade700;
         break;
-      case 'Suspended':
+      case 'suspended':
+      case 'banned':
+      case 'rejected':
         bgColor = Colors.red.shade50;
         textColor = Colors.red.shade700;
         break;
-      case 'Inactive':
-        bgColor = Colors.grey.shade200;
-        textColor = Colors.black54;
-        break;
       default:
-        bgColor = Colors.grey.shade200;
-        textColor = Colors.black54;
+        bgColor = Colors.grey.shade100;
+        textColor = Colors.grey.shade700;
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
         color: bgColor,
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: textColor.withOpacity(0.2)),
       ),
       child: Text(
-        status,
+        status.toUpperCase(),
         style: TextStyle(
           color: textColor,
-          fontSize: 12,
+          fontSize: 10,
           fontWeight: FontWeight.w600,
+          letterSpacing: 0.5,
         ),
       ),
     );
   }
 
-  Widget _buildPagination() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          const Text(
-            'Showing 1 to 8 of 126 entries',
-            style: TextStyle(color: Colors.grey, fontSize: 13),
-          ),
-          Row(
-            children: [
-              _buildPageButton(Icons.chevron_left, false),
-              const SizedBox(width: 8),
-              _buildPageNumber('1', true),
-              const SizedBox(width: 8),
-              _buildPageNumber('2', false),
-              const SizedBox(width: 8),
-              _buildPageNumber('3', false),
-              const SizedBox(width: 8),
-              const Text('...', style: TextStyle(color: Colors.grey)),
-              const SizedBox(width: 8),
-              _buildPageNumber('16', false),
-              const SizedBox(width: 8),
-              _buildPageButton(Icons.chevron_right, false),
-              const SizedBox(width: 16),
-              Container(
-                height: 36,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.black12),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Row(
-                  children: const [
-                    Text(
-                      '10 / page',
-                      style: TextStyle(fontSize: 13, color: Colors.black87),
-                    ),
-                    SizedBox(width: 8),
-                    Icon(
-                      Icons.keyboard_arrow_down,
-                      size: 16,
-                      color: Colors.black54,
-                    ),
-                  ],
+  Future<void> _deleteBusiness(String docId) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Confirm Delete'),
+            content: const Text(
+              'Are you sure you want to delete this business? This action cannot be undone.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                child: const Text(
+                  'Delete',
+                  style: TextStyle(color: Colors.white),
                 ),
               ),
             ],
           ),
-        ],
-      ),
     );
+
+    if (confirm == true) {
+      try {
+        await FirebaseFirestore.instance
+            .collection('businesses')
+            .doc(docId)
+            .delete();
+        if (mounted)
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Deleted successfully')));
+      } catch (e) {
+        if (mounted)
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Error deleting: $e')));
+      }
+    }
   }
 
-  Widget _buildPageNumber(String number, bool isActive) {
-    return Container(
-      width: 32,
-      height: 32,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: isActive ? const Color(0xFFFFC107) : Colors.transparent,
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(
-        number,
-        style: TextStyle(
-          color: isActive ? Colors.black87 : Colors.black54,
-          fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-          fontSize: 13,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPageButton(IconData icon, bool isDisabled) {
-    return Container(
-      width: 32,
-      height: 32,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.black12),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Icon(
-        icon,
-        size: 16,
-        color: isDisabled ? Colors.black26 : Colors.black54,
-      ),
-    );
-  }
-
-  void _showTaxiDriverDialog({QueryDocumentSnapshot? document}) {
-    final formKey = GlobalKey<FormState>();
+  void _showBusinessDialog({DocumentSnapshot? document}) {
     final data = document?.data() as Map<String, dynamic>?;
 
-    final regNumberController = TextEditingController(
-      text: data?['reg_number']?.toString(),
-    );
-    final phoneController = TextEditingController(
-      text: data?['phone']?.toString(),
-    );
+    final formKey = GlobalKey<FormState>();
+
     final usernameController = TextEditingController(
-      text:
-          data?['username']?.toString() ??
-          data?['full_name']?.toString() ??
-          data?['name']?.toString(),
+      text: data?['username']?.toString(),
     );
     final emailController = TextEditingController(
       text: data?['email']?.toString(),
     );
-    final vehicleModelController = TextEditingController(
-      text: data?['vehicle_model']?.toString(),
+    final phoneController = TextEditingController(
+      text: data?['phone']?.toString(),
     );
-    final vehicleCategoryController = TextEditingController(
-      text: data?['vehicle_category']?.toString(),
-    );
-    final seatingCapacityController = TextEditingController(
-      text: data?['seating_capacity']?.toString(),
-    );
-    final luggageCapacityController = TextEditingController(
-      text: data?['luggage_capacity']?.toString(),
-    );
-    final minChargeController = TextEditingController(
-      text: data?['min_charge']?.toString(),
-    );
-    final mainStandController = TextEditingController(
-      text: data?['main_stand']?.toString(),
+    final contactController = TextEditingController(
+      text: data?['contact_number']?.toString(),
     );
 
-    // Using string 'Yes' / 'No' to map boolean for dropdown
-    final acController = TextEditingController(
-      text: data != null && data['air_conditioning'] == true ? 'Yes' : 'No',
+    final businessNameController = TextEditingController(
+      text: data?['business_name']?.toString(),
+    );
+    final categoryController = TextEditingController(
+      text: data?['business_category']?.toString(),
+    );
+
+    final addressController = TextEditingController(
+      text: data?['address']?.toString(),
+    );
+    final availableTimeController = TextEditingController(
+      text: data?['available_time']?.toString(),
     );
 
     bool isLoading = false;
@@ -1026,8 +857,6 @@ class _TaxiDriversPageState extends State<TaxiDriversPage> {
               String? hint,
               int maxLines = 1,
               bool isPhone = false,
-              bool isUppercase = false,
-              bool isNumeric = false,
             }) {
               return Padding(
                 padding: const EdgeInsets.only(bottom: 16),
@@ -1047,23 +876,10 @@ class _TaxiDriversPageState extends State<TaxiDriversPage> {
                       controller: controller,
                       maxLines: maxLines,
                       maxLength: isPhone ? 10 : null,
-                      keyboardType:
-                          isPhone || isNumeric ? TextInputType.number : null,
-                      textCapitalization:
-                          isUppercase
-                              ? TextCapitalization.characters
-                              : TextCapitalization.none,
+                      keyboardType: isPhone ? TextInputType.number : null,
                       inputFormatters:
-                          isPhone || isNumeric
+                          isPhone
                               ? [FilteringTextInputFormatter.digitsOnly]
-                              : isUppercase
-                              ? [
-                                TextInputFormatter.withFunction(
-                                  (oldValue, newValue) => newValue.copyWith(
-                                    text: newValue.text.toUpperCase(),
-                                  ),
-                                ),
-                              ]
                               : null,
                       decoration: InputDecoration(
                         counterText: isPhone ? '' : null,
@@ -1087,22 +903,14 @@ class _TaxiDriversPageState extends State<TaxiDriversPage> {
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
                           borderSide: const BorderSide(
-                            color: Colors.blue,
+                            color: Colors.purple,
                             width: 1.5,
                           ),
                         ),
-                        errorBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: Colors.redAccent),
-                        ),
-                        filled: true,
-                        fillColor: Colors.grey.shade50,
                       ),
                       validator:
                           (value) =>
-                              value == null || value.trim().isEmpty
-                                  ? 'Required'
-                                  : null,
+                              value!.isEmpty ? 'Please enter $label' : null,
                     ),
                   ],
                 ),
@@ -1130,13 +938,10 @@ class _TaxiDriversPageState extends State<TaxiDriversPage> {
                     ),
                     const SizedBox(height: 8),
                     DropdownButtonFormField<String>(
-                      key: ValueKey(items.join(',')),
                       value:
-                          controller.text.isEmpty
-                              ? null
-                              : (items.contains(controller.text)
-                                  ? controller.text
-                                  : null),
+                          items.contains(controller.text)
+                              ? controller.text
+                              : null,
                       decoration: InputDecoration(
                         hintText: hint ?? 'Select $label',
                         hintStyle: const TextStyle(
@@ -1155,38 +960,24 @@ class _TaxiDriversPageState extends State<TaxiDriversPage> {
                           borderRadius: BorderRadius.circular(8),
                           borderSide: const BorderSide(color: Colors.black12),
                         ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(
-                            color: Colors.blue,
-                            width: 1.5,
-                          ),
-                        ),
-                        errorBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: Colors.redAccent),
-                        ),
-                        filled: true,
-                        fillColor: Colors.grey.shade50,
                       ),
                       items:
-                          items
-                              .map(
-                                (String val) => DropdownMenuItem(
-                                  value: val,
-                                  child: Text(val),
-                                ),
-                              )
-                              .toList(),
+                          items.map((String value) {
+                            return DropdownMenuItem<String>(
+                              value: value,
+                              child: Text(
+                                value,
+                                style: const TextStyle(fontSize: 14),
+                              ),
+                            );
+                          }).toList(),
                       onChanged: (val) {
-                        if (val != null) {
-                          controller.text = val;
-                        }
+                        if (val != null) controller.text = val;
                       },
                       validator:
                           (value) =>
-                              value == null || value.trim().isEmpty
-                                  ? 'Required'
+                              controller.text.isEmpty
+                                  ? 'Please select $label'
                                   : null,
                     ),
                   ],
@@ -1195,22 +986,22 @@ class _TaxiDriversPageState extends State<TaxiDriversPage> {
             }
 
             return Dialog(
-              backgroundColor: Colors.white,
-              surfaceTintColor: Colors.transparent,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Container(
                 width: 600,
-                constraints: const BoxConstraints(maxHeight: 800),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Header
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 24,
-                        vertical: 20,
+                        vertical: 16,
                       ),
                       decoration: const BoxDecoration(
                         border: Border(
@@ -1221,28 +1012,19 @@ class _TaxiDriversPageState extends State<TaxiDriversPage> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            document == null
-                                ? 'Add Taxi Driver'
-                                : 'Edit Taxi Driver',
+                            document == null ? 'Add Business' : 'Edit Business',
                             style: const TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
-                              color: Color(0xFF1E293B),
                             ),
                           ),
                           IconButton(
-                            icon: const Icon(
-                              Icons.close,
-                              color: Colors.black54,
-                            ),
+                            icon: const Icon(Icons.close),
                             onPressed: () => Navigator.pop(context),
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
                           ),
                         ],
                       ),
                     ),
-                    // Form Content
                     Flexible(
                       child: SingleChildScrollView(
                         padding: const EdgeInsets.all(24),
@@ -1251,146 +1033,101 @@ class _TaxiDriversPageState extends State<TaxiDriversPage> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
+                              const Padding(
+                                padding: EdgeInsets.only(bottom: 16),
+                                child: Text(
+                                  'OWNER DETAILS',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.black45,
+                                    letterSpacing: 1.2,
+                                  ),
+                                ),
+                              ),
                               Row(
                                 children: [
                                   Expanded(
                                     child: buildTextField(
                                       usernameController,
-                                      'Driver Name',
-                                      hint: 'e.g., John Doe',
+                                      'Full Name',
                                     ),
                                   ),
                                   const SizedBox(width: 16),
                                   Expanded(
                                     child: buildTextField(
+                                      emailController,
+                                      'Email Address',
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: buildTextField(
                                       phoneController,
-                                      'Phone Number',
-                                      hint: 'e.g., 9876543210',
+                                      'Mobile Number',
+                                      isPhone: true,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: buildTextField(
+                                      contactController,
+                                      'Alt Contact Number',
                                       isPhone: true,
                                     ),
                                   ),
                                 ],
                               ),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: buildTextField(
-                                      emailController,
-                                      'Email',
-                                      hint: 'e.g., john@example.com',
-                                    ),
-                                  ),
-                                  const SizedBox(width: 16),
-                                  Expanded(
-                                    child: buildTextField(
-                                      mainStandController,
-                                      'Main Stand',
-                                      hint: 'e.g., Central Stand',
-                                    ),
-                                  ),
-                                ],
-                              ),
                               const Divider(height: 32, color: Colors.black12),
-                              const Text(
-                                'Vehicle Details',
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xFF1E293B),
+                              const Padding(
+                                padding: EdgeInsets.only(bottom: 16),
+                                child: Text(
+                                  'BUSINESS DETAILS',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.black45,
+                                    letterSpacing: 1.2,
+                                  ),
                                 ),
                               ),
-                              const SizedBox(height: 16),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: buildTextField(
-                                      regNumberController,
-                                      'Registration Number',
-                                      hint: 'e.g., KL 11 AB 1234',
-                                      isUppercase: true,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 16),
-                                  Expanded(
-                                    child: buildTextField(
-                                      vehicleModelController,
-                                      'Vehicle Model',
-                                      hint: 'e.g., Swift Dzire',
-                                    ),
-                                  ),
+                              buildTextField(
+                                businessNameController,
+                                'Business Name',
+                              ),
+                              buildDropdownField(
+                                categoryController,
+                                'Business Category',
+                                [
+                                  'Restaurant',
+                                  'Grocery',
+                                  'Electronics',
+                                  'Clothing',
+                                  'Pharmacy',
+                                  'Hardware',
+                                  'Beauty & Salon',
+                                  'Bakery',
+                                  'Other',
                                 ],
                               ),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: buildDropdownField(
-                                      vehicleCategoryController,
-                                      'Vehicle Category',
-                                      ['Auto', 'Sedan', 'SUV', 'Hatchback'],
-                                      hint: 'Select Category',
-                                    ),
-                                  ),
-                                  const SizedBox(width: 16),
-                                  Expanded(
-                                    child: buildDropdownField(
-                                      acController,
-                                      'Air Conditioning',
-                                      ['Yes', 'No'],
-                                    ),
-                                  ),
-                                ],
+                              buildTextField(
+                                addressController,
+                                'Address',
+                                maxLines: 2,
                               ),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: buildTextField(
-                                      seatingCapacityController,
-                                      'Seating Capacity',
-                                      hint: 'e.g., 4',
-                                      isNumeric: true,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 16),
-                                  Expanded(
-                                    child: buildTextField(
-                                      luggageCapacityController,
-                                      'Luggage Capacity (Kg)',
-                                      hint: 'e.g., 10',
-                                      isNumeric: true,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const Divider(height: 32, color: Colors.black12),
-                              const Text(
-                                'Pricing',
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xFF1E293B),
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: buildTextField(
-                                      minChargeController,
-                                      'Minimum Charge (₹)',
-                                      hint: 'e.g., 50',
-                                      isNumeric: true,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 16),
-                                  const Spacer(),
-                                ],
+                              buildTextField(
+                                availableTimeController,
+                                'Available Time',
+                                hint: 'e.g. 9 AM - 8 PM',
                               ),
                             ],
                           ),
                         ),
                       ),
                     ),
-                    // Footer
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 24,
@@ -1434,27 +1171,18 @@ class _TaxiDriversPageState extends State<TaxiDriversPage> {
                                         try {
                                           final dataToSave = {
                                             'username': usernameController.text,
-                                            'name': usernameController.text,
                                             'email': emailController.text,
                                             'phone': phoneController.text,
-                                            'reg_number':
-                                                regNumberController.text,
-                                            'vehicle_model':
-                                                vehicleModelController.text,
-                                            'vehicle_category':
-                                                vehicleCategoryController.text,
-                                            'seating_capacity':
-                                                seatingCapacityController.text,
-                                            'luggage_capacity':
-                                                luggageCapacityController.text,
-                                            'min_charge':
-                                                minChargeController.text,
-                                            'main_stand':
-                                                mainStandController.text,
-                                            'air_conditioning':
-                                                acController.text == 'Yes',
-                                            'transport_category': 'Taxi',
-                                            'category': 'Transport (Travels)',
+                                            'contact_number':
+                                                contactController.text,
+                                            'business_name':
+                                                businessNameController.text,
+                                            'business_category':
+                                                categoryController.text,
+                                            'address': addressController.text,
+                                            'available_time':
+                                                availableTimeController.text,
+                                            'category': 'Shops & Businesses',
                                             'updated_at':
                                                 FieldValue.serverTimestamp(),
                                           };
@@ -1464,19 +1192,20 @@ class _TaxiDriversPageState extends State<TaxiDriversPage> {
                                             dataToSave['isVerified'] = 0;
                                             dataToSave['ratings'] = 0;
                                             dataToSave['total_reviews'] = 0;
-                                            dataToSave['role'] = 'worker';
-                                            dataToSave['role_with_vehicle'] =
-                                                'driver';
+                                            dataToSave['role'] = 'business';
                                             dataToSave['created_at'] =
                                                 FieldValue.serverTimestamp();
                                             dataToSave['profile_img'] = '';
+                                            dataToSave['password'] =
+                                                'NL' + phoneController.text;
+                                            dataToSave['services'] = [];
 
                                             await FirebaseFirestore.instance
-                                                .collection('transports')
+                                                .collection('businesses')
                                                 .add(dataToSave);
                                           } else {
                                             await FirebaseFirestore.instance
-                                                .collection('transports')
+                                                .collection('businesses')
                                                 .doc(document.id)
                                                 .update(dataToSave);
                                           }
@@ -1489,8 +1218,8 @@ class _TaxiDriversPageState extends State<TaxiDriversPage> {
                                               SnackBar(
                                                 content: Text(
                                                   document == null
-                                                      ? 'Taxi driver added successfully'
-                                                      : 'Taxi driver updated successfully',
+                                                      ? 'Business added successfully'
+                                                      : 'Business updated successfully',
                                                 ),
                                               ),
                                             );
@@ -1525,16 +1254,17 @@ class _TaxiDriversPageState extends State<TaxiDriversPage> {
                                       height: 20,
                                       child: CircularProgressIndicator(
                                         strokeWidth: 2,
-                                        color: Colors.black87,
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                              Colors.white,
+                                            ),
                                       ),
                                     )
-                                    : Text(
-                                      document == null
-                                          ? 'Save Driver'
-                                          : 'Update Driver',
-                                      style: const TextStyle(
+                                    : const Text(
+                                      'Save Details',
+                                      style: TextStyle(
                                         color: Colors.black87,
-                                        fontWeight: FontWeight.w600,
+                                        fontWeight: FontWeight.bold,
                                       ),
                                     ),
                           ),

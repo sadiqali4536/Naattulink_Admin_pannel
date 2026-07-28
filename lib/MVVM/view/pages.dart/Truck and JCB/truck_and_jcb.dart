@@ -4,14 +4,14 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:swiftclean_admin/MVVM/utils/printer_helper.dart';
 
-class TaxiDriversPage extends StatefulWidget {
-  const TaxiDriversPage({super.key});
+class TruckAndJcbPage extends StatefulWidget {
+  const TruckAndJcbPage({super.key});
 
   @override
-  State<TaxiDriversPage> createState() => _TaxiDriversPageState();
+  State<TruckAndJcbPage> createState() => _TruckAndJcbPageState();
 }
 
-class _TaxiDriversPageState extends State<TaxiDriversPage> {
+class _TruckAndJcbPageState extends State<TruckAndJcbPage> {
   String _selectedStatus = 'All Status';
   String _selectedType = 'All Vehicle Types';
   String _selectedCity = 'All Cities';
@@ -29,7 +29,7 @@ class _TaxiDriversPageState extends State<TaxiDriversPage> {
           stream:
               FirebaseFirestore.instance
                   .collection('transports')
-                  .where('transport_category', isEqualTo: 'Taxi')
+                  .where('transport_category', isEqualTo: 'Truck / JCB')
                   .snapshots(),
           builder: (context, snapshot) {
             if (snapshot.hasError) {
@@ -146,7 +146,7 @@ class _TaxiDriversPageState extends State<TaxiDriversPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: const [
             Text(
-              'Taxi Drivers',
+              'Truck & JCB',
               style: TextStyle(
                 fontSize: 28,
                 fontWeight: FontWeight.bold,
@@ -155,7 +155,7 @@ class _TaxiDriversPageState extends State<TaxiDriversPage> {
             ),
             SizedBox(height: 8),
             Text(
-              'Manage taxi drivers, vehicles and account status.',
+              'Manage truck and JCB vehicles and account status.',
               style: TextStyle(fontSize: 14, color: Colors.grey),
             ),
           ],
@@ -166,7 +166,7 @@ class _TaxiDriversPageState extends State<TaxiDriversPage> {
               onPressed: () {
                 final listToExport =
                     docs.map((d) => d.data() as Map<String, dynamic>).toList();
-                printTaxiDriversList(listToExport);
+                printTruckJcbList(listToExport);
               },
               icon: const Icon(
                 Icons.download_rounded,
@@ -190,10 +190,10 @@ class _TaxiDriversPageState extends State<TaxiDriversPage> {
             ),
             const SizedBox(width: 16),
             ElevatedButton.icon(
-              onPressed: () => _showTaxiDriverDialog(),
+              onPressed: () => _showTruckJcbDialog(),
               icon: const Icon(Icons.add, color: Colors.black87, size: 20),
               label: const Text(
-                'Add Taxi Driver',
+                'Add Truck/JCB',
                 style: TextStyle(
                   color: Colors.black87,
                   fontWeight: FontWeight.w600,
@@ -435,9 +435,7 @@ class _TaxiDriversPageState extends State<TaxiDriversPage> {
                 ),
               ),
               items:
-                  ['All Vehicle Types', 'Auto', 'Car', 'Van'].map((
-                    String value,
-                  ) {
+                  ['All Vehicle Types', 'Truck', 'JCB'].map((String value) {
                     return DropdownMenuItem<String>(
                       value: value,
                       child: Text(value),
@@ -649,7 +647,7 @@ class _TaxiDriversPageState extends State<TaxiDriversPage> {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          data['vehicle_category']?.toString() ?? 'N/A',
+                          data['vehicle_type']?.toString() ?? 'N/A',
                           style: const TextStyle(
                             color: Colors.grey,
                             fontSize: 12,
@@ -675,20 +673,17 @@ class _TaxiDriversPageState extends State<TaxiDriversPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text(
-                          'Seat: ${data['seating_capacity']?.toString() ?? 'N/A'}',
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Luggage: ${data['luggage_capacity']?.toString() ?? 'N/A'}',
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'AC: ${data['air_conditioning'] == true ? 'Yes' : 'No'}',
-                          style: const TextStyle(fontSize: 12),
-                        ),
+                        if (data['load_capacity'] != null &&
+                            data['load_capacity'].toString().isNotEmpty)
+                          Text(
+                            'Load: ${data['load_capacity']} Tons',
+                            style: const TextStyle(fontSize: 12),
+                          )
+                        else
+                          const Text(
+                            'N/A',
+                            style: TextStyle(fontSize: 12, color: Colors.grey),
+                          ),
                       ],
                     ),
                   ),
@@ -758,8 +753,7 @@ class _TaxiDriversPageState extends State<TaxiDriversPage> {
                               size: 20,
                               color: Colors.black54,
                             ),
-                            onPressed:
-                                () => _showTaxiDriverDialog(document: doc),
+                            onPressed: () => _showTruckJcbDialog(document: doc),
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(),
                           ),
@@ -770,7 +764,7 @@ class _TaxiDriversPageState extends State<TaxiDriversPage> {
                               size: 20,
                               color: Colors.redAccent,
                             ),
-                            onPressed: () {},
+                            onPressed: () => _deleteTruckJcb(doc.id),
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(),
                           ),
@@ -970,47 +964,104 @@ class _TaxiDriversPageState extends State<TaxiDriversPage> {
     );
   }
 
-  void _showTaxiDriverDialog({QueryDocumentSnapshot? document}) {
+  Future<void> _deleteTruckJcb(String id) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            backgroundColor: Colors.white,
+            title: const Text(
+              'Delete Record',
+              style: TextStyle(
+                color: Colors.black87,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            content: const Text(
+              'Are you sure you want to delete this record? This action cannot be undone.',
+              style: TextStyle(color: Colors.black87),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text(
+                  'Cancel',
+                  style: TextStyle(color: Colors.black54),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.redAccent,
+                ),
+                child: const Text(
+                  'Delete',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+    );
+
+    if (confirm == true) {
+      try {
+        await FirebaseFirestore.instance
+            .collection('transports')
+            .doc(id)
+            .delete();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Record deleted successfully')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Error deleting record: $e')));
+        }
+      }
+    }
+  }
+
+  void _showTruckJcbDialog({DocumentSnapshot? document}) {
     final formKey = GlobalKey<FormState>();
     final data = document?.data() as Map<String, dynamic>?;
 
-    final regNumberController = TextEditingController(
-      text: data?['reg_number']?.toString(),
-    );
-    final phoneController = TextEditingController(
-      text: data?['phone']?.toString(),
-    );
     final usernameController = TextEditingController(
       text:
           data?['username']?.toString() ??
           data?['full_name']?.toString() ??
           data?['name']?.toString(),
     );
-    final emailController = TextEditingController(
-      text: data?['email']?.toString(),
+    final phoneController = TextEditingController(
+      text: data?['phone']?.toString(),
     );
-    final vehicleModelController = TextEditingController(
-      text: data?['vehicle_model']?.toString(),
+    final roleController = TextEditingController(
+      text: data?['role_with_vehicle']?.toString(),
+    );
+    final professionController = TextEditingController(
+      text: data?['profession']?.toString(),
     );
     final vehicleCategoryController = TextEditingController(
-      text: data?['vehicle_category']?.toString(),
+      text: data?['vehicle_type']?.toString(),
     );
-    final seatingCapacityController = TextEditingController(
-      text: data?['seating_capacity']?.toString(),
-    );
-    final luggageCapacityController = TextEditingController(
-      text: data?['luggage_capacity']?.toString(),
-    );
+
     final minChargeController = TextEditingController(
       text: data?['min_charge']?.toString(),
+    );
+    final loadCapacityController = TextEditingController(
+      text: data?['load_capacity']?.toString(),
     );
     final mainStandController = TextEditingController(
       text: data?['main_stand']?.toString(),
     );
 
-    // Using string 'Yes' / 'No' to map boolean for dropdown
-    final acController = TextEditingController(
-      text: data != null && data['air_conditioning'] == true ? 'Yes' : 'No',
+    final vehicleModelController = TextEditingController(
+      text: data?['vehicle_model']?.toString(),
+    );
+    final regNumberController = TextEditingController(
+      text: data?['reg_number']?.toString(),
     );
 
     bool isLoading = false;
@@ -1114,6 +1165,7 @@ class _TaxiDriversPageState extends State<TaxiDriversPage> {
               String label,
               List<String> items, {
               String? hint,
+              Function(String?)? onChangedCallback,
             }) {
               return Padding(
                 padding: const EdgeInsets.only(bottom: 16),
@@ -1182,6 +1234,9 @@ class _TaxiDriversPageState extends State<TaxiDriversPage> {
                         if (val != null) {
                           controller.text = val;
                         }
+                        if (onChangedCallback != null) {
+                          onChangedCallback(val);
+                        }
                       },
                       validator:
                           (value) =>
@@ -1222,8 +1277,8 @@ class _TaxiDriversPageState extends State<TaxiDriversPage> {
                         children: [
                           Text(
                             document == null
-                                ? 'Add Taxi Driver'
-                                : 'Edit Taxi Driver',
+                                ? 'Add Truck/JCB'
+                                : 'Edit Truck/JCB',
                             style: const TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
@@ -1256,16 +1311,16 @@ class _TaxiDriversPageState extends State<TaxiDriversPage> {
                                   Expanded(
                                     child: buildTextField(
                                       usernameController,
-                                      'Driver Name',
-                                      hint: 'e.g., John Doe',
+                                      'Full Name',
+                                      hint: 'Enter your full name',
                                     ),
                                   ),
                                   const SizedBox(width: 16),
                                   Expanded(
                                     child: buildTextField(
                                       phoneController,
-                                      'Phone Number',
-                                      hint: 'e.g., 9876543210',
+                                      'Mobile Number',
+                                      hint: 'Enter mobile number',
                                       isPhone: true,
                                     ),
                                   ),
@@ -1275,99 +1330,176 @@ class _TaxiDriversPageState extends State<TaxiDriversPage> {
                                 children: [
                                   Expanded(
                                     child: buildTextField(
-                                      emailController,
-                                      'Email',
-                                      hint: 'e.g., john@example.com',
-                                    ),
-                                  ),
-                                  const SizedBox(width: 16),
-                                  Expanded(
-                                    child: buildTextField(
-                                      mainStandController,
-                                      'Main Stand',
-                                      hint: 'e.g., Central Stand',
+                                      roleController,
+                                      'Role with the vehicle',
+                                      hint: 'Enter your role with the vehicle',
                                     ),
                                   ),
                                 ],
                               ),
-                              const Divider(height: 32, color: Colors.black12),
-                              const Text(
-                                'Vehicle Details',
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xFF1E293B),
-                                ),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Vehicle Type',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF1E293B),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: InkWell(
+                                          onTap: () {
+                                            vehicleCategoryController.text =
+                                                'Truck';
+                                            setState(() {});
+                                          },
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              vertical: 14,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color:
+                                                  vehicleCategoryController
+                                                              .text ==
+                                                          'Truck'
+                                                      ? const Color(0xFF0F172A)
+                                                      : Colors.grey.shade50,
+                                              borderRadius:
+                                                  const BorderRadius.only(
+                                                    topLeft: Radius.circular(8),
+                                                    bottomLeft: Radius.circular(
+                                                      8,
+                                                    ),
+                                                  ),
+                                              border: Border.all(
+                                                color: Colors.black12,
+                                              ),
+                                            ),
+                                            child: Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.center,
+                                              children: [
+                                                Icon(
+                                                  Icons.local_shipping_outlined,
+                                                  size: 20,
+                                                  color:
+                                                      vehicleCategoryController
+                                                                  .text ==
+                                                              'Truck'
+                                                          ? Colors.white
+                                                          : Colors.black87,
+                                                ),
+                                                const SizedBox(width: 8),
+                                                Text(
+                                                  'Truck',
+                                                  style: TextStyle(
+                                                    color:
+                                                        vehicleCategoryController
+                                                                    .text ==
+                                                                'Truck'
+                                                            ? Colors.white
+                                                            : Colors.black87,
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      Expanded(
+                                        child: InkWell(
+                                          onTap: () {
+                                            vehicleCategoryController.text =
+                                                'JCB';
+                                            setState(() {});
+                                          },
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              vertical: 14,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color:
+                                                  vehicleCategoryController
+                                                              .text ==
+                                                          'JCB'
+                                                      ? const Color(0xFF0F172A)
+                                                      : Colors.grey.shade50,
+                                              borderRadius:
+                                                  const BorderRadius.only(
+                                                    topRight: Radius.circular(
+                                                      8,
+                                                    ),
+                                                    bottomRight:
+                                                        Radius.circular(8),
+                                                  ),
+                                              border: Border.all(
+                                                color: Colors.black12,
+                                              ),
+                                            ),
+                                            child: Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.center,
+                                              children: [
+                                                Icon(
+                                                  Icons.construction,
+                                                  size: 20,
+                                                  color:
+                                                      vehicleCategoryController
+                                                                  .text ==
+                                                              'JCB'
+                                                          ? Colors.white
+                                                          : Colors.black87,
+                                                ),
+                                                const SizedBox(width: 8),
+                                                Text(
+                                                  'JCB',
+                                                  style: TextStyle(
+                                                    color:
+                                                        vehicleCategoryController
+                                                                    .text ==
+                                                                'JCB'
+                                                            ? Colors.white
+                                                            : Colors.black87,
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  if (vehicleCategoryController.text.isEmpty)
+                                    const Padding(
+                                      padding: EdgeInsets.only(top: 8),
+                                      child: Text(
+                                        'Required',
+                                        style: TextStyle(
+                                          color: Colors.redAccent,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ),
+                                ],
                               ),
                               const SizedBox(height: 16),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: buildTextField(
-                                      regNumberController,
-                                      'Registration Number',
-                                      hint: 'e.g., KL 11 AB 1234',
-                                      isUppercase: true,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 16),
-                                  Expanded(
-                                    child: buildTextField(
-                                      vehicleModelController,
-                                      'Vehicle Model',
-                                      hint: 'e.g., Swift Dzire',
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: buildDropdownField(
-                                      vehicleCategoryController,
-                                      'Vehicle Category',
-                                      ['Auto', 'Sedan', 'SUV', 'Hatchback'],
-                                      hint: 'Select Category',
-                                    ),
-                                  ),
-                                  const SizedBox(width: 16),
-                                  Expanded(
-                                    child: buildDropdownField(
-                                      acController,
-                                      'Air Conditioning',
-                                      ['Yes', 'No'],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: buildTextField(
-                                      seatingCapacityController,
-                                      'Seating Capacity',
-                                      hint: 'e.g., 4',
-                                      isNumeric: true,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 16),
-                                  Expanded(
-                                    child: buildTextField(
-                                      luggageCapacityController,
-                                      'Luggage Capacity (Kg)',
-                                      hint: 'e.g., 10',
-                                      isNumeric: true,
-                                    ),
-                                  ),
-                                ],
-                              ),
                               const Divider(height: 32, color: Colors.black12),
-                              const Text(
-                                'Pricing',
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xFF1E293B),
+                              const Center(
+                                child: Text(
+                                  'VEHICLE DETAILS',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.black45,
+                                    letterSpacing: 1.2,
+                                  ),
                                 ),
                               ),
                               const SizedBox(height: 16),
@@ -1376,13 +1508,53 @@ class _TaxiDriversPageState extends State<TaxiDriversPage> {
                                   Expanded(
                                     child: buildTextField(
                                       minChargeController,
-                                      'Minimum Charge (₹)',
-                                      hint: 'e.g., 50',
+                                      'Min Charge',
+                                      hint: 'e.g. 500',
                                       isNumeric: true,
                                     ),
                                   ),
+                                  if (vehicleCategoryController.text !=
+                                      'JCB') ...[
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                      child: buildTextField(
+                                        loadCapacityController,
+                                        'Load Capacity',
+                                        hint: 'e.g. 10 Tons',
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                              buildTextField(
+                                mainStandController,
+                                'Main Stand',
+                                hint: 'e.g. City Bus Terminal',
+                              ),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: buildTextField(
+                                      vehicleModelController,
+                                      vehicleCategoryController.text == 'JCB'
+                                          ? 'JCB Type'
+                                          : 'Vehicle Model',
+                                      hint:
+                                          vehicleCategoryController.text ==
+                                                  'JCB'
+                                              ? 'e.g. 3DX'
+                                              : 'e.g. Tata Prima',
+                                    ),
+                                  ),
                                   const SizedBox(width: 16),
-                                  const Spacer(),
+                                  Expanded(
+                                    child: buildTextField(
+                                      regNumberController,
+                                      'Reg. Number',
+                                      hint: 'KL-XX-0000',
+                                      isUppercase: true,
+                                    ),
+                                  ),
                                 ],
                               ),
                             ],
@@ -1435,25 +1607,24 @@ class _TaxiDriversPageState extends State<TaxiDriversPage> {
                                           final dataToSave = {
                                             'username': usernameController.text,
                                             'name': usernameController.text,
-                                            'email': emailController.text,
                                             'phone': phoneController.text,
-                                            'reg_number':
-                                                regNumberController.text,
-                                            'vehicle_model':
-                                                vehicleModelController.text,
-                                            'vehicle_category':
+                                            'role_with_vehicle':
+                                                roleController.text,
+                                            'profession':
+                                                professionController.text,
+                                            'vehicle_type':
                                                 vehicleCategoryController.text,
-                                            'seating_capacity':
-                                                seatingCapacityController.text,
-                                            'luggage_capacity':
-                                                luggageCapacityController.text,
                                             'min_charge':
                                                 minChargeController.text,
+                                            'load_capacity':
+                                                loadCapacityController.text,
                                             'main_stand':
                                                 mainStandController.text,
-                                            'air_conditioning':
-                                                acController.text == 'Yes',
-                                            'transport_category': 'Taxi',
+                                            'vehicle_model':
+                                                vehicleModelController.text,
+                                            'reg_number':
+                                                regNumberController.text,
+                                            'transport_category': 'Truck / JCB',
                                             'category': 'Transport (Travels)',
                                             'updated_at':
                                                 FieldValue.serverTimestamp(),
@@ -1465,8 +1636,6 @@ class _TaxiDriversPageState extends State<TaxiDriversPage> {
                                             dataToSave['ratings'] = 0;
                                             dataToSave['total_reviews'] = 0;
                                             dataToSave['role'] = 'worker';
-                                            dataToSave['role_with_vehicle'] =
-                                                'driver';
                                             dataToSave['created_at'] =
                                                 FieldValue.serverTimestamp();
                                             dataToSave['profile_img'] = '';
@@ -1489,8 +1658,8 @@ class _TaxiDriversPageState extends State<TaxiDriversPage> {
                                               SnackBar(
                                                 content: Text(
                                                   document == null
-                                                      ? 'Taxi driver added successfully'
-                                                      : 'Taxi driver updated successfully',
+                                                      ? 'Record added successfully'
+                                                      : 'Record updated successfully',
                                                 ),
                                               ),
                                             );
@@ -1530,8 +1699,8 @@ class _TaxiDriversPageState extends State<TaxiDriversPage> {
                                     )
                                     : Text(
                                       document == null
-                                          ? 'Save Driver'
-                                          : 'Update Driver',
+                                          ? 'Save Record'
+                                          : 'Update Record',
                                       style: const TextStyle(
                                         color: Colors.black87,
                                         fontWeight: FontWeight.w600,

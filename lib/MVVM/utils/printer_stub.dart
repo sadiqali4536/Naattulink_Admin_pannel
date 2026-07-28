@@ -45,3 +45,28 @@ void exportPaymentsToPdfWeb(List<Map<String, String>> payments) {
   // Fallback for non-web environments
   print("Print payments list stub called with ${payments.length} payments.");
 }
+
+void printBusRoutesList(List<Map<String, dynamic>> busRoutes) {
+  // Fallback for non-web environments
+  print("Print bus routes list stub called with ${busRoutes.length} bus routes.");
+}
+
+void printTaxiDriversList(List<Map<String, dynamic>> taxiDrivers) {
+  // Fallback for non-web environments
+  print("Print taxi drivers list stub called with ${taxiDrivers.length} taxi drivers.");
+}
+
+void printTruckJcbList(List<Map<String, dynamic>> truckJcbList) {
+  // Fallback for non-web environments
+  print("Print truck and jcb list stub called with ${truckJcbList.length} vehicles.");
+}
+
+void printHealthcareList(List<Map<String, dynamic>> healthcareList) {
+  // Fallback for non-web environments
+  print("Print healthcare list stub called with ${healthcareList.length} records.");
+}
+
+void printBusinessesList(List<Map<String, dynamic>> businessesList) {
+  // Fallback for non-web environments
+  print("Print businesses list stub called with ${businessesList.length} records.");
+}

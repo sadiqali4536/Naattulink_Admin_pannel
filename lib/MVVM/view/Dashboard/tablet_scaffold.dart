@@ -12,6 +12,11 @@ import 'package:swiftclean_admin/MVVM/view/pages.dart/Loyalty%20Points/Loyalty%2
 import 'package:swiftclean_admin/MVVM/view/pages.dart/Notifications/Notifications.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/Payments/Payments.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/Services/Services.dart';
+import 'package:swiftclean_admin/MVVM/view/pages.dart/Taxi Drivers/taxi_drivers.dart';
+import 'package:swiftclean_admin/MVVM/view/pages.dart/Truck and JCB/truck_and_jcb.dart';
+import 'package:swiftclean_admin/MVVM/view/pages.dart/Healthcare/healthcare.dart';
+import 'package:swiftclean_admin/MVVM/view/pages.dart/Businesses/businesses.dart';
+import 'package:swiftclean_admin/MVVM/view/pages.dart/Bus Routes/bus_routes.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/Services/Categories.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/User/Profile_user.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/AdminProfile/admin_profile.dart';
@@ -282,6 +287,16 @@ class _TabletScaffoldState extends State<TabletScaffold> {
           action: Perms.view,
           child: const Adspromotion(),
         );
+      case "Taxi Drivers":
+        return const TaxiDriversPage();
+      case "Truck & JCB":
+        return const TruckAndJcbPage();
+      case "Healthcare":
+        return const HealthcarePage();
+      case "Businesses":
+        return const BusinessesPage();
+      case "Bus Routes":
+        return const BusRoutesPage();
       case "Reports":
         return PermissionGuard(
           module: Modules.reports,
@@ -716,6 +731,33 @@ class _TabletScaffoldState extends State<TabletScaffold> {
                       isSelected: selectedTile == "Taxi Drivers",
                       onTap: () {
                         setState(() => selectedTile = "Taxi Drivers");
+                        _scaffoldKey.currentState?.closeDrawer();
+                      },
+                    ),
+                    SidebarTile(
+                      title: "Truck & JCB",
+                      icon: Icons.fire_truck_rounded,
+                      isSelected: selectedTile == "Truck & JCB",
+                      onTap: () {
+                        setState(() => selectedTile = "Truck & JCB");
+                        _scaffoldKey.currentState?.closeDrawer();
+                      },
+                    ),
+                    SidebarTile(
+                      title: "Healthcare",
+                      icon: Icons.local_hospital_rounded,
+                      isSelected: selectedTile == "Healthcare",
+                      onTap: () {
+                        setState(() => selectedTile = "Healthcare");
+                        _scaffoldKey.currentState?.closeDrawer();
+                      },
+                    ),
+                    SidebarTile(
+                      title: "Businesses",
+                      icon: Icons.store_rounded,
+                      isSelected: selectedTile == "Businesses",
+                      onTap: () {
+                        setState(() => selectedTile = "Businesses");
                         _scaffoldKey.currentState?.closeDrawer();
                       },
                     ),
