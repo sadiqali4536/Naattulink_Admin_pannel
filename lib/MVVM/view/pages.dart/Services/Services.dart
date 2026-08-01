@@ -710,7 +710,7 @@ class _ServicesState extends State<Services> {
           stream: FirebaseFirestore.instance.collection('services').snapshots(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
+              return const Center(child: CircularProgressIndicator(color: const Color(0xFFFFC107)));
             }
 
             if (snapshot.hasError) {
@@ -781,7 +781,7 @@ class _ServicesState extends State<Services> {
         if (_isLoading)
           Container(
             color: Colors.black.withValues(alpha: 0.1),
-            child: const Center(child: CircularProgressIndicator()),
+            child: const Center(child: CircularProgressIndicator(color: const Color(0xFFFFC107))),
           ),
       ],
     );

@@ -102,7 +102,7 @@ class _PaymentPageState extends State<PaymentPage> {
                       return const Center(
                         child: Padding(
                           padding: EdgeInsets.all(20),
-                          child: CircularProgressIndicator(),
+                          child: CircularProgressIndicator(color: const Color(0xFFFFC107)),
                         ),
                       );
                     }
@@ -381,7 +381,7 @@ class _PaymentPageState extends State<PaymentPage> {
       stream: _paymentsStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return const Center(child: CircularProgressIndicator(color: const Color(0xFFFFC107)));
         }
         if (snapshot.hasData) {
           transactions =

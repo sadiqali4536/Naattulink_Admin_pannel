@@ -2246,7 +2246,7 @@ class _AllWorkersPageState extends State<AllWorkersPage> {
   Widget build(BuildContext context) {
     if (_seeding) {
       return const Center(
-        child: CircularProgressIndicator(color: Color(0xFF10B981)),
+        child: CircularProgressIndicator(color: const Color(0xFFFFC107)),
       );
     }
 

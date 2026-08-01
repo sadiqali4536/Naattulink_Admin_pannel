@@ -105,7 +105,7 @@ class _ProfileWorkerState extends State<ProfileWorker> {
           stream: FirebaseFirestore.instance.collection("workers").where("role", isEqualTo: 'worker').where('isVerified',isEqualTo: 1).snapshots(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator(color: AppColors.gradient1));
+              return const Center(child: CircularProgressIndicator(color: const Color(0xFFFFC107)));
             }
 
             if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {

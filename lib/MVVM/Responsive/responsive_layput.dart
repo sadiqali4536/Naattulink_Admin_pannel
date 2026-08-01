@@ -36,7 +36,7 @@ class _ResponsiveLayoutState extends State<ResponsiveLayout> {
           return const Scaffold(
             body: Center(
               child: CircularProgressIndicator(
-                color: Color(0xFF10B981),
+                color: const Color(0xFFFFC107),
               ),
             ),
           );

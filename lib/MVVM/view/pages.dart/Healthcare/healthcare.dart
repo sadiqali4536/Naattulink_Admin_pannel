@@ -32,7 +32,7 @@ class _HealthcarePageState extends State<HealthcarePage> {
               return const Center(child: Text('Something went wrong'));
             }
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
+              return const Center(child: CircularProgressIndicator(color: const Color(0xFFFFC107)));
             }
 
             final docs = snapshot.data?.docs ?? [];

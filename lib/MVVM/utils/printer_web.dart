@@ -1025,7 +1025,7 @@ void printBusRoutesList(List<Map<String, dynamic>> busRoutes) {
             <th>Reg No</th>
             <th>Bus Name</th>
             <th>Stand</th>
-            <th>Type</th>
+            <th>District</th>
             <th>Category</th>
             <th>From</th>
             <th>To</th>
@@ -1039,25 +1039,69 @@ void printBusRoutesList(List<Map<String, dynamic>> busRoutes) {
         <tbody>
   ''');
 
+  String formatTime(String? timeStr) {
+    if (timeStr == null || timeStr.trim().isEmpty || timeStr == 'N/A')
+      return 'N/A';
+    try {
+      final parts = timeStr.split(':');
+      if (parts.length >= 2) {
+        int hour = int.parse(parts[0]);
+        int min = int.parse(parts[1]);
+        String period = hour >= 12 ? 'PM' : 'AM';
+        int hour12 = hour % 12;
+        if (hour12 == 0) hour12 = 12;
+        return '${hour12.toString().padLeft(2, '0')}:${min.toString().padLeft(2, '0')} $period';
+      }
+    } catch (_) {}
+    return timeStr;
+  }
+
   for (final c in busRoutes) {
-    final regNo = _escapeHtml(c['reg_number']?.toString() ?? 'N/A');
+    final regNo = _escapeHtml(
+      (c['reg_number'] ?? c['registration_number'])?.toString() ?? 'N/A',
+    );
     final name = _escapeHtml(c['bus_name']?.toString() ?? 'N/A');
     final stand = _escapeHtml(c['main_stand']?.toString() ?? 'N/A');
-    final type = _escapeHtml(c['bus_type']?.toString() ?? 'N/A');
-    final subType = _escapeHtml(c['bus_sub_type']?.toString() ?? 'N/A');
-    final from = _escapeHtml(c['first_stop']?.toString() ?? 'N/A');
+    final district = _escapeHtml(c['district']?.toString() ?? 'N/A');
+
+    final typeRaw = c['bus_type']?.toString();
+    final subTypeRaw = c['bus_sub_type']?.toString();
+    String category = 'N/A';
+    if (typeRaw != null && typeRaw.isNotEmpty) {
+      category = typeRaw;
+      if (subTypeRaw != null && subTypeRaw.isNotEmpty) {
+        category += ' / $subTypeRaw';
+      }
+    } else if (subTypeRaw != null && subTypeRaw.isNotEmpty) {
+      category = subTypeRaw;
+    }
+    final type = _escapeHtml(category);
+
+    final from = _escapeHtml(
+      (c['first_stop'] ?? c['start_place'])?.toString() ?? 'N/A',
+    );
     final to = _escapeHtml(c['destination']?.toString() ?? 'N/A');
-    final dep = _escapeHtml(c['departure_time']?.toString() ?? 'N/A');
-    final arr = _escapeHtml(c['arrival_time']?.toString() ?? 'N/A');
+    final dep = _escapeHtml(formatTime(c['departure_time']?.toString()));
+    final arr = _escapeHtml(formatTime(c['arrival_time']?.toString()));
     final phone = _escapeHtml(c['phone']?.toString() ?? 'N/A');
-    
-    final role = c['role']?.toString();
-    final vehicle = c['vehicle']?.toString();
-    final addedByRaw = (role != null || vehicle != null)
-        ? '${role ?? ''} ${vehicle != null ? '($vehicle)' : ''}'.trim()
-        : 'Admin';
+
+    final addedByRaw =
+        (c['role'] != null ||
+                c['role_with_vehicle'] != null ||
+                c['vehicle'] != null ||
+                c['username'] != null ||
+                c['full_name'] != null ||
+                c['fullName'] != null ||
+                c['name'] != null)
+            ? [
+              c['username'] ?? c['full_name'] ?? c['fullName'] ?? c['name'],
+              "${c['role'] ?? ''} ${c['role_with_vehicle'] ?? ''} ${c['vehicle'] != null ? '(${c['vehicle']})' : ''}"
+                  .trim()
+                  .replaceAll(RegExp(r'\s+'), ' '),
+            ].where((e) => e != null && e.toString().trim().isNotEmpty).join(' - ')
+            : 'Admin';
     final addedBy = _escapeHtml(addedByRaw);
-    
+
     final status = _escapeHtml(c['status']?.toString() ?? 'N/A').toUpperCase();
 
     htmlBuffer.write('''
@@ -1065,8 +1109,8 @@ void printBusRoutesList(List<Map<String, dynamic>> busRoutes) {
             <td>$regNo</td>
             <td><strong>$name</strong></td>
             <td>$stand</td>
+            <td>$district</td>
             <td>$type</td>
-            <td>$subType</td>
             <td>$from</td>
             <td>$to</td>
             <td>$dep</td>
@@ -1140,7 +1184,9 @@ void printTaxiDriversList(List<Map<String, dynamic>> taxiDrivers) {
   ''');
 
   for (final c in taxiDrivers) {
-    final name = _escapeHtml(c['username']?.toString() ?? c['name']?.toString() ?? 'N/A');
+    final name = _escapeHtml(
+      c['username']?.toString() ?? c['name']?.toString() ?? 'N/A',
+    );
     final email = _escapeHtml(c['email']?.toString() ?? 'N/A');
     final phone = _escapeHtml(c['phone']?.toString() ?? 'N/A');
     final regNo = _escapeHtml(c['reg_number']?.toString() ?? 'N/A');
@@ -1227,7 +1273,9 @@ void printTruckJcbList(List<Map<String, dynamic>> truckJcbList) {
   ''');
 
   for (final c in truckJcbList) {
-    final name = _escapeHtml(c['username']?.toString() ?? c['name']?.toString() ?? 'N/A');
+    final name = _escapeHtml(
+      c['username']?.toString() ?? c['name']?.toString() ?? 'N/A',
+    );
     final email = _escapeHtml(c['email']?.toString() ?? 'N/A');
     final phone = _escapeHtml(c['phone']?.toString() ?? 'N/A');
     final regNo = _escapeHtml(c['reg_number']?.toString() ?? 'N/A');
@@ -1313,7 +1361,9 @@ void printHealthcareList(List<Map<String, dynamic>> healthcareList) {
   ''');
 
   for (final c in healthcareList) {
-    final name = _escapeHtml(c['username']?.toString() ?? c['name']?.toString() ?? 'N/A');
+    final name = _escapeHtml(
+      c['username']?.toString() ?? c['name']?.toString() ?? 'N/A',
+    );
     final email = _escapeHtml(c['email']?.toString() ?? 'N/A');
     final phone = _escapeHtml(c['phone']?.toString() ?? 'N/A');
     final facility = _escapeHtml(c['facility_name']?.toString() ?? 'N/A');
@@ -1397,7 +1447,9 @@ void printBusinessesList(List<Map<String, dynamic>> businessesList) {
   ''');
 
   for (final c in businessesList) {
-    final name = _escapeHtml(c['username']?.toString() ?? c['name']?.toString() ?? 'N/A');
+    final name = _escapeHtml(
+      c['username']?.toString() ?? c['name']?.toString() ?? 'N/A',
+    );
     final email = _escapeHtml(c['email']?.toString() ?? 'N/A');
     final phone = _escapeHtml(c['phone']?.toString() ?? 'N/A');
     final businessName = _escapeHtml(c['business_name']?.toString() ?? 'N/A');
@@ -1437,4 +1489,3 @@ void printBusinessesList(List<Map<String, dynamic>> businessesList) {
   final url = html.Url.createObjectUrlFromBlob(blob);
   html.window.open(url, '_blank');
 }
-

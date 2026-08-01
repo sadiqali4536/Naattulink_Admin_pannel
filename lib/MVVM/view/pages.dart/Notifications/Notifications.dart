@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 
@@ -28,7 +28,7 @@ class _NotificationsState extends State<Notifications> {
             return const Center(child: Text('Something went wrong'));
           }
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(child: CircularProgressIndicator(color: const Color(0xFFFFC107)));
           }
 
           final allDocs = snapshot.data?.docs ?? [];

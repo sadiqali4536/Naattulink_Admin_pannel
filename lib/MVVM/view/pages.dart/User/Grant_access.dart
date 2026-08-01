@@ -958,7 +958,7 @@ class _GrantAccessPageState extends State<GrantAccessPage> {
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(
-                  child: CircularProgressIndicator(color: Color(0xFF059669)),
+                  child: CircularProgressIndicator(color: const Color(0xFFFFC107)),
                 );
               }
               final users = snapshot.data ?? [];
@@ -1055,7 +1055,7 @@ class _GrantAccessPageState extends State<GrantAccessPage> {
       child:
           _loadingRoles
               ? const Center(
-                child: CircularProgressIndicator(color: Color(0xFF059669)),
+                child: CircularProgressIndicator(color: const Color(0xFFFFC107)),
               )
               : Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

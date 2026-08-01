@@ -273,7 +273,7 @@ class _AdspromotionState extends State<Adspromotion> {
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(
-            child: CircularProgressIndicator(color: primaryNavy),
+            child: CircularProgressIndicator(color: const Color(0xFFFFC107)),
           );
         }
 

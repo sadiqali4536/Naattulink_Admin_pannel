@@ -3794,7 +3794,7 @@ class _UserRolesPageState extends State<UserRolesPage> {
                                       if (rolesSnap.connectionState ==
                                           ConnectionState.waiting) {
                                         return const Center(
-                                          child: CircularProgressIndicator(),
+                                          child: CircularProgressIndicator(color: const Color(0xFFFFC107)),
                                         );
                                       }
 

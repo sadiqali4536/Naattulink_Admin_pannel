@@ -29,6 +29,8 @@ class _DashboardState extends State<Dashboard> {
   int _totalOrders = 0;
   int _totalAdvertisements = 0;
   int _totalBusRoutes = 0;
+  int _totalActiveBuses = 0;
+  int _totalBusDistricts = 0;
   int _totalTaxiDrivers = 0;
 
   @override
@@ -91,11 +93,6 @@ class _DashboardState extends State<Dashboard> {
           .count()
           .get()
           .catchError((_) => null);
-      final busRoutesFuture = db
-          .collection('bus_routes')
-          .count()
-          .get()
-          .catchError((_) => null);
       final taxiDriversFuture = db
           .collection('taxi_drivers')
           .count()
@@ -111,7 +108,7 @@ class _DashboardState extends State<Dashboard> {
         cancelledFuture, // 5
       ]);
 
-      int prods = 0, ords = 0, ads = 0, routes = 0, taxis = 0;
+      int prods = 0, ords = 0, ads = 0, taxis = 0;
       try {
         prods = (await productsFuture)?.count ?? 0;
       } catch (_) {}
@@ -122,10 +119,48 @@ class _DashboardState extends State<Dashboard> {
         ads = (await adsFuture)?.count ?? 0;
       } catch (_) {}
       try {
-        routes = (await busRoutesFuture)?.count ?? 0;
-      } catch (_) {}
-      try {
         taxis = (await taxiDriversFuture)?.count ?? 0;
+      } catch (_) {}
+
+      int routes = 0, activeRoutes = 0;
+      Set<String> busDistricts = {};
+      try {
+        final transportQuery =
+            await db
+                .collection('transports')
+                .where('transport_category', isEqualTo: 'Bus')
+                .get();
+        for (var doc in transportQuery.docs) {
+          final parentData = doc.data();
+          routes++;
+          final pStatus = parentData['status']?.toString().toLowerCase();
+          if (pStatus == 'active' ||
+              pStatus == 'approved' ||
+              parentData['status'] == true) {
+            activeRoutes++;
+          }
+          final pDist = parentData['district']?.toString();
+          if (pDist != null && pDist.trim().isNotEmpty) {
+            busDistricts.add(pDist);
+          }
+          try {
+            final buses = await doc.reference.collection('buses').get();
+            for (var b in buses.docs) {
+              routes++;
+              final bData = b.data();
+              final bStatus = bData['status']?.toString().toLowerCase();
+              if (bStatus == 'active' ||
+                  bStatus == 'approved' ||
+                  bData['status'] == true) {
+                activeRoutes++;
+              }
+              final bDist = bData['district']?.toString() ?? pDist;
+              if (bDist != null && bDist.trim().isNotEmpty) {
+                busDistricts.add(bDist);
+              }
+            }
+          } catch (_) {}
+        }
       } catch (_) {}
 
       if (mounted) {
@@ -141,6 +176,8 @@ class _DashboardState extends State<Dashboard> {
           _totalOrders = ords;
           _totalAdvertisements = ads;
           _totalBusRoutes = routes;
+          _totalActiveBuses = activeRoutes;
+          _totalBusDistricts = busDistricts.length;
           _totalTaxiDrivers = taxis;
         });
       }
@@ -158,7 +195,7 @@ class _DashboardState extends State<Dashboard> {
     if (_isLoading) {
       return const Scaffold(
         body: Center(
-          child: CircularProgressIndicator(color: Color(0xFFFFC107)),
+          child: CircularProgressIndicator(color: const Color(0xFFFFC107)),
         ),
       );
     }
@@ -535,6 +572,8 @@ class _DashboardState extends State<Dashboard> {
         return StatsCard(
           title: "Bus Routes",
           value: formatter.format(_totalBusRoutes),
+          extraInfo:
+              "Active: ${formatter.format(_totalActiveBuses)} | Districts: ${formatter.format(_totalBusDistricts)}",
           trendPercentage: "4.8%",
           trendPeriod: "from last week",
           isPositiveTrend: true,
@@ -619,6 +658,7 @@ class _DashboardState extends State<Dashboard> {
 class StatsCard extends StatelessWidget {
   final String title;
   final String value;
+  final String? extraInfo;
   final String trendPercentage;
   final String trendPeriod;
   final bool isPositiveTrend;
@@ -630,6 +670,7 @@ class StatsCard extends StatelessWidget {
     super.key,
     required this.title,
     required this.value,
+    this.extraInfo,
     required this.trendPercentage,
     required this.trendPeriod,
     required this.isPositiveTrend,
@@ -641,7 +682,7 @@ class StatsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -696,6 +737,19 @@ class StatsCard extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
+                    if (extraInfo != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        extraInfo!,
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: const Color(0xFF0284C7),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ],
                 ),
               ),

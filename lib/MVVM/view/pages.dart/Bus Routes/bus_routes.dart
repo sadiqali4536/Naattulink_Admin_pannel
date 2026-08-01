@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:swiftclean_admin/MVVM/utils/printer_helper.dart';
+import 'package:swiftclean_admin/MVVM/view/widgets/custom_dropdown.dart';
 
 class BusRoutesPage extends StatefulWidget {
   const BusRoutesPage({super.key});
@@ -15,14 +16,15 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
   final ScrollController _horizontalScrollController = ScrollController();
   String _selectedStatus = 'All Status';
   String _selectedType = 'All Types';
+  String _selectedDistrict = 'All Districts';
+  Set<String> _selectedBusIds = {};
 
-  Future<void> _exportToPdf(List<QueryDocumentSnapshot> docs) async {
+  Future<void> _exportToPdf(List<BusItem> docs) async {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text("Preparing export... Please wait.")),
     );
     try {
-      final routesList =
-          docs.map((doc) => doc.data() as Map<String, dynamic>).toList();
+      final routesList = docs.map((doc) => doc.data).toList();
       printBusRoutesList(routesList);
     } catch (e) {
       if (mounted) {
@@ -31,6 +33,162 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
         ).showSnackBar(SnackBar(content: Text("Error exporting: \$e")));
       }
     }
+  }
+
+  void _showBulkConfirmDialog(String action, List<BusItem> filteredDocs) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.transparent,
+          title: Text('Confirm Bulk $action'),
+          content: Text(
+            'Are you sure you want to $action ${_selectedBusIds.length} selected bus route(s)?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(color: Colors.black54),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _executeBulkAction(action, filteredDocs);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor:
+                    action == 'Delete'
+                        ? Colors.redAccent
+                        : (action == 'Mark Active'
+                            ? Colors.green
+                            : Colors.orange),
+                foregroundColor:
+                    action == 'Delete' ||
+                            action == 'Mark Active' ||
+                            action == 'Mark Inactive'
+                        ? Colors.white
+                        : Colors.black87,
+              ),
+              child: const Text('Confirm'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _executeBulkAction(
+    String action,
+    List<BusItem> filteredDocs,
+  ) async {
+    final ids = _selectedBusIds.toList();
+    int successCount = 0;
+
+    for (String id in ids) {
+      try {
+        final docIndex = filteredDocs.indexWhere((d) => d.id == id);
+        if (docIndex != -1) {
+          final doc = filteredDocs[docIndex];
+          if (action == 'Delete') {
+            await doc.reference.delete();
+          } else if (action == 'Mark Active') {
+            await doc.reference.update({'status': 'active'});
+          } else if (action == 'Mark Inactive') {
+            await doc.reference.update({'status': 'inactive'});
+          }
+          successCount++;
+        }
+      } catch (e) {
+        // Log or handle error for specific document
+      }
+    }
+
+    setState(() {
+      _selectedBusIds.clear();
+    });
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Successfully processed $successCount bus route(s)'),
+        ),
+      );
+    }
+  }
+
+  Widget _buildBulkActionToolbar(List<BusItem> filteredDocs) {
+    if (_selectedBusIds.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 24),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.blue.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.blue.shade200),
+      ),
+      child: Row(
+        children: [
+          Text(
+            '${_selectedBusIds.length} selected',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Colors.blue.shade900,
+              fontSize: 16,
+            ),
+          ),
+          const Spacer(),
+          ElevatedButton.icon(
+            onPressed:
+                () => _showBulkConfirmDialog('Mark Active', filteredDocs),
+            icon: const Icon(Icons.check_circle_outline, size: 18),
+            label: const Text('Mark Active'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+              elevation: 0,
+            ),
+          ),
+          const SizedBox(width: 12),
+          ElevatedButton.icon(
+            onPressed:
+                () => _showBulkConfirmDialog('Mark Inactive', filteredDocs),
+            icon: const Icon(Icons.pause_circle_outline, size: 18),
+            label: const Text('Mark Inactive'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.white,
+              elevation: 0,
+            ),
+          ),
+          const SizedBox(width: 12),
+          ElevatedButton.icon(
+            onPressed: () => _showBulkConfirmDialog('Delete', filteredDocs),
+            icon: const Icon(Icons.delete_outline, size: 18),
+            label: const Text('Delete'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              foregroundColor: Colors.white,
+              elevation: 0,
+            ),
+          ),
+          const SizedBox(width: 24),
+          IconButton(
+            onPressed: () {
+              setState(() {
+                _selectedBusIds.clear();
+              });
+            },
+            icon: const Icon(Icons.close),
+            tooltip: 'Clear Selection',
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -50,68 +208,135 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
         child: SingleChildScrollView(
           controller: _verticalScrollController,
           padding: const EdgeInsets.all(24.0),
-          child: StreamBuilder<QuerySnapshot>(
-            stream:
-                FirebaseFirestore.instance
-                    .collection('transports')
-                    .where('transport_category', isEqualTo: 'Bus')
-                    .snapshots(),
+          child: StreamBuilder<List<BusItem>>(
+            stream: FirebaseFirestore.instance
+                .collection('transports')
+                .where('transport_category', isEqualTo: 'Bus')
+                .snapshots()
+                .asyncMap((transportSnapshot) async {
+                  List<BusItem> allDocs = [];
+                  for (var doc in transportSnapshot.docs) {
+                    final parentData = doc.data() as Map<String, dynamic>;
+                    allDocs.add(
+                      BusItem(
+                        data: parentData,
+                        reference: doc.reference,
+                        id: doc.id,
+                      ),
+                    );
+                    try {
+                      var busesSnapshot =
+                          await doc.reference.collection('buses').get();
+                      for (var childDoc in busesSnapshot.docs) {
+                        final childData =
+                            childDoc.data() as Map<String, dynamic>;
+                        childData['username'] ??= parentData['username'];
+                        childData['full_name'] ??= parentData['full_name'];
+                        childData['fullName'] ??= parentData['fullName'];
+                        childData['name'] ??= parentData['name'];
+                        childData['role'] ??= parentData['role'];
+                        childData['role_with_vehicle'] ??=
+                            parentData['role_with_vehicle'];
+                        childData['vehicle'] ??= parentData['vehicle'];
+                        childData['phone'] ??= parentData['phone'];
+                        allDocs.add(
+                          BusItem(
+                            data: childData,
+                            reference: childDoc.reference,
+                            id: childDoc.id,
+                          ),
+                        );
+                      }
+                    } catch (e) {
+                      // print error
+                    }
+                  }
+                  return allDocs;
+                }),
             builder: (context, snapshot) {
               if (snapshot.hasError) {
                 return const Center(child: Text('Something went wrong'));
               }
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
+              if (snapshot.connectionState == ConnectionState.waiting &&
+                  !snapshot.hasData) {
+                return SizedBox(
+                  height: MediaQuery.of(context).size.height * 0.5,
+                  child: const Center(
+                    child: CircularProgressIndicator(color: Color(0xFFFFC107)),
+                  ),
+                );
               }
 
-              final docs = snapshot.data?.docs ?? [];
+              final docs = snapshot.data ?? [];
               final activeCount =
-                  docs
-                      .where(
-                        (d) =>
-                            (d.data() as Map<String, dynamic>)['status']
-                                    ?.toString()
-                                    .toLowerCase() ==
-                                'active' ||
-                            (d.data() as Map<String, dynamic>)['status']
-                                    ?.toString()
-                                    .toLowerCase() ==
-                                'approved',
-                      )
-                      .length;
+                  docs.where((d) {
+                    final status = (d.data)['status'];
+                    if (status is bool) return status;
+                    final statusStr = status?.toString().toLowerCase();
+                    return statusStr == 'active' || statusStr == 'approved';
+                  }).length;
               final inactiveCount =
                   docs.where((d) {
-                    final status =
-                        (d.data() as Map<String, dynamic>)['status']
-                            ?.toString()
-                            .toLowerCase();
-                    return status == 'inactive' || status == 'pending';
+                    final status = (d.data)['status'];
+                    if (status is bool) return !status;
+                    final statusStr = status?.toString().toLowerCase();
+                    return statusStr == 'inactive' || statusStr == 'pending';
                   }).length;
 
               var filteredDocs = docs;
               if (_selectedStatus != 'All Status' ||
-                  _selectedType != 'All Types') {
+                  _selectedType != 'All Types' ||
+                  _selectedDistrict != 'All Districts') {
                 filteredDocs =
                     docs.where((d) {
-                      final data = d.data() as Map<String, dynamic>;
-                      final status =
-                          data['status']?.toString().toLowerCase() ?? '';
+                      final data = d.data;
+                      final status = data['status'];
+                      final statusStr = status?.toString().toLowerCase() ?? '';
                       final busType = data['bus_type']?.toString() ?? '';
+                      final district = data['district']?.toString() ?? '';
 
                       bool statusMatches = true;
                       if (_selectedStatus == 'Active')
-                        statusMatches = (status == 'active');
+                        statusMatches =
+                            (statusStr == 'active' || status == true);
                       else if (_selectedStatus == 'Inactive')
                         statusMatches =
-                            (status == 'inactive' || status == 'pending');
+                            (statusStr == 'inactive' ||
+                                statusStr == 'pending' ||
+                                status == false);
 
                       bool typeMatches = true;
                       if (_selectedType != 'All Types')
                         typeMatches = (busType == _selectedType);
 
-                      return statusMatches && typeMatches;
+                      bool districtMatches = true;
+                      if (_selectedDistrict != 'All Districts')
+                        districtMatches = (district == _selectedDistrict);
+
+                      return statusMatches && typeMatches && districtMatches;
                     }).toList();
               }
+
+              final districtsCount =
+                  docs
+                      .map((d) => d.data['district']?.toString())
+                      .where((d) => d != null && d.trim().isNotEmpty)
+                      .toSet()
+                      .length;
+
+              final activeDistrictsList =
+                  docs
+                      .where((d) {
+                        final status = d.data['status'];
+                        if (status is bool) return status;
+                        final statusStr = status?.toString().toLowerCase();
+                        return statusStr == 'active' || statusStr == 'approved';
+                      })
+                      .map((d) => d.data['district']?.toString() ?? '')
+                      .where((d) => d.trim().isNotEmpty)
+                      .toSet()
+                      .toList();
+              activeDistrictsList.sort();
 
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -124,6 +349,8 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
                     total: docs.length,
                     active: activeCount,
                     inactive: inactiveCount,
+                    districtsCount: districtsCount,
+                    activeDistricts: activeDistrictsList,
                   ),
                   const SizedBox(height: 24),
                   _buildTableSection(filteredDocs),
@@ -163,7 +390,7 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
     );
   }
 
-  Widget _buildHeader(List<QueryDocumentSnapshot> docs) {
+  Widget _buildHeader(List<BusItem> docs) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: CrossAxisAlignment.end,
@@ -243,6 +470,8 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
     required int total,
     required int active,
     required int inactive,
+    required int districtsCount,
+    List<String> activeDistricts = const [],
   }) {
     return Row(
       children: [
@@ -276,6 +505,17 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
             iconColor: Colors.red,
           ),
         ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: _buildStatCard(
+            title: 'Total Districts',
+            value: districtsCount.toString(),
+            icon: Icons.map_outlined,
+            iconBgColor: Colors.purple.shade50,
+            iconColor: Colors.purple,
+            dropdownItems: activeDistricts,
+          ),
+        ),
       ],
     );
   }
@@ -286,6 +526,7 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
     required IconData icon,
     required Color iconBgColor,
     required Color iconColor,
+    List<String>? dropdownItems,
   }) {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -312,34 +553,46 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
             child: Icon(icon, color: iconColor, size: 28),
           ),
           const SizedBox(width: 16),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  color: Colors.grey,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: Colors.grey,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                value,
-                style: const TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1E293B),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1E293B),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
+          if (dropdownItems != null && dropdownItems.isNotEmpty)
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.arrow_drop_down, color: Colors.grey),
+              tooltip: 'Active Districts',
+              itemBuilder: (context) {
+                return dropdownItems.map((item) {
+                  return PopupMenuItem(value: item, child: Text(item));
+                }).toList();
+              },
+            ),
         ],
       ),
     );
   }
 
-  Widget _buildTableSection(List<QueryDocumentSnapshot> docs) {
+  Widget _buildTableSection(List<BusItem> docs) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -356,6 +609,7 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
       child: Column(
         children: [
           _buildFilters(),
+          _buildBulkActionToolbar(docs),
           const Divider(height: 1),
           _buildDataTable(docs),
           const Divider(height: 1),
@@ -374,6 +628,8 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
             flex: 2,
             child: TextField(
               decoration: InputDecoration(
+                filled: true,
+                fillColor: Colors.white,
                 hintText: 'Search by route name or number...',
                 hintStyle: const TextStyle(color: Colors.black38, fontSize: 14),
                 prefixIcon: const Icon(Icons.search, color: Colors.black38),
@@ -389,35 +645,23 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
                   borderRadius: BorderRadius.circular(8),
                   borderSide: const BorderSide(color: Colors.black12),
                 ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(
+                    color: Color(0xFFFFC107),
+                    width: 2,
+                  ),
+                ),
               ),
             ),
           ),
           const SizedBox(width: 16),
           Expanded(
             flex: 1,
-            child: DropdownButtonFormField<String>(
+            child: CustomDropdown<String>(
               value: _selectedStatus,
-              decoration: InputDecoration(
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: Colors.black12),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: Colors.black12),
-                ),
-              ),
-              items:
-                  ['All Status', 'Active', 'Inactive'].map((String value) {
-                    return DropdownMenuItem<String>(
-                      value: value,
-                      child: Text(value),
-                    );
-                  }).toList(),
+              items: const ['All Status', 'Active', 'Inactive'],
+              itemLabelBuilder: (val) => val,
               onChanged: (val) {
                 if (val != null) {
                   setState(() {
@@ -430,33 +674,46 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
           const SizedBox(width: 16),
           Expanded(
             flex: 1,
-            child: DropdownButtonFormField<String>(
+            child: CustomDropdown<String>(
               value: _selectedType,
-              decoration: InputDecoration(
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: Colors.black12),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: Colors.black12),
-                ),
-              ),
-              items:
-                  ['All Types', 'Private Bus', 'KSRTC'].map((String value) {
-                    return DropdownMenuItem<String>(
-                      value: value,
-                      child: Text(value),
-                    );
-                  }).toList(),
+              items: const ['All Types', 'Private Bus', 'KSRTC'],
+              itemLabelBuilder: (val) => val,
               onChanged: (val) {
                 if (val != null) {
                   setState(() {
                     _selectedType = val;
+                  });
+                }
+              },
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            flex: 1,
+            child: CustomDropdown<String>(
+              value: _selectedDistrict,
+              items: const [
+                'All Districts',
+                'Alappuzha',
+                'Ernakulam',
+                'Idukki',
+                'Kannur',
+                'Kasaragod',
+                'Kollam',
+                'Kottayam',
+                'Kozhikode',
+                'Malappuram',
+                'Palakkad',
+                'Pathanamthitta',
+                'Thiruvananthapuram',
+                'Thrissur',
+                'Wayanad',
+              ],
+              itemLabelBuilder: (val) => val,
+              onChanged: (val) {
+                if (val != null) {
+                  setState(() {
+                    _selectedDistrict = val;
                   });
                 }
               },
@@ -467,7 +724,7 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
     );
   }
 
-  Widget _buildDataTable(List<QueryDocumentSnapshot> docs) {
+  Widget _buildDataTable(List<BusItem> docs) {
     return Scrollbar(
       controller: _horizontalScrollController,
       thumbVisibility: true,
@@ -478,18 +735,20 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
           width: 1800, // Fixed width to enable horizontal scrolling
           child: Table(
             columnWidths: const {
-              0: FlexColumnWidth(1.2), // Reg Number
-              1: FlexColumnWidth(1.5), // Bus Name
-              2: FlexColumnWidth(1.5), // Main Stand
-              3: FlexColumnWidth(1.2), // Type
-              4: FlexColumnWidth(1.0), // From
-              5: FlexColumnWidth(1.0), // To
-              6: FlexColumnWidth(1.0), // Departure
-              7: FlexColumnWidth(1.0), // Arrival
-              8: FlexColumnWidth(1.2), // Phone
-              9: FlexColumnWidth(1.2), // Role/Vehicle
-              10: FlexColumnWidth(1.0), // Status
-              11: FlexColumnWidth(1.2), // Actions
+              0: FlexColumnWidth(0.6), // No.
+              1: FlexColumnWidth(1.8), // Reg Number
+              2: FlexColumnWidth(1.5), // Bus Name
+              3: FlexColumnWidth(1.5), // Main Stand
+              4: FlexColumnWidth(1.2), // District
+              5: FlexColumnWidth(1.2), // Type
+              6: FlexColumnWidth(1.0), // From
+              7: FlexColumnWidth(1.0), // To
+              8: FlexColumnWidth(1.0), // Departure
+              9: FlexColumnWidth(1.0), // Arrival
+              10: FlexColumnWidth(1.2), // Phone
+              11: FlexColumnWidth(1.2), // Role/Vehicle
+              12: FlexColumnWidth(1.0), // Status
+              13: FlexColumnWidth(1.2), // Actions
             },
             defaultVerticalAlignment: TableCellVerticalAlignment.middle,
             children: [
@@ -502,9 +761,47 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
                   ),
                 ),
                 children: [
-                  _buildHeaderCell('Reg Number'),
+                  _buildHeaderCell('No.'),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 12.0,
+                      horizontal: 16.0,
+                    ),
+                    child: Row(
+                      children: [
+                        Checkbox(
+                          value:
+                              docs.isNotEmpty &&
+                              _selectedBusIds.length == docs.length,
+                          onChanged: (val) {
+                            setState(() {
+                              if (val == true) {
+                                _selectedBusIds.addAll(docs.map((d) => d.id));
+                              } else {
+                                _selectedBusIds.clear();
+                              }
+                            });
+                          },
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          side: const BorderSide(color: Colors.black26),
+                        ),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'Reg Number',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black54,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                   _buildHeaderCell('Bus Name'),
                   _buildHeaderCell('Main Stand'),
+                  _buildHeaderCell('District'),
                   _buildHeaderCell('Type'),
                   _buildHeaderCell('From'),
                   _buildHeaderCell('To'),
@@ -517,8 +814,10 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
                 ],
               ),
               // Data Rows
-              ...docs.map((doc) {
-                final data = doc.data() as Map<String, dynamic>;
+              ...docs.asMap().entries.map((entry) {
+                final index = entry.key;
+                final doc = entry.value;
+                final data = doc.data;
                 return TableRow(
                   decoration: const BoxDecoration(
                     border: Border(
@@ -526,6 +825,7 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
                     ),
                   ),
                   children: [
+                    _buildDataCell('${index + 1}'),
                     Padding(
                       padding: const EdgeInsets.symmetric(
                         vertical: 12.0,
@@ -534,17 +834,28 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
                       child: Row(
                         children: [
                           Checkbox(
-                            value: false,
-                            onChanged: (val) {},
+                            value: _selectedBusIds.contains(doc.id),
+                            onChanged: (val) {
+                              setState(() {
+                                if (val == true) {
+                                  _selectedBusIds.add(doc.id);
+                                } else {
+                                  _selectedBusIds.remove(doc.id);
+                                }
+                              });
+                            },
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(4),
                             ),
                             side: const BorderSide(color: Colors.black26),
                           ),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 16),
                           Expanded(
                             child: Text(
-                              data['reg_number']?.toString() ?? 'N/A',
+                              (data['reg_number'] ??
+                                          data['registration_number'])
+                                      ?.toString() ??
+                                  'N/A',
                               style: const TextStyle(
                                 fontWeight: FontWeight.w500,
                                 fontSize: 13,
@@ -556,8 +867,12 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
                     ),
                     _buildDataCell(data['bus_name']?.toString() ?? 'N/A'),
                     _buildDataCell(data['main_stand']?.toString() ?? 'N/A'),
+                    _buildDataCell(data['district']?.toString() ?? 'N/A'),
                     _buildDataCell(data['bus_type']?.toString() ?? 'N/A'),
-                    _buildDataCell(data['first_stop']?.toString() ?? 'N/A'),
+                    _buildDataCell(
+                      (data['first_stop'] ?? data['start_place'])?.toString() ??
+                          'N/A',
+                    ),
                     _buildDataCell(data['destination']?.toString() ?? 'N/A'),
                     _buildDataCell(
                       _formatTime(data['departure_time']?.toString()),
@@ -598,7 +913,9 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
                       child: Align(
                         alignment: Alignment.centerLeft,
                         child: _buildStatusBadge(
-                          data['status']?.toString() ?? 'unknown',
+                          (data['status'] is bool)
+                              ? (data['status'] ? 'active' : 'inactive')
+                              : (data['status']?.toString() ?? 'unknown'),
                         ),
                       ),
                     ),
@@ -615,16 +932,22 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
                             Transform.scale(
                               scale: 0.8,
                               child: Switch(
-                                value: data['status'] == 'active',
+                                value:
+                                    data['status'] == 'active' ||
+                                    data['status'] == true,
                                 onChanged: (bool value) async {
-                                  final newStatus =
-                                      value ? 'active' : 'inactive';
-                                  await FirebaseFirestore.instance
-                                      .collection('transports')
-                                      .doc(doc.id)
-                                      .update({'status': newStatus});
+                                  final isBoolStatus = data['status'] is bool;
+                                  final dynamic newStatus =
+                                      isBoolStatus
+                                          ? value
+                                          : (value ? 'active' : 'inactive');
+                                  await doc.reference.update({
+                                    'status': newStatus,
+                                  });
                                 },
                                 activeColor: Colors.green,
+                                inactiveThumbColor: Colors.red,
+                                inactiveTrackColor: Colors.red.shade200,
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -645,7 +968,7 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
                                 size: 20,
                                 color: Colors.redAccent,
                               ),
-                              onPressed: () {},
+                              onPressed: () => _showDeleteDialog(doc),
                               padding: EdgeInsets.zero,
                               constraints: const BoxConstraints(),
                             ),
@@ -836,12 +1159,14 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
     return time;
   }
 
-  void _showBusDialog({QueryDocumentSnapshot? document}) {
+  void _showBusDialog({BusItem? document}) {
     final formKey = GlobalKey<FormState>();
-    final data = document?.data() as Map<String, dynamic>?;
+    final data = document?.data;
 
     final regNumberController = TextEditingController(
-      text: data?['reg_number']?.toString(),
+      text:
+          data?['reg_number']?.toString() ??
+          data?['registration_number']?.toString(),
     );
     final busNameController = TextEditingController(
       text: data?['bus_name']?.toString(),
@@ -853,7 +1178,7 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
       text: data?['bus_sub_type']?.toString() ?? data?['category']?.toString(),
     );
     final firstStopController = TextEditingController(
-      text: data?['first_stop']?.toString(),
+      text: data?['first_stop']?.toString() ?? data?['start_place']?.toString(),
     );
     final destinationController = TextEditingController(
       text: data?['destination']?.toString(),
@@ -869,6 +1194,9 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
     );
     final mainStandController = TextEditingController(
       text: data?['main_stand']?.toString(),
+    );
+    final districtController = TextEditingController(
+      text: data?['district']?.toString(),
     );
 
     bool isLoading = false;
@@ -964,7 +1292,7 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
                           borderSide: const BorderSide(color: Colors.redAccent),
                         ),
                         filled: true,
-                        fillColor: Colors.grey.shade50,
+                        fillColor: Colors.white,
                       ),
                       validator:
                           (value) =>
@@ -1037,7 +1365,7 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
                           borderSide: const BorderSide(color: Colors.redAccent),
                         ),
                         filled: true,
-                        fillColor: Colors.grey.shade50,
+                        fillColor: Colors.white,
                       ),
                       items:
                           items.map((String val) {
@@ -1202,6 +1530,35 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
                                   ),
                                 ],
                               ),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: buildDropdownField(
+                                      districtController,
+                                      'District',
+                                      [
+                                        'Alappuzha',
+                                        'Ernakulam',
+                                        'Idukki',
+                                        'Kannur',
+                                        'Kasaragod',
+                                        'Kollam',
+                                        'Kottayam',
+                                        'Kozhikode',
+                                        'Malappuram',
+                                        'Palakkad',
+                                        'Pathanamthitta',
+                                        'Thiruvananthapuram',
+                                        'Thrissur',
+                                        'Wayanad',
+                                      ],
+                                      hint: 'Select District',
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(child: const SizedBox()),
+                                ],
+                              ),
                               const Divider(height: 32, color: Colors.black12),
                               const Text(
                                 'Route Details',
@@ -1244,8 +1601,12 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
                                               initialTime: TimeOfDay.now(),
                                             );
                                         if (time != null) {
+                                          int hour12 = time.hour % 12;
+                                          if (hour12 == 0) hour12 = 12;
+                                          String period =
+                                              time.hour >= 12 ? 'PM' : 'AM';
                                           departureTimeController.text =
-                                              '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+                                              '${hour12.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')} $period';
                                         }
                                       },
                                     ),
@@ -1264,8 +1625,12 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
                                               initialTime: TimeOfDay.now(),
                                             );
                                         if (time != null) {
+                                          int hour12 = time.hour % 12;
+                                          if (hour12 == 0) hour12 = 12;
+                                          String period =
+                                              time.hour >= 12 ? 'PM' : 'AM';
                                           arrivalTimeController.text =
-                                              '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+                                              '${hour12.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')} $period';
                                         }
                                       },
                                     ),
@@ -1337,6 +1702,7 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
                                             'phone': phoneController.text,
                                             'main_stand':
                                                 mainStandController.text,
+                                            'district': districtController.text,
                                             'transport_category': 'Bus',
                                             'category': 'Transport (Travels)',
                                             'updated_at':
@@ -1344,7 +1710,7 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
                                           };
 
                                           if (document == null) {
-                                            dataToSave['status'] = 'inactive';
+                                            dataToSave['status'] = 'active';
                                             dataToSave['isVerified'] = 0;
                                             dataToSave['ratings'] = 0;
                                             dataToSave['total_reviews'] = 0;
@@ -1431,4 +1797,115 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
       },
     );
   }
+
+  void _showDeleteDialog(BusItem doc) {
+    final data = doc.data;
+    final busName = data['bus_name']?.toString() ?? 'N/A';
+    final regNo =
+        (data['reg_number'] ?? data['registration_number'])?.toString() ??
+        'N/A';
+
+    final addedBy =
+        (data['role'] != null ||
+                data['role_with_vehicle'] != null ||
+                data['vehicle'] != null ||
+                data['username'] != null ||
+                data['full_name'] != null ||
+                data['fullName'] != null ||
+                data['name'] != null)
+            ? [
+              data['username'] ??
+                  data['full_name'] ??
+                  data['fullName'] ??
+                  data['name'],
+              "${data['role'] ?? ''} ${data['role_with_vehicle'] ?? ''} ${data['vehicle'] != null ? '(${data['vehicle']})' : ''}"
+                  .trim()
+                  .replaceAll(RegExp(r'\s+'), ' '),
+            ].where((e) => e != null && e.toString().trim().isNotEmpty).join(' - ')
+            : 'Admin';
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.transparent,
+          title: const Text('Delete Bus Route'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Are you sure you want to delete this bus route?'),
+              const SizedBox(height: 16),
+              Text(
+                'Bus Name: $busName',
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              Text(
+                'Reg No: $regNo',
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              Text(
+                'Added By: $addedBy',
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(color: Colors.black54),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                try {
+                  await FirebaseFirestore.instance
+                      .collection('transports')
+                      .doc(doc.id)
+                      .delete();
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Bus route deleted successfully'),
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Error deleting bus route: $e')),
+                    );
+                  }
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.redAccent,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: const Text(
+                'Delete',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class BusItem {
+  final Map<String, dynamic> data;
+  final dynamic
+  reference; // dynamic to avoid needing to import specific firestore types if they clash, though DocumentReference works
+  final String id;
+  BusItem({required this.data, required this.reference, required this.id});
 }

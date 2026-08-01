@@ -135,7 +135,7 @@ class _LoginpageState extends State<Loginpage>
               Container(
                 constraints: const BoxConstraints(minHeight: 500),
                 decoration: const BoxDecoration(
-                  color: Colors.white,
+                  color: const Color(0xFFFFC107),
                   borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
                 ),
                 padding: const EdgeInsets.all(28),
@@ -382,7 +382,7 @@ class _LoginpageState extends State<Loginpage>
                         width: 20,
                         height: 20,
                         child: CircularProgressIndicator(
-                          color: Colors.white,
+                          color: const Color(0xFFFFC107),
                           strokeWidth: 2,
                         ),
                       )
@@ -533,7 +533,7 @@ class _LoginpageState extends State<Loginpage>
       SnackBar(
         content: Row(
           children: [
-            const Icon(Icons.error_outline, color: Colors.white, size: 18),
+            const Icon(Icons.error_outline, color: const Color(0xFFFFC107), size: 18),
             const SizedBox(width: 10),
             Expanded(
               child: Text(message, style: GoogleFonts.inter(fontSize: 13)),
@@ -555,7 +555,7 @@ class _LoginpageState extends State<Loginpage>
           children: [
             const Icon(
               Icons.check_circle_outline,
-              color: Colors.white,
+              color: const Color(0xFFFFC107),
               size: 18,
             ),
             const SizedBox(width: 10),

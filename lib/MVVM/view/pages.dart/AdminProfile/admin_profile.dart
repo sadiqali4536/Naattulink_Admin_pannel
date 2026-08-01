@@ -97,7 +97,7 @@ class _AdminProfilePageState extends State<AdminProfilePage> {
     if (isLoading) {
       return const Scaffold(
         backgroundColor: Color(0xFFF8F9FA),
-        body: Center(child: CircularProgressIndicator()),
+        body: Center(child: CircularProgressIndicator(color: const Color(0xFFFFC107))),
       );
     }
     return Scaffold(

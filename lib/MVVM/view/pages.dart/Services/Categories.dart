@@ -350,7 +350,7 @@ class _ServiceCategoriesPageState extends State<ServiceCategoriesPage> {
               FirebaseFirestore.instance.collection('categories').snapshots(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
+              return const Center(child: CircularProgressIndicator(color: const Color(0xFFFFC107)));
             }
 
             final List<CategoryModel> categoriesList = [];
