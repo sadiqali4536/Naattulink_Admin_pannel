@@ -2511,14 +2511,14 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
                       ),
                     ],
                   ),
-                  IconButton(
-                    icon: const FaIcon(
-                      FontAwesomeIcons.whatsapp,
-                      color: Colors.green,
-                    ),
-                    onPressed:
-                        _isUploading ? null : () => Navigator.pop(context),
-                  ),
+                  // IconButton(
+                  //   icon: const FaIcon(
+                  //     FontAwesomeIcons.whatsapp,
+                  //     color: Colors.green,
+                  //   ),
+                  //   onPressed:
+                  //       _isUploading ? null : () => Navigator.pop(context),
+                  // ),
                 ],
               ),
             ),
