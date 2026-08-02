@@ -27,23 +27,37 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        scaffoldBackgroundColor: const Color(0xFFF8F9FA),
+        useMaterial3: true,
+        scaffoldBackgroundColor: Colors.white,
         primaryColor: const Color(0xFFFFC107),
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFFFFC107),
           primary: const Color(0xFFFFC107),
+          surface: Colors.white,
+          background: Colors.white,
+          surfaceTint:
+              Colors
+                  .transparent, // Prevents Material 3 from tinting surfaces yellow
+        ),
+        dialogTheme: const DialogThemeData(
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.transparent,
+        ),
+        bottomSheetTheme: const BottomSheetThemeData(
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.transparent,
+        ),
+        cardTheme: const CardThemeData(
+          color: Colors.white,
+          surfaceTintColor: Colors.transparent,
         ),
         timePickerTheme: const TimePickerThemeData(
           backgroundColor: Colors.white,
         ),
         chipTheme: ChipThemeData(
           backgroundColor: Colors.white,
-          selectedColor: const Color.fromARGB(
-            255,
-            253,
-            251,
-            243,
-          ), // Very light soft yellow
+          selectedColor:
+              Colors.white, // Replaced very light soft yellow with white
           disabledColor: Colors.grey.shade200,
           labelStyle: const TextStyle(color: Colors.black87),
           secondaryLabelStyle: const TextStyle(

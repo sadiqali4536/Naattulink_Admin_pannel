@@ -15,7 +15,7 @@ class CustomDropdown<T> extends StatelessWidget {
     required this.onChanged,
     required this.itemLabelBuilder,
     this.borderRadius = 8.0,
-    this.primaryColor = const Color(0xFFFFF8E1), // Very light soft yellow
+    this.primaryColor = Colors.white,
   }) : super(key: key);
 
   @override

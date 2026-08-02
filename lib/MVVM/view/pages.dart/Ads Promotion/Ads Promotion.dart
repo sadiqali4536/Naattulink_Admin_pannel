@@ -5,10 +5,57 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image/image.dart' as img;
 import 'package:swiftclean_admin/core/imagekit/imagekit_base_service.dart';
 import 'package:swiftclean_admin/modules/advertisements/advertisement_service.dart';
 import 'package:swiftclean_admin/MVVM/model/models/admin_model.dart';
 import 'package:swiftclean_admin/MVVM/utils/rbac_session.dart';
+import 'package:flutter/services.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:country_picker/country_picker.dart';
+import 'package:intl_phone_field/intl_phone_field.dart';
+
+/// Top-level function for compute to run image optimization in an isolate
+Uint8List _optimizeImage(Uint8List resolvedBytes) {
+  final img.Image? originalImg = img.decodeImage(resolvedBytes);
+  if (originalImg != null) {
+    const int targetWidth = 1080;
+    const int targetHeight = 600;
+
+    final img.Image canvas = img.Image(
+      width: targetWidth,
+      height: targetHeight,
+    );
+    img.fill(canvas, color: img.ColorRgb8(255, 255, 255));
+
+    final double aspectRatio = originalImg.width / originalImg.height;
+    final double targetRatio = targetWidth / targetHeight;
+
+    int newWidth;
+    int newHeight;
+    if (aspectRatio > targetRatio) {
+      newWidth = targetWidth;
+      newHeight = (targetWidth / aspectRatio).round();
+    } else {
+      newHeight = targetHeight;
+      newWidth = (targetHeight * aspectRatio).round();
+    }
+
+    final img.Image resizedImage = img.copyResize(
+      originalImg,
+      width: newWidth,
+      height: newHeight,
+      interpolation: img.Interpolation.cubic,
+    );
+
+    final int dstX = (targetWidth - newWidth) ~/ 2;
+    final int dstY = (targetHeight - newHeight) ~/ 2;
+    img.compositeImage(canvas, resizedImage, dstX: dstX, dstY: dstY);
+
+    return Uint8List.fromList(img.encodeJpg(canvas, quality: 100));
+  }
+  return resolvedBytes;
+}
 
 /// Models representing an advertisement banner
 class AdBanner {
@@ -38,6 +85,7 @@ class AdBanner {
   final DateTime createdAt;
   final DateTime updatedAt;
   final Map<String, dynamic>? localAdsConfig;
+  final bool showInForYou;
 
   AdBanner({
     required this.id,
@@ -59,6 +107,7 @@ class AdBanner {
     required this.priority,
     required this.isActive,
     required this.isFeatured,
+    required this.showInForYou,
     required this.bannerPosition,
     required this.totalViews,
     required this.totalClicks,
@@ -90,6 +139,7 @@ class AdBanner {
       priority: data['priority'] ?? 50,
       isActive: data['isActive'] ?? false,
       isFeatured: data['isFeatured'] ?? false,
+      showInForYou: data['showInForYou'] ?? true,
       bannerPosition: data['bannerPosition'] ?? 'Home -> For You',
       totalViews: data['totalViews'] ?? 0,
       totalClicks: data['totalClicks'] ?? 0,
@@ -125,6 +175,7 @@ class AdBanner {
       'priority': priority,
       'isActive': isActive,
       'isFeatured': isFeatured,
+      'showInForYou': showInForYou,
       'bannerPosition': bannerPosition,
       'totalViews': totalViews,
       'totalClicks': totalClicks,
@@ -148,12 +199,27 @@ class _AdspromotionState extends State<Adspromotion> {
   String _searchQuery = '';
   String _selectedFilterPosition = 'All';
   String _selectedFilterStatus = 'All';
-  String _selectedSortBy = 'Priority (High to Low)';
+  String _selectedSortBy = 'Created Date';
+  late Stream<QuerySnapshot> _advertisementsStream;
+  late Stream<DocumentSnapshot> _adsContactStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _advertisementsStream = _firestore.collection('advertisements').snapshots();
+    _adsContactStream =
+        _firestore
+            .collection('advertisements')
+            .doc('global_contact')
+            .collection('ads_contact')
+            .doc('contact')
+            .snapshots();
+  }
 
   // Design Theme Constants
   static const Color primaryNavy = Color(0xFF0F2D62);
   static const Color secondaryYellow = Color(0xFFF4B400);
-  static const Color backgroundGrey = Color(0xFFF5F7FA);
+  static const Color backgroundGrey = Colors.white;
   static const Color borderLight = Color(0xFFE5E7EB);
   static const Color textGrey = Color(0xFF6B7280);
   static const Color textDark = Color(0xFF1F2937);
@@ -269,7 +335,7 @@ class _AdspromotionState extends State<Adspromotion> {
 
   Widget _buildAdminDashboard() {
     return StreamBuilder<QuerySnapshot>(
-      stream: _firestore.collection('advertisements').snapshots(),
+      stream: _advertisementsStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(
@@ -321,6 +387,9 @@ class _AdspromotionState extends State<Adspromotion> {
 
         // Sorting
         filteredBanners.sort((a, b) {
+          if (!a.isActive && b.isActive) return -1;
+          if (a.isActive && !b.isActive) return 1;
+
           if (_selectedSortBy == 'Priority (High to Low)') {
             return b.priority.compareTo(a.priority);
           } else if (_selectedSortBy == 'Priority (Low to High)') {
@@ -339,58 +408,238 @@ class _AdspromotionState extends State<Adspromotion> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Dashboard Header Section
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
+                // Dashboard Header Section and Ads Contact
+                StreamBuilder<DocumentSnapshot>(
+                  stream: _adsContactStream,
+                  builder: (context, contactSnap) {
+                    final contactData =
+                        contactSnap.data?.data() as Map<String, dynamic>?;
+
+                    return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          "Advertisement Banners",
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                            color: textDark,
-                          ),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  "Advertisement Banners",
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.bold,
+                                    color: textDark,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  "Configure sliding banners, category campaigns, and Local Ads details",
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 14,
+                                    color: textGrey,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Row(
+                              children: [
+                                ElevatedButton.icon(
+                                  onPressed: () => _openAdsContactDialog(),
+                                  icon: const Icon(
+                                    Icons.contact_phone_rounded,
+                                    color: Colors.white,
+                                  ),
+                                  label: Text(
+                                    "Ads Contact",
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.green[800],
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 20,
+                                      vertical: 16,
+                                    ),
+                                    elevation: 0,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                ElevatedButton.icon(
+                                  onPressed: () => _openBannerFormDialog(null),
+                                  icon: const Icon(
+                                    Icons.add_photo_alternate_rounded,
+                                    color: Colors.white,
+                                  ),
+                                  label: Text(
+                                    "Create Advertisement",
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: primaryNavy,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 20,
+                                      vertical: 16,
+                                    ),
+                                    elevation: 0,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 6),
-                        Text(
-                          "Configure sliding banners, category campaigns, and Local Ads details",
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 14,
-                            color: textGrey,
-                            fontWeight: FontWeight.w500,
+                        if (contactData != null) ...[
+                          const SizedBox(height: 16),
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: borderLight),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.support_agent_rounded,
+                                      color: primaryNavy,
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      "Ads Support",
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                        color: textDark,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                if (contactData['bannerImageUrl'] != null &&
+                                    contactData['bannerImageUrl']
+                                        .toString()
+                                        .isNotEmpty) ...[
+                                  GestureDetector(
+                                    onTap: () {
+                                      showDialog(
+                                        context: context,
+                                        builder:
+                                            (context) => Dialog(
+                                              backgroundColor:
+                                                  Colors.transparent,
+                                              insetPadding:
+                                                  const EdgeInsets.all(16),
+                                              child: Stack(
+                                                alignment: Alignment.topRight,
+                                                children: [
+                                                  ClipRRect(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          12,
+                                                        ),
+                                                    child: Image.network(
+                                                      contactData['bannerImageUrl'],
+                                                      fit: BoxFit.contain,
+                                                    ),
+                                                  ),
+                                                  Padding(
+                                                    padding:
+                                                        const EdgeInsets.all(
+                                                          8.0,
+                                                        ),
+                                                    child: IconButton(
+                                                      icon: const Icon(
+                                                        Icons.close,
+                                                        color: Colors.white,
+                                                      ),
+                                                      style:
+                                                          IconButton.styleFrom(
+                                                            backgroundColor:
+                                                                Colors.black54,
+                                                          ),
+                                                      onPressed:
+                                                          () =>
+                                                              Navigator.of(
+                                                                context,
+                                                              ).pop(),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                      );
+                                    },
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: Image.network(
+                                        contactData['bannerImageUrl'],
+                                        width: 80,
+                                        height: 44, // 1080/600 aspect ratio
+                                        fit: BoxFit.cover,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                ],
+                                Row(
+                                  children: [
+                                    if (contactData['whatsappNumber'] != null &&
+                                        contactData['whatsappNumber']
+                                            .toString()
+                                            .isNotEmpty) ...[
+                                      const FaIcon(
+                                        FontAwesomeIcons.whatsapp,
+                                        color: Colors.green,
+                                        size: 16,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        "WhatsApp: ${contactData['whatsappCountryIso'] != null ? String.fromCharCodes(contactData['whatsappCountryIso'].toString().codeUnits.map((c) => c + 127397)) : ''} ${contactData['whatsappCountryCode'] ?? ''} ${contactData['whatsappNumber']}",
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 14,
+                                          color: textGrey,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 24),
+                                    ],
+                                    const Icon(
+                                      Icons.phone,
+                                      color: Colors.blue,
+                                      size: 16,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      "Phone: ${contactData['phoneNumber']}",
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 14,
+                                        color: textGrey,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
+                        ],
                       ],
-                    ),
-                    ElevatedButton.icon(
-                      onPressed: () => _openBannerFormDialog(null),
-                      icon: const Icon(
-                        Icons.add_photo_alternate_rounded,
-                        color: Colors.white,
-                      ),
-                      label: Text(
-                        "Create Advertisement",
-                        style: GoogleFonts.plusJakartaSans(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: primaryNavy,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 16,
-                        ),
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                    ),
-                  ],
+                    );
+                  },
                 ),
                 const SizedBox(height: 24),
 
@@ -628,7 +877,7 @@ class _AdspromotionState extends State<Adspromotion> {
                     )
                     : LayoutBuilder(
                       builder: (context, gridConstraints) {
-                        int columns = (gridConstraints.maxWidth / 500).floor();
+                        int columns = (gridConstraints.maxWidth / 350).floor();
                         if (columns < 1) columns = 1;
 
                         const double spacing = 16.0;
@@ -636,7 +885,7 @@ class _AdspromotionState extends State<Adspromotion> {
                             (gridConstraints.maxWidth -
                                 (columns - 1) * spacing) /
                             columns;
-                        final double childAspectRatio = cardWidth / 175.0;
+                        final double childAspectRatio = cardWidth / 168.0;
 
                         return GridView.builder(
                           shrinkWrap: true,
@@ -733,12 +982,13 @@ class _AdspromotionState extends State<Adspromotion> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
-        color: backgroundGrey,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: borderLight),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
+          dropdownColor: Colors.white,
           value: value,
           style: GoogleFonts.plusJakartaSans(
             fontSize: 13,
@@ -827,18 +1077,22 @@ class _AdspromotionState extends State<Adspromotion> {
                 Positioned.fill(
                   child:
                       banner.imageUrl.isNotEmpty
-                          ? Image.network(
-                            banner.imageUrl,
-                            fit: BoxFit.cover,
-                            errorBuilder:
-                                (context, error, stackTrace) => Container(
-                                  color: Colors.grey[100],
-                                  child: const Icon(
-                                    Icons.broken_image,
-                                    size: 40,
-                                    color: textGrey,
+                          ? GestureDetector(
+                            onTap:
+                                () => _showImagePreviewDialog(banner.imageUrl),
+                            child: Image.network(
+                              banner.imageUrl,
+                              fit: BoxFit.contain,
+                              errorBuilder:
+                                  (context, error, stackTrace) => Container(
+                                    color: Colors.grey[100],
+                                    child: const Icon(
+                                      Icons.broken_image,
+                                      size: 40,
+                                      color: textGrey,
+                                    ),
                                   ),
-                                ),
+                            ),
                           )
                           : Container(
                             color: Colors.grey[100],
@@ -975,7 +1229,10 @@ class _AdspromotionState extends State<Adspromotion> {
                     ),
                   ),
 
-                  const Spacer(),
+                  if (banner.description.isNotEmpty)
+                    const SizedBox(height: 6)
+                  else
+                    const SizedBox(height: 4),
 
                   // Advertiser info
                   Row(
@@ -1023,7 +1280,9 @@ class _AdspromotionState extends State<Adspromotion> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 4),
+
+                  Spacer(),
+
                   const Divider(height: 1, thickness: 1, color: borderLight),
                   const SizedBox(height: 4),
 
@@ -1031,27 +1290,30 @@ class _AdspromotionState extends State<Adspromotion> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            '${banner.totalViews} Views | ${banner.totalClicks} Clicks',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 10,
-                              color: textGrey,
-                              fontWeight: FontWeight.w600,
+                      Expanded(
+                        child: Wrap(
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          spacing: 8,
+                          runSpacing: 4,
+                          children: [
+                            Text(
+                              '${banner.totalViews} Views | ${banner.totalClicks} Clicks',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 10,
+                                color: textGrey,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 10),
-                          Text(
-                            'CTR: ${ctr.toStringAsFixed(1)}%',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 11,
-                              color: primaryNavy,
-                              fontWeight: FontWeight.bold,
+                            Text(
+                              'CTR: ${ctr.toStringAsFixed(1)}%',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 11,
+                                color: primaryNavy,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                       Row(
                         mainAxisSize: MainAxisSize.min,
@@ -1070,6 +1332,17 @@ class _AdspromotionState extends State<Adspromotion> {
                               },
                             ),
                           ),
+                          IconButton(
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            icon: const Icon(
+                              Icons.remove_red_eye_outlined,
+                              size: 18,
+                              color: primaryNavy,
+                            ),
+                            onPressed: () => _showBannerDetails(banner),
+                          ),
+                          const SizedBox(width: 8),
                           IconButton(
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(),
@@ -1104,11 +1377,336 @@ class _AdspromotionState extends State<Adspromotion> {
     );
   }
 
+  void _showImagePreviewDialog(String imageUrl) {
+    showDialog(
+      context: context,
+      builder:
+          (context) => Dialog(
+            backgroundColor: Colors.transparent,
+            insetPadding: const EdgeInsets.all(24),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                InteractiveViewer(
+                  child: Image.network(imageUrl, fit: BoxFit.contain),
+                ),
+                Positioned(
+                  top: 0,
+                  right: 0,
+                  child: IconButton(
+                    icon: const Icon(
+                      Icons.close_rounded,
+                      color: Colors.white,
+                      size: 28,
+                    ),
+                    style: IconButton.styleFrom(
+                      backgroundColor: Colors.black54,
+                      padding: const EdgeInsets.all(8),
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ),
+              ],
+            ),
+          ),
+    );
+  }
+
+  void _showBannerDetails(AdBanner banner) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.all(24),
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 600),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.1),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Content
+                Flexible(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    banner.title,
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.bold,
+                                      color: primaryNavy,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: _getStatusColor(
+                                        _calculateStatus(
+                                          banner,
+                                          DateTime.now(),
+                                        ),
+                                      ),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      _calculateStatus(banner, DateTime.now()),
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: () => Navigator.pop(dialogContext),
+                              icon: const Icon(
+                                Icons.close_rounded,
+                                color: textGrey,
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (banner.description.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            banner.description,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 14,
+                              color: textGrey,
+                              height: 1.5,
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 24),
+
+                        _buildSectionHeaderIcon(
+                          "General Information",
+                          Icons.info_outline_rounded,
+                        ),
+                        const SizedBox(height: 16),
+                        Wrap(
+                          spacing: 16,
+                          runSpacing: 16,
+                          children: [
+                            _buildDetailItem(
+                              "Category",
+                              banner.category,
+                              Icons.category_outlined,
+                            ),
+                            _buildDetailItem(
+                              "Placement",
+                              banner.bannerPosition,
+                              Icons.layers_outlined,
+                            ),
+                            _buildDetailItem(
+                              "Start Date",
+                              _formatDate(banner.startDate),
+                              Icons.date_range_rounded,
+                            ),
+                            _buildDetailItem(
+                              "End Date",
+                              _formatDate(banner.endDate),
+                              Icons.event_busy_rounded,
+                            ),
+                            _buildDetailItem(
+                              "Priority",
+                              banner.priority.toString(),
+                              Icons.sort_rounded,
+                            ),
+                            _buildDetailItem(
+                              "Featured",
+                              banner.isFeatured ? "Yes" : "No",
+                              Icons.star_border_rounded,
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 24),
+                        _buildSectionHeaderIcon(
+                          "Advertiser Details",
+                          Icons.business_rounded,
+                        ),
+                        const SizedBox(height: 16),
+                        Wrap(
+                          spacing: 16,
+                          runSpacing: 16,
+                          children: [
+                            _buildDetailItem(
+                              "Name",
+                              banner.advertiserName,
+                              Icons.person_outline_rounded,
+                            ),
+                            _buildDetailItem(
+                              "Phone",
+                              banner.phone,
+                              Icons.phone_outlined,
+                            ),
+                            if (banner.email.isNotEmpty)
+                              _buildDetailItem(
+                                "Email",
+                                banner.email,
+                                Icons.email_outlined,
+                              ),
+                            if (banner.website.isNotEmpty)
+                              _buildDetailItem(
+                                "Website",
+                                banner.website,
+                                Icons.language_rounded,
+                              ),
+                            if (banner.location.isNotEmpty)
+                              _buildDetailItem(
+                                "Location",
+                                banner.location,
+                                Icons.location_on_outlined,
+                              ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 24),
+                        _buildSectionHeaderIcon(
+                          "Analytics & System",
+                          Icons.analytics_outlined,
+                        ),
+                        const SizedBox(height: 16),
+                        Wrap(
+                          spacing: 16,
+                          runSpacing: 16,
+                          children: [
+                            _buildDetailItem(
+                              "Total Views",
+                              banner.totalViews.toString(),
+                              Icons.visibility_outlined,
+                            ),
+                            _buildDetailItem(
+                              "Total Clicks",
+                              banner.totalClicks.toString(),
+                              Icons.ads_click_rounded,
+                            ),
+                            _buildDetailItem(
+                              "Created By",
+                              banner.createdBy,
+                              Icons.admin_panel_settings_outlined,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildPlaceholderImage() {
+    return Container(
+      width: double.infinity,
+      height: 220,
+      color: backgroundGrey,
+      child: const Center(
+        child: Icon(Icons.campaign_rounded, size: 64, color: textGrey),
+      ),
+    );
+  }
+
+  Widget _buildSectionHeaderIcon(String title, IconData icon) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: textGrey),
+        const SizedBox(width: 8),
+        Text(
+          title,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 15,
+            fontWeight: FontWeight.bold,
+            color: textDark,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDetailItem(String label, String value, IconData icon) {
+    return SizedBox(
+      width: 250,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: backgroundGrey,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, size: 16, color: primaryNavy),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12,
+                    color: textGrey,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 14,
+                    color: textDark,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _confirmDeleteBanner(AdBanner banner) {
     showDialog(
       context: context,
       builder:
           (dialogContext) => AlertDialog(
+            backgroundColor: Colors.white,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
             ),
@@ -1169,6 +1767,80 @@ class _AdspromotionState extends State<Adspromotion> {
             ],
           ),
     );
+  }
+
+  Future<void> _openAdsContactDialog() async {
+    // Show loading indicator
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder:
+          (context) => Dialog(
+            backgroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircularProgressIndicator(color: Color(0xFFFFC107)),
+                  const SizedBox(height: 20),
+                  Text(
+                    "Loading Ads Contact...",
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: textDark,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+    );
+
+    try {
+      // Fetch the global contact document
+      final docSnapshot =
+          await _firestore
+              .collection('advertisements')
+              .doc('global_contact')
+              .collection('ads_contact')
+              .doc('contact')
+              .get();
+
+      if (!mounted) return;
+
+      // Dismiss the loading dialog
+      Navigator.of(context).pop();
+
+      // Extract data (null if document doesn't exist)
+      final Map<String, dynamic>? contactData =
+          docSnapshot.exists ? docSnapshot.data() : null;
+
+      // Open the AdsContactDialog with the fetched data
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder:
+            (context) =>
+                AdsContactDialog(existingContact: contactData, onSaved: () {}),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      // Dismiss the loading dialog
+      Navigator.of(context).pop();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to load Ads Contact: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   void _openBannerFormDialog(AdBanner? existingBanner) {
@@ -1244,14 +1916,18 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
   bool _noTextButton = false;
   bool _noBannerAction = false;
 
-  DateTime _startDate = DateTime.now();
-  TimeOfDay _startTime = const TimeOfDay(hour: 0, minute: 0);
-  DateTime _endDate = DateTime.now().add(const Duration(days: 30));
-  TimeOfDay _endTime = const TimeOfDay(hour: 23, minute: 59);
+  DateTime? _startDate;
+  TimeOfDay? _startTime;
+  DateTime? _endDate;
+  TimeOfDay? _endTime;
+
+  bool _scheduleError = false;
 
   bool _isActive = true;
   bool _isFeatured = false;
+  bool _showInForYou = true;
   double _priority = 50.0;
+  bool _isOptimizingImage = false;
 
   // Image upload states
   Uint8List? _imageBytes;
@@ -1327,6 +2003,7 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
       _currentImageUrl = b.imageUrl;
       _isActive = b.isActive;
       _isFeatured = b.isFeatured;
+      _showInForYou = b.showInForYou;
       _priority = b.priority.toDouble();
       _startDate = b.startDate;
       _startTime = TimeOfDay.fromDateTime(b.startDate);
@@ -1409,6 +2086,10 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
       );
       if (!mounted) return;
       if (result != null) {
+        setState(() {
+          _isOptimizingImage = true;
+        });
+
         final pickedFile = result.files.single;
         final fileBytes = pickedFile.bytes;
         final fileSize = pickedFile.size;
@@ -1416,6 +2097,9 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
 
         // Validate file extension
         if (!ImageKitBaseService.isAllowedExtension(fileName)) {
+          setState(() {
+            _isOptimizingImage = false;
+          });
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text(
@@ -1429,6 +2113,9 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
 
         // Validate file size (10 MB limit)
         if (fileSize > ImageKitBaseService.maxFileSizeBytes) {
+          setState(() {
+            _isOptimizingImage = false;
+          });
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text("Error: Image exceeds the maximum limit of 10 MB."),
@@ -1448,13 +2135,32 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
         }
 
         final decodedImage = await decodeImageFromList(resolvedBytes);
-        final dimText =
+        String dimText =
             "${decodedImage.width} × ${decodedImage.height} px "
             "(${(fileSize / (1024 * 1024)).toStringAsFixed(2)} MB)";
 
+        Uint8List finalBytes = resolvedBytes;
+
+        if (isMainBanner) {
+          finalBytes = await compute(_optimizeImage, resolvedBytes);
+          dimText = "1080 × 600 px (Optimized)";
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  "Your banner has been automatically optimized to 1080 × 600 px while preserving the original image.",
+                ),
+                backgroundColor: Colors.green,
+              ),
+            );
+          }
+        }
+
         setState(() {
+          _isOptimizingImage = false;
           if (isMainBanner) {
-            _imageBytes = resolvedBytes;
+            _imageBytes = finalBytes;
             _imageName = fileName;
             _dimensionsText = dimText;
             _isImageValid = true;
@@ -1467,6 +2173,9 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
       }
     } catch (e) {
       if (!mounted) return;
+      setState(() {
+        _isOptimizingImage = false;
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text("Failed to pick image: $e"),
@@ -1479,9 +2188,22 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
   Future<void> _selectDate(BuildContext context, bool isStart) async {
     final pickedDate = await showDatePicker(
       context: context,
-      initialDate: isStart ? _startDate : _endDate,
+      initialDate: (isStart ? _startDate : _endDate) ?? DateTime.now(),
       firstDate: DateTime(2020),
       lastDate: DateTime(2035),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: Theme.of(context).colorScheme.copyWith(
+              surface: Colors.white,
+              surfaceContainerHigh: Colors.white,
+              surfaceContainer: Colors.white,
+            ),
+            dialogBackgroundColor: Colors.white,
+          ),
+          child: child!,
+        );
+      },
     );
     if (pickedDate != null) {
       setState(() {
@@ -1497,7 +2219,20 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
   Future<void> _selectTime(BuildContext context, bool isStart) async {
     final pickedTime = await showTimePicker(
       context: context,
-      initialTime: isStart ? _startTime : _endTime,
+      initialTime: (isStart ? _startTime : _endTime) ?? TimeOfDay.now(),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: Theme.of(context).colorScheme.copyWith(
+              surface: Colors.white,
+              surfaceContainerHigh: Colors.white,
+              surfaceContainer: Colors.white,
+            ),
+            dialogBackgroundColor: Colors.white,
+          ),
+          child: child!,
+        );
+      },
     );
     if (pickedTime != null) {
       setState(() {
@@ -1512,6 +2247,16 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
 
   Future<void> _saveForm(bool makeActive) async {
     debugPrint("DEBUG: _saveForm called. makeActive: $makeActive");
+    if (_startDate == null ||
+        _startTime == null ||
+        _endDate == null ||
+        _endTime == null) {
+      setState(() {
+        _scheduleError = true;
+      });
+      return;
+    }
+
     if (!_formKey.currentState!.validate()) {
       debugPrint("DEBUG: Form validation failed.");
       return;
@@ -1586,19 +2331,19 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
                   : _selectedButtonText);
 
       final startDateTime = DateTime(
-        _startDate.year,
-        _startDate.month,
-        _startDate.day,
-        _startTime.hour,
-        _startTime.minute,
+        _startDate!.year,
+        _startDate!.month,
+        _startDate!.day,
+        _startTime!.hour,
+        _startTime!.minute,
       );
 
       final endDateTime = DateTime(
-        _endDate.year,
-        _endDate.month,
-        _endDate.day,
-        _endTime.hour,
-        _endTime.minute,
+        _endDate!.year,
+        _endDate!.month,
+        _endDate!.day,
+        _endTime!.hour,
+        _endTime!.minute,
       );
 
       final adminEmail =
@@ -1647,6 +2392,7 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
         'priority': _priority.toInt(),
         'isActive': _isActive,
         'isFeatured': _isFeatured,
+        'showInForYou': _showInForYou,
         'bannerPosition': _selectedPosition,
         'totalViews': widget.existingBanner?.totalViews ?? 0,
         'totalClicks': widget.existingBanner?.totalClicks ?? 0,
@@ -1691,17 +2437,28 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
     } catch (e) {
       debugPrint("DEBUG: Exception caught during _saveForm execution: $e");
       if (mounted) {
+        String errorMessage = "Error saving advertisement: $e";
+        final errorString = e.toString().toLowerCase();
+
+        if (errorString.contains('network error') ||
+            errorString.contains('failed to fetch') ||
+            errorString.contains('clientexception') ||
+            errorString.contains('socketexception') ||
+            errorString.contains('xmlhttprequest error')) {
+          errorMessage =
+              "Internet connection lost. Please check your network and try again.";
+        }
+
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Error saving advertisement: $e"),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text(errorMessage), backgroundColor: Colors.red),
         );
       }
     } finally {
-      setState(() {
-        _isUploading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isUploading = false;
+        });
+      }
     }
   }
 
@@ -1712,6 +2469,7 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
     final bool isWide = MediaQuery.of(context).size.width > 900;
 
     return Dialog(
+      backgroundColor: Colors.white,
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       elevation: 4,
@@ -1754,7 +2512,10 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
                     ],
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close_rounded),
+                    icon: const FaIcon(
+                      FontAwesomeIcons.whatsapp,
+                      color: Colors.green,
+                    ),
                     onPressed:
                         _isUploading ? null : () => Navigator.pop(context),
                   ),
@@ -1858,6 +2619,11 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
                                 const SizedBox(height: 24),
                                 _buildDisplaySettingsSection(),
                               ],
+                              const Divider(
+                                height: 40,
+                                color: _AdspromotionState.borderLight,
+                              ),
+                              _buildAdsSupportSection(),
                             ],
                           ),
                         ),
@@ -1901,7 +2667,8 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
                     ),
                     const SizedBox(width: 12),
                     ElevatedButton(
-                      onPressed: () => _saveForm(false),
+                      onPressed:
+                          _isOptimizingImage ? null : () => _saveForm(false),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.white,
                         foregroundColor: _AdspromotionState.primaryNavy,
@@ -1926,7 +2693,8 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
                     ),
                     const SizedBox(width: 12),
                     ElevatedButton(
-                      onPressed: () => _saveForm(true),
+                      onPressed:
+                          _isOptimizingImage ? null : () => _saveForm(true),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: _AdspromotionState.primaryNavy,
                         foregroundColor: Colors.white,
@@ -2029,7 +2797,7 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        "Recommended Size: 1200 × 500 px",
+                        "Recommended Size: 1080 × 600 px",
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 12,
                           color: _AdspromotionState.textGrey,
@@ -2038,7 +2806,8 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
                     ],
                   ),
                   ElevatedButton.icon(
-                    onPressed: () => _pickImage(true),
+                    onPressed:
+                        _isOptimizingImage ? null : () => _pickImage(true),
                     icon: const Icon(Icons.cloud_upload_outlined, size: 18),
                     label: const Text("Choose File"),
                     style: ElevatedButton.styleFrom(
@@ -2079,7 +2848,24 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
                   ),
                   clipBehavior: Clip.antiAlias,
                   child:
-                      _imageBytes != null
+                      _isOptimizingImage
+                          ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const CircularProgressIndicator(),
+                                const SizedBox(height: 16),
+                                Text(
+                                  "Optimizing banner... Please wait.",
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 12,
+                                    color: _AdspromotionState.textGrey,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                          : _imageBytes != null
                           ? VisualCropPreview(
                             imageBytes: _imageBytes!,
                             onCropChanged: (scale, offset) {
@@ -2342,15 +3128,32 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
             Expanded(
               child: _buildTextField(
                 controller: _advertiserController,
-                label: "Advertiser / Company Name",
+                label: "Advertiser / Company Name *",
+                textCapitalization: TextCapitalization.characters,
+                validator:
+                    (val) =>
+                        val == null || val.trim().isEmpty
+                            ? "Advertiser name is required"
+                            : null,
               ),
             ),
             const SizedBox(width: 16),
             Expanded(
               child: _buildTextField(
                 controller: _phoneController,
-                label: "Contact Phone Number",
+                label: "Contact Phone Number *",
                 keyboardType: TextInputType.phone,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(10),
+                ],
+                validator: (val) {
+                  if (val == null || val.trim().isEmpty)
+                    return "Phone number is required";
+                  if (val.trim().length != 10)
+                    return "Must be exactly 10 digits";
+                  return null;
+                },
               ),
             ),
           ],
@@ -2705,19 +3508,27 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
           children: [
             Expanded(
               child: _buildPickerCard(
-                label: "Start Date",
-                value: formatValDate(_startDate),
+                label: "Start Date *",
+                value:
+                    _startDate != null
+                        ? formatValDate(_startDate!)
+                        : "Select Start Date",
                 icon: Icons.calendar_month_rounded,
                 onTap: () => _selectDate(context, true),
+                isError: _scheduleError && _startDate == null,
               ),
             ),
             const SizedBox(width: 16),
             Expanded(
               child: _buildPickerCard(
-                label: "Start Time",
-                value: _startTime.format(context),
+                label: "Start Time *",
+                value:
+                    _startTime != null
+                        ? _startTime!.format(context)
+                        : "Select Start Time",
                 icon: Icons.access_time_rounded,
                 onTap: () => _selectTime(context, true),
+                isError: _scheduleError && _startTime == null,
               ),
             ),
           ],
@@ -2727,19 +3538,27 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
           children: [
             Expanded(
               child: _buildPickerCard(
-                label: "End Date",
-                value: formatValDate(_endDate),
+                label: "End Date *",
+                value:
+                    _endDate != null
+                        ? formatValDate(_endDate!)
+                        : "Select End Date",
                 icon: Icons.calendar_month_rounded,
                 onTap: () => _selectDate(context, false),
+                isError: _scheduleError && _endDate == null,
               ),
             ),
             const SizedBox(width: 16),
             Expanded(
               child: _buildPickerCard(
-                label: "End Time",
-                value: _endTime.format(context),
+                label: "End Time *",
+                value:
+                    _endTime != null
+                        ? _endTime!.format(context)
+                        : "Select End Time",
                 icon: Icons.access_time_rounded,
                 onTap: () => _selectTime(context, false),
+                isError: _scheduleError && _endTime == null,
               ),
             ),
           ],
@@ -2771,53 +3590,46 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
           },
         ),
         const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(
-                  "Active Status",
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                subtitle: Text(
-                  "Make immediately available",
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 11,
-                    color: _AdspromotionState.textGrey,
-                  ),
-                ),
-                value: _isActive,
-                activeThumbColor: _AdspromotionState.primaryNavy,
-                onChanged: (val) => setState(() => _isActive = val),
-              ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text(
+            "Featured Status",
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
             ),
-            Expanded(
-              child: SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(
-                  "Featured Status",
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                subtitle: Text(
-                  "Highlight in positions",
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 11,
-                    color: _AdspromotionState.textGrey,
-                  ),
-                ),
-                value: _isFeatured,
-                activeThumbColor: _AdspromotionState.primaryNavy,
-                onChanged: (val) => setState(() => _isFeatured = val),
-              ),
+          ),
+          subtitle: Text(
+            "Highlight in positions",
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 11,
+              color: _AdspromotionState.textGrey,
             ),
-          ],
+          ),
+          value: _isFeatured,
+          activeThumbColor: _AdspromotionState.primaryNavy,
+          onChanged: (val) => setState(() => _isFeatured = val),
+        ),
+        const SizedBox(height: 16),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text(
+            "Show on Home (For You)",
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          subtitle: Text(
+            "Also display this banner in the For You section",
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 11,
+              color: _AdspromotionState.textGrey,
+            ),
+          ),
+          value: _showInForYou,
+          activeThumbColor: _AdspromotionState.primaryNavy,
+          onChanged: (val) => setState(() => _showInForYou = val),
         ),
         const SizedBox(height: 16),
         Text(
@@ -2843,6 +3655,36 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
     );
   }
 
+  Widget _buildAdsSupportSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionHeader("Ads Support"),
+        const SizedBox(height: 16),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text(
+            "Status",
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          subtitle: Text(
+            "active",
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 11,
+              color: _AdspromotionState.textGrey,
+            ),
+          ),
+          value: _isActive,
+          activeThumbColor: _AdspromotionState.primaryNavy,
+          onChanged: (val) => setState(() => _isActive = val),
+        ),
+      ],
+    );
+  }
+
   Widget _buildSectionHeader(String title) {
     return Text(
       title,
@@ -2860,22 +3702,43 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
     String? hintText,
     int maxLines = 1,
     TextInputType keyboardType = TextInputType.text,
+    TextCapitalization textCapitalization = TextCapitalization.none,
+    List<TextInputFormatter>? inputFormatters,
     String? Function(String?)? validator,
   }) {
     return TextFormField(
       controller: controller,
       maxLines: maxLines,
       keyboardType: keyboardType,
+      textCapitalization: textCapitalization,
+      inputFormatters: inputFormatters,
       validator: validator,
       style: GoogleFonts.plusJakartaSans(
         fontSize: 14,
         color: _AdspromotionState.textDark,
       ),
       decoration: InputDecoration(
-        labelText: label,
-        labelStyle: GoogleFonts.plusJakartaSans(
-          fontSize: 13,
-          color: _AdspromotionState.textGrey,
+        label: RichText(
+          text: TextSpan(
+            text: label.replaceAll(' *', '').replaceAll('*', ''),
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 13,
+              color: _AdspromotionState.textGrey,
+            ),
+            children:
+                label.contains('*')
+                    ? [
+                      TextSpan(
+                        text: ' *',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13,
+                          color: Colors.red,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ]
+                    : [],
+          ),
         ),
         hintText: hintText,
         hintStyle: GoogleFonts.plusJakartaSans(
@@ -2896,6 +3759,14 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: _AdspromotionState.primaryNavy),
         ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.red),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.red, width: 1.5),
+        ),
       ),
     );
   }
@@ -2910,10 +3781,27 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
       initialValue: value,
       onChanged: onChanged,
       decoration: InputDecoration(
-        labelText: label,
-        labelStyle: GoogleFonts.plusJakartaSans(
-          fontSize: 13,
-          color: _AdspromotionState.textGrey,
+        label: RichText(
+          text: TextSpan(
+            text: label.replaceAll(' *', '').replaceAll('*', ''),
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 13,
+              color: _AdspromotionState.textGrey,
+            ),
+            children:
+                label.contains('*')
+                    ? [
+                      TextSpan(
+                        text: ' *',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13,
+                          color: Colors.red,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ]
+                    : [],
+          ),
         ),
         filled: true,
         fillColor: _AdspromotionState.backgroundGrey,
@@ -2924,6 +3812,14 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: _AdspromotionState.borderLight),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.red),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.red, width: 1.5),
         ),
       ),
       items:
@@ -2944,6 +3840,7 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
     required String value,
     required IconData icon,
     required VoidCallback onTap,
+    bool isError = false,
   }) {
     return InkWell(
       onTap: onTap,
@@ -2953,7 +3850,10 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
         decoration: BoxDecoration(
           color: _AdspromotionState.backgroundGrey,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _AdspromotionState.borderLight),
+          border: Border.all(
+            color: isError ? Colors.red : _AdspromotionState.borderLight,
+            width: isError ? 1.5 : 1.0,
+          ),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -2961,11 +3861,26 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  label,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 11,
-                    color: _AdspromotionState.textGrey,
+                RichText(
+                  text: TextSpan(
+                    text: label.replaceAll(' *', '').replaceAll('*', ''),
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11,
+                      color: _AdspromotionState.textGrey,
+                    ),
+                    children:
+                        label.contains('*')
+                            ? [
+                              TextSpan(
+                                text: ' *',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 11,
+                                  color: Colors.red,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ]
+                            : [],
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -3108,6 +4023,535 @@ class _VisualCropPreviewState extends State<VisualCropPreview> {
           ),
         ),
       ],
+    );
+  }
+}
+
+class AdsContactDialog extends StatefulWidget {
+  final Map<String, dynamic>? existingContact;
+  final VoidCallback onSaved;
+
+  const AdsContactDialog({
+    super.key,
+    this.existingContact,
+    required this.onSaved,
+  });
+
+  @override
+  State<AdsContactDialog> createState() => _AdsContactDialogState();
+}
+
+class _AdsContactDialogState extends State<AdsContactDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late TextEditingController _phoneController;
+  late TextEditingController _whatsappController;
+  bool _isSaving = false;
+
+  Uint8List? _bannerImageBytes;
+  String? _bannerImageName;
+  String? _bannerImageUrl;
+  String? _bannerImagePath;
+  bool _isUploadingBanner = false;
+  double _uploadProgress = 0.0;
+
+  String _whatsappCountryCode = '+91';
+  String _whatsappCountryIso = 'IN';
+
+  @override
+  void initState() {
+    super.initState();
+    _phoneController = TextEditingController(
+      text: widget.existingContact?['phoneNumber'] ?? '',
+    );
+    _whatsappCountryCode =
+        widget.existingContact?['whatsappCountryCode'] ?? '+91';
+    _whatsappCountryIso = widget.existingContact?['whatsappCountryIso'] ?? 'IN';
+    _whatsappController = TextEditingController(
+      text: widget.existingContact?['whatsappNumber'] ?? '',
+    );
+
+    _bannerImageUrl = widget.existingContact?['bannerImageUrl'];
+    _bannerImagePath = widget.existingContact?['bannerImagePath'];
+  }
+
+  @override
+  void dispose() {
+    _phoneController.dispose();
+    _whatsappController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickBannerImage() async {
+    try {
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ImageKitBaseService.allowedExtensions,
+        withData: true,
+      );
+
+      if (result != null && result.files.isNotEmpty) {
+        final file = result.files.first;
+
+        if (!ImageKitBaseService.isAllowedExtension(file.name)) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Only JPG, PNG, WEBP files are allowed'),
+              ),
+            );
+          }
+          return;
+        }
+
+        if (file.size > ImageKitBaseService.maxFileSizeBytes) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('File size must be under 5MB')),
+            );
+          }
+          return;
+        }
+
+        setState(() {
+          _isUploadingBanner = true;
+          _uploadProgress = 0.0;
+        });
+
+        // Optimize image
+        final optimizedBytes = await compute(_optimizeImage, file.bytes!);
+
+        // Upload to ImageKit
+        final service = AdvertisementImageService();
+        final uploadResult = await service.uploadBanner(
+          imageBytes: optimizedBytes,
+          fileName: file.name,
+          onProgress: (progress) {
+            if (mounted) setState(() => _uploadProgress = progress);
+          },
+        );
+
+        if (mounted) {
+          setState(() {
+            _bannerImageBytes = optimizedBytes;
+            _bannerImageName = file.name;
+            _bannerImageUrl = uploadResult.imageUrl;
+            _bannerImagePath = uploadResult.fileId;
+            _isUploadingBanner = false;
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to upload banner: $e')));
+        setState(() => _isUploadingBanner = false);
+      }
+    }
+  }
+
+  void _removeBanner() {
+    setState(() {
+      _bannerImageBytes = null;
+      _bannerImageName = null;
+      _bannerImageUrl = null;
+      _bannerImagePath = null;
+    });
+  }
+
+  Future<void> _saveContact() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isSaving = true);
+    try {
+      final docRef = FirebaseFirestore.instance
+          .collection('advertisements')
+          .doc('global_contact')
+          .collection('ads_contact')
+          .doc('contact');
+
+      final data = {
+        'phoneNumber': _phoneController.text.trim(),
+        'whatsappNumber':
+            _whatsappController.text.trim().isEmpty
+                ? null
+                : _whatsappController.text.trim(),
+        'whatsappCountryCode':
+            _whatsappController.text.trim().isEmpty
+                ? null
+                : _whatsappCountryCode,
+        'whatsappCountryIso':
+            _whatsappController.text.trim().isEmpty
+                ? null
+                : _whatsappCountryIso,
+        'bannerImageUrl': _bannerImageUrl,
+        'bannerImagePath': _bannerImagePath,
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+
+      if (widget.existingContact == null) {
+        data['createdAt'] = FieldValue.serverTimestamp();
+        await docRef.set(data);
+      } else {
+        await docRef.update(data);
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Ads Contact saved successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        widget.onSaved();
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error saving contact: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        width: 420,
+        padding: const EdgeInsets.all(32),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "Ads Contact Details",
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                "Set the global support contact numbers for your ads.",
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 14,
+                  color: Colors.grey[600],
+                ),
+              ),
+              const SizedBox(height: 24),
+              // Banner Upload Section
+              Text(
+                "Advertisement Banner (Image Upload)",
+                style: GoogleFonts.plusJakartaSans(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 8),
+              if (_bannerImageUrl != null)
+                Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey[300]!),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: Column(
+                    children: [
+                      Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          Image.network(
+                            _bannerImageUrl!,
+                            height: 120,
+                            width: double.infinity,
+                            fit: BoxFit.cover,
+                          ),
+                          if (_isUploadingBanner)
+                            Container(
+                              height: 120,
+                              width: double.infinity,
+                              color: Colors.black54,
+                              child: Center(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const CircularProgressIndicator(
+                                      color: Colors.white,
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      '${(_uploadProgress * 100).toStringAsFixed(0)}%',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            TextButton.icon(
+                              onPressed:
+                                  _isUploadingBanner ? null : _pickBannerImage,
+                              icon: const Icon(Icons.refresh, size: 18),
+                              label: const Text('Replace'),
+                              style: TextButton.styleFrom(
+                                foregroundColor: Colors.blue,
+                              ),
+                            ),
+                            TextButton.icon(
+                              onPressed:
+                                  _isUploadingBanner ? null : _removeBanner,
+                              icon: const Icon(Icons.delete_outline, size: 18),
+                              label: const Text('Remove'),
+                              style: TextButton.styleFrom(
+                                foregroundColor: Colors.red,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                InkWell(
+                  onTap: _isUploadingBanner ? null : _pickBannerImage,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 24),
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: Colors.grey[300]!,
+                        style: BorderStyle.solid,
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                      color: Colors.grey[50],
+                    ),
+                    child: Column(
+                      children: [
+                        if (_isUploadingBanner) ...[
+                          const CircularProgressIndicator(),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Uploading ${(_uploadProgress * 100).toStringAsFixed(0)}%',
+                            style: GoogleFonts.plusJakartaSans(
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ] else ...[
+                          Icon(
+                            Icons.cloud_upload_outlined,
+                            size: 32,
+                            color: Colors.grey[400],
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            "Upload Banner Image",
+                            style: GoogleFonts.plusJakartaSans(
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            "JPG, PNG, WEBP • Max 5MB",
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12,
+                              color: Colors.grey[500],
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 24),
+              TextFormField(
+                controller: _phoneController,
+                keyboardType: TextInputType.phone,
+                maxLength: 10,
+                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w500),
+                decoration: InputDecoration(
+                  labelText: "Phone Number *",
+                  labelStyle: GoogleFonts.plusJakartaSans(
+                    color: Colors.grey[700],
+                  ),
+                  hintText: "10-digit mobile number",
+                  hintStyle: GoogleFonts.plusJakartaSans(
+                    color: Colors.grey[400],
+                  ),
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey[300]!),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey[300]!),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Colors.teal, width: 2),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 18,
+                  ),
+                  counterText: "",
+                  prefixIcon: const Icon(
+                    Icons.phone_rounded,
+                    color: Colors.teal,
+                  ),
+                ),
+                validator: (val) {
+                  if (val == null || val.trim().isEmpty) return "Required";
+                  if (val.trim().length != 10)
+                    return "Must be exactly 10 digits";
+                  if (double.tryParse(val.trim()) == null)
+                    return "Numeric only";
+                  return null;
+                },
+              ),
+              const SizedBox(height: 20),
+              IntlPhoneField(
+                controller: _whatsappController,
+                initialCountryCode: _whatsappCountryIso,
+                keyboardType: TextInputType.phone,
+                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w500),
+                decoration: InputDecoration(
+                  labelText: "WhatsApp Number (Optional)",
+                  labelStyle: GoogleFonts.plusJakartaSans(
+                    color: Colors.grey[700],
+                  ),
+                  hintText: "Mobile number",
+                  hintStyle: GoogleFonts.plusJakartaSans(
+                    color: Colors.grey[400],
+                  ),
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey[300]!),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey[300]!),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Colors.green, width: 2),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 18,
+                  ),
+                ),
+                onCountryChanged: (country) {
+                  _whatsappCountryCode = '+${country.dialCode}';
+                  _whatsappCountryIso = country.code;
+                },
+                validator: (phone) {
+                  if (phone == null || phone.number.isEmpty) return null;
+                  if (!RegExp(r'^[0-9]+$').hasMatch(phone.number)) {
+                    return "Numeric only";
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 32),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: _isSaving ? null : () => Navigator.pop(context),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.red,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 16,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: Text(
+                      "Cancel",
+                      style: GoogleFonts.plusJakartaSans(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  ElevatedButton(
+                    onPressed: _isSaving ? null : _saveContact,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green[800],
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 16,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child:
+                        _isSaving
+                            ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                            : Text(
+                              "Save Details",
+                              style: GoogleFonts.plusJakartaSans(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                              ),
+                            ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
