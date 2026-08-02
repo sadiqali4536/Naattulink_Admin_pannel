@@ -86,6 +86,14 @@ class AdBanner {
   final DateTime updatedAt;
   final Map<String, dynamic>? localAdsConfig;
   final bool showInForYou;
+  final String buttonBackgroundColor;
+  final String buttonTextColor;
+  final String productId;
+  final String productName;
+  final String serviceId;
+  final String serviceName;
+  final String inAppPageId;
+  final String inAppPageName;
 
   AdBanner({
     required this.id,
@@ -115,6 +123,14 @@ class AdBanner {
     required this.createdAt,
     required this.updatedAt,
     this.localAdsConfig,
+    this.buttonBackgroundColor = '#0F2E5A',
+    this.buttonTextColor = '#FFFFFF',
+    this.productId = '',
+    this.productName = '',
+    this.serviceId = '',
+    this.serviceName = '',
+    this.inAppPageId = '',
+    this.inAppPageName = '',
   });
 
   factory AdBanner.fromFirestore(DocumentSnapshot doc) {
@@ -150,6 +166,15 @@ class AdBanner {
           data['localAdsConfig'] != null
               ? Map<String, dynamic>.from(data['localAdsConfig'])
               : null,
+      buttonBackgroundColor:
+          data['buttonBackgroundColor'] as String? ?? '#0F2E5A',
+      buttonTextColor: data['buttonTextColor'] as String? ?? '#FFFFFF',
+      productId: data['productId'] as String? ?? '',
+      productName: data['productName'] as String? ?? '',
+      serviceId: data['serviceId'] as String? ?? '',
+      serviceName: data['serviceName'] as String? ?? '',
+      inAppPageId: data['inAppPageId'] as String? ?? '',
+      inAppPageName: data['inAppPageName'] as String? ?? '',
     );
   }
 
@@ -183,6 +208,14 @@ class AdBanner {
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': FieldValue.serverTimestamp(),
       'localAdsConfig': localAdsConfig,
+      'buttonBackgroundColor': buttonBackgroundColor,
+      'buttonTextColor': buttonTextColor,
+      'productId': productId,
+      'productName': productName,
+      'serviceId': serviceId,
+      'serviceName': serviceName,
+      'inAppPageId': inAppPageId,
+      'inAppPageName': inAppPageName,
     };
   }
 }
@@ -1945,6 +1978,56 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
   String _localDimensionsText = "No product image selected";
   bool _isImageValid = true;
 
+  // CTA Button Colors
+  Color _buttonBgColor = const Color(0xFF0F2E5A);
+  Color _buttonTextColor = const Color(0xFFFFFFFF);
+  late TextEditingController _buttonBgHexController;
+  late TextEditingController _buttonTextHexController;
+
+  // Product Selection (for Open Product action)
+  List<Map<String, dynamic>> _products = [];
+  List<Map<String, dynamic>> _filteredProducts = [];
+  bool _isLoadingProducts = false;
+  String? _productLoadError;
+  String? _selectedProductId;
+  String? _selectedProductName;
+  String? _selectedProductCategory;
+  String? _selectedProductImage;
+  bool _productFieldError = false;
+  late TextEditingController _productSearchController;
+
+  // Service Selection (for Open Service action)
+  List<Map<String, dynamic>> _services = [];
+  List<Map<String, dynamic>> _filteredServices = [];
+  bool _isLoadingServices = false;
+  String? _serviceLoadError;
+  String? _selectedServiceId;
+  String? _selectedServiceName;
+  String? _selectedServiceCategory;
+  bool _serviceFieldError = false;
+  late TextEditingController _serviceSearchController;
+
+  // In-App Page Selection (for Open In-App Page action)
+  String? _selectedInAppPageId;
+  String? _selectedInAppPageName;
+  bool _inAppPageFieldError = false;
+
+  /// Master list of all supported in-app pages.
+  static const List<Map<String, String>> _inAppPages = [
+    {'id': 'home', 'name': 'Home'},
+    {'id': 'for_you', 'name': 'For You'},
+    {'id': 'workers', 'name': 'Workers'},
+    {'id': 'bus', 'name': 'Bus'},
+    {'id': 'shopping', 'name': 'Shopping'},
+    {'id': 'healthcare', 'name': 'Healthcare'},
+    {'id': 'taxi', 'name': 'Taxi'},
+    {'id': 'truck_jcb', 'name': 'Truck / JCB'},
+    {'id': 'notifications', 'name': 'Notifications'},
+    {'id': 'profile', 'name': 'Profile'},
+    {'id': 'orders', 'name': 'Orders'},
+    {'id': 'settings', 'name': 'Settings'},
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -2042,6 +2125,131 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
     } else {
       _customButtonTextController = TextEditingController();
     }
+
+    // Product selection — load from existing banner if action is Open Product
+    _productSearchController = TextEditingController();
+    if (b != null &&
+        b.bannerAction == 'Open Product' &&
+        b.productId.isNotEmpty) {
+      _selectedProductId = b.productId;
+      _selectedProductName = b.productName;
+    }
+
+    // Service selection — load from existing banner if action is Open Service
+    _serviceSearchController = TextEditingController();
+    if (b != null &&
+        b.bannerAction == 'Open Service' &&
+        b.serviceId.isNotEmpty) {
+      _selectedServiceId = b.serviceId;
+      _selectedServiceName = b.serviceName;
+    }
+
+    // In-App Page selection — load from existing banner if action is Open In-App Page
+    if (b != null &&
+        b.bannerAction == 'Open In-App Page' &&
+        b.inAppPageId.isNotEmpty) {
+      _selectedInAppPageId = b.inAppPageId;
+      _selectedInAppPageName = b.inAppPageName;
+    }
+
+    // Initialize CTA button colors from Firestore or defaults
+    _buttonBgColor = _hexToColor(
+      _getFirestoreColorField(b, 'buttonBackgroundColor'),
+      const Color(0xFF0F2E5A),
+    );
+    _buttonTextColor = _hexToColor(
+      _getFirestoreColorField(b, 'buttonTextColor'),
+      const Color(0xFFFFFFFF),
+    );
+    _buttonBgHexController = TextEditingController(
+      text: _colorToHex(_buttonBgColor),
+    );
+    _buttonTextHexController = TextEditingController(
+      text: _colorToHex(_buttonTextColor),
+    );
+  }
+
+  /// Helper: get a color string from the AdBanner model.
+  String? _getFirestoreColorField(AdBanner? b, String field) {
+    if (b == null) return null;
+    if (field == 'buttonBackgroundColor') return b.buttonBackgroundColor;
+    if (field == 'buttonTextColor') return b.buttonTextColor;
+    return null;
+  }
+
+  Color _hexToColor(String? hex, Color fallback) {
+    if (hex == null || hex.isEmpty) return fallback;
+    try {
+      final h = hex.replaceAll('#', '').trim();
+      if (h.length == 6) {
+        return Color(int.parse('FF$h', radix: 16));
+      } else if (h.length == 8) {
+        return Color(int.parse(h, radix: 16));
+      }
+    } catch (_) {}
+    return fallback;
+  }
+
+  String _colorToHex(Color color) {
+    return '#${color.r.toInt().toRadixString(16).padLeft(2, '0').toUpperCase()}${color.g.toInt().toRadixString(16).padLeft(2, '0').toUpperCase()}${color.b.toInt().toRadixString(16).padLeft(2, '0').toUpperCase()}';
+  }
+
+  Future<void> _fetchProducts() async {
+    if (_products.isNotEmpty) return; // already loaded
+    setState(() {
+      _isLoadingProducts = true;
+      _productLoadError = null;
+    });
+    try {
+      final snap =
+          await FirebaseFirestore.instance
+              .collection('products')
+              .where('isActive', isEqualTo: true)
+              .orderBy('name')
+              .get();
+      final list =
+          snap.docs.map((doc) {
+            final d = doc.data();
+            return {
+              'id': doc.id,
+              'name': (d['name'] ?? d['productName'] ?? '').toString(),
+              'category': (d['category'] ?? d['categoryName'] ?? '').toString(),
+              'price': d['price'] ?? d['offerPrice'] ?? '',
+              'imageUrl':
+                  (d['imageUrl'] ?? d['productImageUrl'] ?? '').toString(),
+            };
+          }).toList();
+      if (mounted) {
+        setState(() {
+          _products = list;
+          _filteredProducts = list;
+          _isLoadingProducts = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _productLoadError = 'Failed to load products: $e';
+          _isLoadingProducts = false;
+        });
+      }
+    }
+  }
+
+  void _filterProducts(String query) {
+    final q = query.toLowerCase().trim();
+    setState(() {
+      if (q.isEmpty) {
+        _filteredProducts = _products;
+      } else {
+        _filteredProducts =
+            _products.where((p) {
+              return p['name'].toString().toLowerCase().contains(q) ||
+                  p['category'].toString().toLowerCase().contains(q) ||
+                  p['id'].toString().toLowerCase().contains(q);
+            }).toList();
+      }
+    });
   }
 
   void _autoCalculateDiscount() {
@@ -2068,6 +2276,10 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
     _actionValueController.dispose();
     _customButtonTextController.dispose();
     _imageUrlController.dispose();
+    _buttonBgHexController.dispose();
+    _buttonTextHexController.dispose();
+    _productSearchController.dispose();
+    _serviceSearchController.dispose();
 
     _localProductNameController.dispose();
     _localOriginalPriceController.dispose();
@@ -2267,6 +2479,33 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
       return;
     }
 
+    if (_selectedBannerAction == 'Open Product' &&
+        (_selectedProductId == null || _selectedProductId!.isEmpty)) {
+      setState(() => _productFieldError = true);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Please select a product.')));
+      return;
+    }
+
+    if (_selectedBannerAction == 'Open Service' &&
+        (_selectedServiceId == null || _selectedServiceId!.isEmpty)) {
+      setState(() => _serviceFieldError = true);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Please select a service.')));
+      return;
+    }
+
+    if (_selectedBannerAction == 'Open In-App Page' &&
+        (_selectedInAppPageId == null || _selectedInAppPageId!.isEmpty)) {
+      setState(() => _inAppPageFieldError = true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select an in-app page.')),
+      );
+      return;
+    }
+
     setState(() {
       _isUploading = true;
       _isActive = makeActive;
@@ -2381,7 +2620,39 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
                 ? 'None'
                 : _selectedBannerAction, // backward compatibility
         'actionValue':
-            _noBannerAction ? '' : _actionValueController.text.trim(),
+            _noBannerAction
+                ? ''
+                : (_selectedBannerAction == 'Open Product'
+                    ? _selectedProductId ?? ''
+                    : _selectedBannerAction == 'Open Service'
+                    ? _selectedServiceId ?? ''
+                    : _selectedBannerAction == 'Open In-App Page'
+                    ? _selectedInAppPageId ?? ''
+                    : _actionValueController.text.trim()),
+        'productId':
+            _selectedBannerAction == 'Open Product'
+                ? (_selectedProductId ?? '')
+                : '',
+        'productName':
+            _selectedBannerAction == 'Open Product'
+                ? (_selectedProductName ?? '')
+                : '',
+        'serviceId':
+            _selectedBannerAction == 'Open Service'
+                ? (_selectedServiceId ?? '')
+                : '',
+        'serviceName':
+            _selectedBannerAction == 'Open Service'
+                ? (_selectedServiceName ?? '')
+                : '',
+        'inAppPageId':
+            _selectedBannerAction == 'Open In-App Page'
+                ? (_selectedInAppPageId ?? '')
+                : '',
+        'inAppPageName':
+            _selectedBannerAction == 'Open In-App Page'
+                ? (_selectedInAppPageName ?? '')
+                : '',
         'advertiserName': _advertiserController.text.trim(),
         'phone': _phoneController.text.trim(),
         'email': _emailController.text.trim(),
@@ -2406,6 +2677,8 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
                 : FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
         'localAdsConfig': localConfig,
+        'buttonBackgroundColor': _colorToHex(_buttonBgColor),
+        'buttonTextColor': _colorToHex(_buttonTextColor),
       };
 
       debugPrint(
@@ -2511,14 +2784,6 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
                       ),
                     ],
                   ),
-                  // IconButton(
-                  //   icon: const FaIcon(
-                  //     FontAwesomeIcons.whatsapp,
-                  //     color: Colors.green,
-                  //   ),
-                  //   onPressed:
-                  //       _isUploading ? null : () => Navigator.pop(context),
-                  // ),
                 ],
               ),
             ),
@@ -2953,22 +3218,13 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
                     : null;
         break;
       case 'Open Product':
-        actionLabel = "Specific Product ID *";
-        hintText = "prod_98a3b5c";
-        validator =
-            (val) =>
-                val == null || val.trim().isEmpty
-                    ? "Product ID is required"
-                    : null;
+        // Product picker replaces the text field — handled separately below.
         break;
       case 'Open Service':
-        actionLabel = "Specific Service ID *";
-        hintText = "serv_32d5e6f";
-        validator =
-            (val) =>
-                val == null || val.trim().isEmpty
-                    ? "Service ID is required"
-                    : null;
+        // Service picker replaces the text field — handled separately below.
+        break;
+      case 'Open In-App Page':
+        // In-App Page picker replaces the text field — handled separately below.
         break;
       case 'Open Category':
         actionLabel = "Service Category Deep Link *";
@@ -3105,14 +3361,268 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
             ),
           ],
           const SizedBox(height: 16),
-          _buildTextField(
-            controller: _actionValueController,
-            label: actionLabel,
-            hintText: hintText,
-            keyboardType: inputType,
-            validator: validator,
+          if (_selectedBannerAction == 'Open Product')
+            _buildProductPickerField()
+          else if (_selectedBannerAction == 'Open Service')
+            _buildServicePickerField()
+          else if (_selectedBannerAction == 'Open In-App Page')
+            _buildInAppPagePickerField()
+          else
+            _buildTextField(
+              controller: _actionValueController,
+              label: actionLabel,
+              hintText: hintText,
+              keyboardType: inputType,
+              validator: validator,
+            ),
+        ],
+
+        // CTA Button Color Customization
+        if (!_noTextButton) ...[
+          const SizedBox(height: 20),
+          const Divider(height: 1, color: _AdspromotionState.borderLight),
+          const SizedBox(height: 16),
+          Text(
+            "Button Color Customization",
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: _AdspromotionState.textDark,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            "Customize the CTA button appearance shown in the mobile app.",
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 11,
+              color: _AdspromotionState.textGrey,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              // Button Background Color Picker
+              Expanded(
+                child: _buildColorPickerField(
+                  label: "Button Background Color",
+                  currentColor: _buttonBgColor,
+                  hexController: _buttonBgHexController,
+                  onColorChanged: (color) {
+                    setState(() {
+                      _buttonBgColor = color;
+                      _buttonBgHexController.text = _colorToHex(color);
+                    });
+                  },
+                ),
+              ),
+              const SizedBox(width: 16),
+              // Button Text Color Picker
+              Expanded(
+                child: _buildColorPickerField(
+                  label: "Button Text Color",
+                  currentColor: _buttonTextColor,
+                  hexController: _buttonTextHexController,
+                  onColorChanged: (color) {
+                    setState(() {
+                      _buttonTextColor = color;
+                      _buttonTextHexController.text = _colorToHex(color);
+                    });
+                  },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          // Live Preview
+          Center(
+            child: Column(
+              children: [
+                Text(
+                  "Live Preview",
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12,
+                    color: _AdspromotionState.textGrey,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ElevatedButton(
+                  onPressed: () {},
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _buttonBgColor,
+                    foregroundColor: _buttonTextColor,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 10,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: Text(
+                    _selectedButtonText == 'Custom' &&
+                            _customButtonTextController.text.isNotEmpty
+                        ? _customButtonTextController.text
+                        : _selectedButtonText,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      color: _buttonTextColor,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
+      ],
+    );
+  }
+
+  Widget _buildColorPickerField({
+    required String label,
+    required Color currentColor,
+    required TextEditingController hexController,
+    required ValueChanged<Color> onColorChanged,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: _AdspromotionState.textDark,
+          ),
+        ),
+        const SizedBox(height: 8),
+        // Color Swatches
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            // Custom preset colors
+            for (final c in [
+              const Color(0xFF0F2E5A),
+              const Color(0xFF0D47A1),
+              const Color(0xFF1565C0),
+              const Color(0xFF1976D2),
+              const Color(0xFF2196F3),
+              const Color(0xFF00897B),
+              const Color(0xFF388E3C),
+              const Color(0xFFF4B400),
+              const Color(0xFFFF6F00),
+              const Color(0xFFE53935),
+              const Color(0xFF6A1B9A),
+              const Color(0xFF212121),
+              const Color(0xFF616161),
+              const Color(0xFFFFFFFF),
+            ])
+              GestureDetector(
+                onTap: () => onColorChanged(c),
+                child: Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    color: c,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color:
+                          currentColor.value == c.value
+                              ? _AdspromotionState.primaryNavy
+                              : _AdspromotionState.borderLight,
+                      width: currentColor.value == c.value ? 2.5 : 1,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.08),
+                        blurRadius: 2,
+                        offset: const Offset(0, 1),
+                      ),
+                    ],
+                  ),
+                  child:
+                      currentColor.value == c.value
+                          ? Icon(
+                            Icons.check,
+                            size: 16,
+                            color:
+                                c.computeLuminance() > 0.5
+                                    ? Colors.black
+                                    : Colors.white,
+                          )
+                          : null,
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        // HEX Input
+        Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: currentColor,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: _AdspromotionState.borderLight),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: TextFormField(
+                controller: hexController,
+                decoration: InputDecoration(
+                  labelText: "HEX value",
+                  hintText: "#0F2E5A",
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(
+                      color: _AdspromotionState.borderLight,
+                    ),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(
+                      color: _AdspromotionState.borderLight,
+                    ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(
+                      color: _AdspromotionState.primaryNavy,
+                    ),
+                  ),
+                  errorBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: Colors.red),
+                  ),
+                ),
+                validator: (val) {
+                  if (val == null || val.trim().isEmpty) return null;
+                  final h = val.replaceAll('#', '').trim();
+                  if (h.length != 6 && h.length != 8) {
+                    return 'Invalid HEX';
+                  }
+                  if (!RegExp(r'^[0-9A-Fa-f]+$').hasMatch(h)) {
+                    return 'Invalid HEX';
+                  }
+                  return null;
+                },
+                onChanged: (val) {
+                  final parsed = _hexToColor(val, currentColor);
+                  onColorChanged(parsed);
+                },
+              ),
+            ),
+          ],
+        ),
       ],
     );
   }
@@ -3693,6 +4203,379 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
         fontWeight: FontWeight.bold,
         color: _AdspromotionState.primaryNavy,
       ),
+    );
+  }
+
+  Widget _buildProductPickerField() {
+    return _buildSearchablePicker(
+      collectionName: 'products',
+      label: 'Specific Product *',
+      nameKey: 'title',
+      altNameKey: 'productName',
+      selectedId: _selectedProductId,
+      selectedName: _selectedProductName,
+      onSelected: (id, name) {
+        setState(() {
+          _selectedProductId = id;
+          _selectedProductName = name;
+          _productFieldError = false;
+        });
+      },
+    );
+  }
+
+  Widget _buildServicePickerField() {
+    return _buildSearchablePicker(
+      collectionName: 'services',
+      label: 'Specific Service *',
+      nameKey: 'title',
+      altNameKey: 'serviceName',
+      selectedId: _selectedServiceId,
+      selectedName: _selectedServiceName,
+      onSelected: (id, name) {
+        setState(() {
+          _selectedServiceId = id;
+          _selectedServiceName = name;
+          _serviceFieldError = false;
+        });
+      },
+    );
+  }
+
+  Widget _buildInAppPagePickerField() {
+    return GestureDetector(
+      onTap: () => _showInAppPageDialog(),
+      child: AbsorbPointer(
+        child: TextFormField(
+          readOnly: true,
+          controller: TextEditingController(text: _selectedInAppPageName ?? ''),
+          validator:
+              (val) =>
+                  (val == null || val.isEmpty)
+                      ? 'Please select an in-app page.'
+                      : null,
+          decoration: InputDecoration(
+            labelText: 'In-App Page *',
+            labelStyle: GoogleFonts.plusJakartaSans(
+              fontSize: 13,
+              color: _AdspromotionState.textGrey,
+            ),
+            hintText: 'Tap to select a page',
+            hintStyle: GoogleFonts.plusJakartaSans(
+              fontSize: 13,
+              color: _AdspromotionState.textGrey,
+            ),
+            filled: true,
+            fillColor: _AdspromotionState.backgroundGrey,
+            suffixIcon: const Icon(Icons.arrow_drop_down, color: Colors.grey),
+            errorText:
+                _inAppPageFieldError ? 'Please select an in-app page.' : null,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: _AdspromotionState.borderLight),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color:
+                    _inAppPageFieldError
+                        ? Colors.red
+                        : _AdspromotionState.borderLight,
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: _AdspromotionState.primaryNavy,
+                width: 2,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showInAppPageDialog() {
+    String localSearch = '';
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final filtered =
+                _inAppPages.where((page) {
+                  if (localSearch.isEmpty) return true;
+                  return page['name']!.toLowerCase().contains(localSearch);
+                }).toList();
+
+            return AlertDialog(
+              title: Text(
+                'Select In-App Page',
+                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold),
+              ),
+              content: SizedBox(
+                width: double.maxFinite,
+                height: 400,
+                child: Column(
+                  children: [
+                    TextField(
+                      autofocus: true,
+                      decoration: const InputDecoration(
+                        hintText: 'Search pages...',
+                        prefixIcon: Icon(Icons.search),
+                        isDense: true,
+                      ),
+                      onChanged: (val) {
+                        setDialogState(() {
+                          localSearch = val.toLowerCase().trim();
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    Expanded(
+                      child:
+                          filtered.isEmpty
+                              ? Center(
+                                child: Text(
+                                  'No pages found.',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    color: _AdspromotionState.textGrey,
+                                  ),
+                                ),
+                              )
+                              : ListView.builder(
+                                itemCount: filtered.length,
+                                itemBuilder: (context, index) {
+                                  final page = filtered[index];
+                                  final isSelected =
+                                      _selectedInAppPageId == page['id'];
+                                  return ListTile(
+                                    leading: Icon(
+                                      Icons.phone_iphone_rounded,
+                                      color:
+                                          isSelected
+                                              ? _AdspromotionState.primaryNavy
+                                              : Colors.grey,
+                                      size: 22,
+                                    ),
+                                    title: Text(
+                                      page['name']!,
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontWeight:
+                                            isSelected
+                                                ? FontWeight.bold
+                                                : FontWeight.normal,
+                                        color:
+                                            isSelected
+                                                ? _AdspromotionState.primaryNavy
+                                                : _AdspromotionState.textDark,
+                                      ),
+                                    ),
+                                    subtitle: Text(
+                                      'ID: ${page['id']}',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 11,
+                                        color: _AdspromotionState.textGrey,
+                                      ),
+                                    ),
+                                    trailing:
+                                        isSelected
+                                            ? Icon(
+                                              Icons.check_circle,
+                                              color:
+                                                  _AdspromotionState
+                                                      .primaryNavy,
+                                            )
+                                            : null,
+                                    onTap: () {
+                                      setState(() {
+                                        _selectedInAppPageId = page['id'];
+                                        _selectedInAppPageName = page['name'];
+                                        _inAppPageFieldError = false;
+                                      });
+                                      Navigator.pop(context);
+                                    },
+                                  );
+                                },
+                              ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildSearchablePicker({
+    required String collectionName,
+    required String label,
+    required String nameKey,
+    required String altNameKey,
+    required String? selectedId,
+    required String? selectedName,
+    required Function(String, String) onSelected,
+  }) {
+    final controller = TextEditingController(text: selectedName ?? '');
+    return TextFormField(
+      controller: controller,
+      readOnly: true,
+      onTap: () {
+        _showSearchableDialog(
+          collectionName: collectionName,
+          title: label.replaceAll(' *', ''),
+          nameKey: nameKey,
+          altNameKey: altNameKey,
+          onSelected: onSelected,
+        );
+      },
+      validator:
+          (val) =>
+              (val == null || val.isEmpty) ? "Selection is required" : null,
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: GoogleFonts.plusJakartaSans(
+          fontSize: 13,
+          color: _AdspromotionState.textGrey,
+        ),
+        filled: true,
+        fillColor: _AdspromotionState.backgroundGrey,
+        suffixIcon: const Icon(Icons.arrow_drop_down, color: Colors.grey),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: _AdspromotionState.borderLight),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: _AdspromotionState.borderLight),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(
+            color: _AdspromotionState.primaryNavy,
+            width: 2,
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showSearchableDialog({
+    required String collectionName,
+    required String title,
+    required String nameKey,
+    required String altNameKey,
+    required Function(String, String) onSelected,
+  }) {
+    String localSearch = '';
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: Text('Select $title'),
+              content: SizedBox(
+                width: double.maxFinite,
+                height: 400,
+                child: Column(
+                  children: [
+                    TextField(
+                      decoration: const InputDecoration(
+                        hintText: 'Search...',
+                        prefixIcon: Icon(Icons.search),
+                      ),
+                      onChanged: (val) {
+                        setDialogState(() {
+                          localSearch = val.toLowerCase();
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    Expanded(
+                      child: StreamBuilder<QuerySnapshot>(
+                        stream:
+                            FirebaseFirestore.instance
+                                .collection(collectionName)
+                                .snapshots(),
+                        builder: (context, snapshot) {
+                          if (!snapshot.hasData)
+                            return const Center(
+                              child: CircularProgressIndicator(),
+                            );
+
+                          var docs = snapshot.data!.docs;
+                          if (localSearch.isNotEmpty) {
+                            docs =
+                                docs.where((doc) {
+                                  final data =
+                                      doc.data() as Map<String, dynamic>;
+                                  final name =
+                                      (data[nameKey] ??
+                                              data[altNameKey] ??
+                                              'Unnamed')
+                                          .toString()
+                                          .toLowerCase();
+                                  return name.contains(localSearch);
+                                }).toList();
+                          }
+
+                          return ListView.builder(
+                            itemCount: docs.length,
+                            itemBuilder: (context, index) {
+                              final doc = docs[index];
+                              final data = doc.data() as Map<String, dynamic>;
+                              final name =
+                                  (data[nameKey] ??
+                                          data[altNameKey] ??
+                                          'Unnamed')
+                                      .toString();
+                              final category =
+                                  (data['category'] ?? '').toString();
+                              final type =
+                                  (data['serviceType'] ?? data['type'] ?? '')
+                                      .toString();
+
+                              String subtitle = '';
+                              if (category.isNotEmpty)
+                                subtitle += 'Category: $category';
+                              if (type.isNotEmpty) {
+                                if (subtitle.isNotEmpty) subtitle += '\n';
+                                subtitle += 'Type: $type';
+                              }
+
+                              return ListTile(
+                                title: Text(name),
+                                subtitle:
+                                    subtitle.isNotEmpty ? Text(subtitle) : null,
+                                isThreeLine:
+                                    category.isNotEmpty && type.isNotEmpty,
+                                onTap: () {
+                                  onSelected(doc.id, name);
+                                  Navigator.pop(context);
+                                },
+                              );
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
