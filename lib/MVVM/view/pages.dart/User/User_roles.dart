@@ -33,16 +33,40 @@ class RoleModel {
 
   factory RoleModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
+
+    String formatDateTime(DateTime dt) {
+      final y = dt.year.toString().substring(2);
+      final m = dt.month.toString().padLeft(2, '0');
+      final d = dt.day.toString().padLeft(2, '0');
+      int hour = dt.hour;
+      final period = hour >= 12 ? 'PM' : 'AM';
+      if (hour > 12) hour -= 12;
+      if (hour == 0) hour = 12;
+      final hStr = hour.toString().padLeft(2, '0');
+      final min = dt.minute.toString().padLeft(2, '0');
+      final sec = dt.second.toString().padLeft(2, '0');
+      return "$d/$m/$y\n$hStr:$min:$sec $period";
+    }
+
+    String createdAtStr = '';
+    if (data['createdAt'] is Timestamp) {
+      createdAtStr = formatDateTime((data['createdAt'] as Timestamp).toDate());
+    } else if (data['createdAt'] != null) {
+      final parsed = DateTime.tryParse(data['createdAt'].toString());
+      if (parsed != null) {
+        createdAtStr = formatDateTime(parsed);
+      } else {
+        createdAtStr = data['createdAt'].toString();
+      }
+    }
+
     return RoleModel(
       id: doc.id,
       name: data['name'] ?? '',
       description: data['description'] ?? '',
       usersCount: data['usersCount'] ?? 0,
       status: data['status'] ?? 'Active',
-      createdAt:
-          data['createdAt'] is Timestamp
-              ? (data['createdAt'] as Timestamp).toDate().toIso8601String()
-              : (data['createdAt']?.toString() ?? ''),
+      createdAt: createdAtStr,
       initials: data['initials'] ?? '',
       badgeColor: Color(data['badgeColor'] ?? 0xFF8B5CF6),
       permissions: data['permissions'] as Map<String, dynamic>? ?? {},
@@ -622,12 +646,13 @@ class _UserRolesPageState extends State<UserRolesPage> {
 
   Widget _buildRolesTable(List<RoleModel> roles) {
     const columnWidths = <int, TableColumnWidth>{
-      0: FlexColumnWidth(2.0), // Role Name + Initials badge
-      1: FlexColumnWidth(2.0), // Description
-      2: FlexColumnWidth(0.8), // Users count
-      3: FlexColumnWidth(0.8), // Status
-      4: FlexColumnWidth(1.4), // Created At
-      5: FlexColumnWidth(4.0), // Actions
+      0: FlexColumnWidth(0.7), // No.
+      1: FlexColumnWidth(1.8), // Role Name + Initials badge
+      2: FlexColumnWidth(2.0), // Description
+      3: FlexColumnWidth(0.8), // Users count
+      4: FlexColumnWidth(0.8), // Status
+      5: FlexColumnWidth(1.1), // Created At
+      6: FlexColumnWidth(3.5), // Actions
     };
     const double tableWidth = 1100;
 
@@ -659,7 +684,8 @@ class _UserRolesPageState extends State<UserRolesPage> {
                       ),
                     ),
                     children: [
-                      _buildHeaderCell("Role Name"),
+                      _buildHeaderCell("No.", horizontalPadding: 8.0),
+                      _buildHeaderCell("Role"),
                       _buildHeaderCell("Description"),
                       _buildHeaderCell("Users", horizontalPadding: 8.0),
                       _buildHeaderCell("Status", horizontalPadding: 8.0),
@@ -697,7 +723,9 @@ class _UserRolesPageState extends State<UserRolesPage> {
                         defaultVerticalAlignment:
                             TableCellVerticalAlignment.middle,
                         children: [
-                          ...roles.map((role) {
+                          ...roles.asMap().entries.map((entry) {
+                            final index = entry.key;
+                            final role = entry.value;
                             return TableRow(
                               decoration: const BoxDecoration(
                                 border: Border(
@@ -708,6 +736,21 @@ class _UserRolesPageState extends State<UserRolesPage> {
                                 ),
                               ),
                               children: [
+                                // No.
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12.0,
+                                    horizontal: 8.0,
+                                  ),
+                                  child: Text(
+                                    (index + 1).toString(),
+                                    style: GoogleFonts.inter(
+                                      fontSize: 13,
+                                      color: const Color(0xFF64748B),
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
                                 // Role Name + Initials
                                 Padding(
                                   padding: const EdgeInsets.symmetric(
@@ -812,22 +855,22 @@ class _UserRolesPageState extends State<UserRolesPage> {
                                     vertical: 12.0,
                                     horizontal: 16.0,
                                   ),
-                                  child: Wrap(
-                                    spacing: 8,
-                                    runSpacing: 6,
-                                    alignment: WrapAlignment.start,
-                                    crossAxisAlignment:
-                                        WrapCrossAlignment.center,
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      // _buildActionButton(
-                                      //   Icons.person_add_outlined,
-                                      //   const Color(0xFF8B5CF6),
-                                      //   "Assign",
-                                      //   () => _showAssignUserDialog(
-                                      //     context,
-                                      //     role,
-                                      //   ),
-                                      // ),
+                                      Transform.scale(
+                                        scale: 0.8,
+                                        child: Switch(
+                                          value: role.status == "Active",
+                                          activeColor: const Color(0xFF10B981),
+                                          onChanged:
+                                              role.name == "Super Admin"
+                                                  ? null
+                                                  : (value) =>
+                                                      _toggleRoleStatus(role),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
                                       _buildActionButton(
                                         Icons.edit_outlined,
                                         Colors.blue,
@@ -835,6 +878,7 @@ class _UserRolesPageState extends State<UserRolesPage> {
                                         () =>
                                             _showEditRoleDialog(context, role),
                                       ),
+                                      const SizedBox(width: 8),
                                       _buildActionButton(
                                         Icons.visibility_outlined,
                                         const Color(0xFF10B981),
@@ -842,6 +886,7 @@ class _UserRolesPageState extends State<UserRolesPage> {
                                         () =>
                                             _showViewRoleDialog(context, role),
                                       ),
+                                      const SizedBox(width: 8),
                                       _buildActionButton(
                                         Icons.delete_outline_rounded,
                                         Colors.red,
@@ -870,18 +915,25 @@ class _UserRolesPageState extends State<UserRolesPage> {
     );
   }
 
-  Widget _buildHeaderCell(String label, {double horizontalPadding = 16.0}) {
+  Widget _buildHeaderCell(
+    String label, {
+    double horizontalPadding = 16.0,
+    Alignment alignment = Alignment.centerLeft,
+  }) {
     return Padding(
       padding: EdgeInsets.symmetric(
         vertical: 12.0,
         horizontal: horizontalPadding,
       ),
-      child: Text(
-        label,
-        style: GoogleFonts.inter(
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          color: const Color(0xFF94A3B8),
+      child: Align(
+        alignment: alignment,
+        child: Text(
+          label,
+          style: GoogleFonts.inter(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: const Color(0xFF94A3B8),
+          ),
         ),
       ),
     );
@@ -1956,6 +2008,48 @@ class _UserRolesPageState extends State<UserRolesPage> {
             },
           ),
     );
+  }
+
+  Future<void> _toggleRoleStatus(RoleModel role) async {
+    if (role.name == "Super Admin") {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "Error: The Super Admin role status cannot be modified.",
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final newStatus = role.status == "Active" ? "Inactive" : "Active";
+
+    try {
+      await FirebaseFirestore.instance.collection("roles").doc(role.id).update({
+        'status': newStatus,
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              "Role '${role.name}' status updated to $newStatus successfully.",
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Error updating role status: $e"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   void _showDeleteConfirmation(BuildContext context, RoleModel role) {
@@ -3794,7 +3888,9 @@ class _UserRolesPageState extends State<UserRolesPage> {
                                       if (rolesSnap.connectionState ==
                                           ConnectionState.waiting) {
                                         return const Center(
-                                          child: CircularProgressIndicator(color: const Color(0xFFFFC107)),
+                                          child: CircularProgressIndicator(
+                                            color: const Color(0xFFFFC107),
+                                          ),
                                         );
                                       }
 

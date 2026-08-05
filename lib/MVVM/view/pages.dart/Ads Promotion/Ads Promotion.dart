@@ -1899,9 +1899,594 @@ class _AdspromotionState extends State<Adspromotion> {
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder:
-            (context) =>
-                AdsContactDialog(existingContact: contactData, onSaved: () {}),
+        builder: (context) {
+          final formKey = GlobalKey<FormState>();
+          final phoneController = TextEditingController(
+            text: contactData?['phoneNumber'] ?? '',
+          );
+          String whatsappCountryCode =
+              contactData?['whatsappCountryCode'] ?? '+91';
+          String whatsappCountryIso =
+              contactData?['whatsappCountryIso'] ?? 'IN';
+          final whatsappController = TextEditingController(
+            text: contactData?['whatsappNumber'] ?? '',
+          );
+
+          bool isSaving = false;
+          // ignore: unused_local_variable
+          Uint8List? bannerImageBytes;
+          // ignore: unused_local_variable
+          String? bannerImageName;
+          String? bannerImageUrl = contactData?['bannerImageUrl'];
+          String? bannerImagePath = contactData?['bannerImagePath'];
+          bool isUploadingBanner = false;
+          double uploadProgress = 0.0;
+
+          return StatefulBuilder(
+            builder: (context, setState) {
+              Future<void> pickBannerImage() async {
+                if (isUploadingBanner) return;
+                try {
+                  FilePickerResult? result = await FilePicker.platform
+                      .pickFiles(
+                        type: FileType.custom,
+                        allowedExtensions:
+                            ImageKitBaseService.allowedExtensions,
+                        withData: true,
+                      );
+
+                  if (result != null && result.files.isNotEmpty) {
+                    final file = result.files.first;
+
+                    if (!ImageKitBaseService.isAllowedExtension(file.name)) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Only JPG, PNG, WEBP files are allowed',
+                            ),
+                          ),
+                        );
+                      }
+                      return;
+                    }
+
+                    if (file.size > ImageKitBaseService.maxFileSizeBytes) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('File size must be under 5MB'),
+                          ),
+                        );
+                      }
+                      return;
+                    }
+
+                    setState(() {
+                      isUploadingBanner = true;
+                      uploadProgress = 0.0;
+                    });
+
+                    // Optimize image
+                    final optimizedBytes = await compute(
+                      _optimizeImage,
+                      file.bytes!,
+                    );
+
+                    // Upload to ImageKit
+                    final service = AdvertisementImageService();
+                    final uploadResult = await service.uploadBanner(
+                      imageBytes: optimizedBytes,
+                      fileName: file.name,
+                      onProgress: (progress) {
+                        setState(() => uploadProgress = progress);
+                      },
+                    );
+
+                    if (context.mounted) {
+                      setState(() {
+                        bannerImageBytes = optimizedBytes;
+                        bannerImageName = file.name;
+                        bannerImageUrl = uploadResult.imageUrl;
+                        bannerImagePath = uploadResult.imageFileId;
+                        isUploadingBanner = false;
+                      });
+                    }
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Failed to upload banner: $e')),
+                    );
+                    setState(() => isUploadingBanner = false);
+                  }
+                }
+              }
+
+              Future<void> removeBanner() async {
+                setState(() {
+                  isUploadingBanner = true;
+                });
+                try {
+                  // 1. Delete image from ImageKit first
+                  if (bannerImagePath != null && bannerImagePath!.isNotEmpty) {
+                    final service = AdvertisementImageService();
+                    try {
+                      await service.deleteBanner(bannerImagePath!);
+                    } catch (e) {
+                      // Ignore ImageKit deletion errors (like file not found)
+                      // so we can still clear it from Firestore and UI
+                      debugPrint('ImageKit deletion warning: $e');
+                    }
+                  }
+
+                  // 2. Update Firestore Document to remove banner fields
+                  if (contactData != null) {
+                    await FirebaseFirestore.instance
+                        .collection('advertisements')
+                        .doc('global_contact')
+                        .collection('ads_contact')
+                        .doc('contact')
+                        .update({
+                          'bannerImageUrl': FieldValue.delete(),
+                          'bannerImagePath': FieldValue.delete(),
+                        });
+                  }
+
+                  setState(() {
+                    bannerImageBytes = null;
+                    bannerImageName = null;
+                    bannerImageUrl = null;
+                    bannerImagePath = null;
+                  });
+
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text("Banner removed successfully!"),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text("Error removing banner: $e"),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                } finally {
+                  if (context.mounted) {
+                    setState(() {
+                      isUploadingBanner = false;
+                    });
+                  }
+                }
+              }
+
+              Future<void> saveContact() async {
+                if (!formKey.currentState!.validate()) return;
+
+                setState(() => isSaving = true);
+                try {
+                  final docRef = FirebaseFirestore.instance
+                      .collection('advertisements')
+                      .doc('global_contact')
+                      .collection('ads_contact')
+                      .doc('contact');
+
+                  final data = {
+                    'phoneNumber': phoneController.text.trim(),
+                    'whatsappNumber':
+                        whatsappController.text.trim().isEmpty
+                            ? null
+                            : whatsappController.text.trim(),
+                    'whatsappCountryCode':
+                        whatsappController.text.trim().isEmpty
+                            ? null
+                            : whatsappCountryCode,
+                    'whatsappCountryIso':
+                        whatsappController.text.trim().isEmpty
+                            ? null
+                            : whatsappCountryIso,
+                    'bannerImageUrl': bannerImageUrl,
+                    'bannerImagePath': bannerImagePath,
+                    'updatedAt': FieldValue.serverTimestamp(),
+                  };
+
+                  if (contactData == null) {
+                    data['createdAt'] = FieldValue.serverTimestamp();
+                    await docRef.set(data);
+                  } else {
+                    await docRef.update(data);
+                  }
+
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Ads Contact saved successfully!'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                    Navigator.pop(context);
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Error saving contact: $e'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                } finally {
+                  if (context.mounted) setState(() => isSaving = false);
+                }
+              }
+
+              return Dialog(
+                backgroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  width: 420,
+                  padding: const EdgeInsets.all(32),
+                  child: Form(
+                    key: formKey,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "Ads Contact Details",
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          "Set the global support contact numbers for your ads.",
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        // Banner Upload Section
+                        Text(
+                          "Advertisement Banner (Image Upload)",
+                          style: GoogleFonts.plusJakartaSans(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        if (bannerImageUrl != null)
+                          Container(
+                            width: double.infinity,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.grey[300]!),
+                            ),
+                            clipBehavior: Clip.antiAlias,
+                            child: Column(
+                              children: [
+                                Stack(
+                                  alignment: Alignment.center,
+                                  children: [
+                                    Image.network(
+                                      bannerImageUrl!,
+                                      height: 120,
+                                      width: double.infinity,
+                                      fit: BoxFit.cover,
+                                    ),
+                                    if (isUploadingBanner)
+                                      Container(
+                                        height: 120,
+                                        width: double.infinity,
+                                        color: Colors.black54,
+                                        child: Center(
+                                          child: Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              const CircularProgressIndicator(
+                                                color: Colors.white,
+                                              ),
+                                              const SizedBox(height: 8),
+                                              Text(
+                                                '${(uploadProgress * 100).toStringAsFixed(0)}%',
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 8,
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.end,
+                                    children: [
+                                      // TextButton.icon(
+                                      //   onPressed:
+                                      //       isUploadingBanner
+                                      //           ? null
+                                      //           : pickBannerImage,
+                                      //   icon: const Icon(
+                                      //     Icons.refresh,
+                                      //     size: 18,
+                                      //   ),
+                                      //   label: const Text('Replace'),
+                                      //   style: TextButton.styleFrom(
+                                      //     foregroundColor: Colors.blue,
+                                      //   ),
+                                      // ),
+                                      TextButton.icon(
+                                        onPressed:
+                                            isUploadingBanner
+                                                ? null
+                                                : removeBanner,
+                                        icon: const Icon(
+                                          Icons.delete_outline,
+                                          size: 18,
+                                        ),
+                                        label: const Text('Remove'),
+                                        style: TextButton.styleFrom(
+                                          foregroundColor: Colors.red,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        else
+                          InkWell(
+                            onTap: isUploadingBanner ? null : pickBannerImage,
+                            borderRadius: BorderRadius.circular(12),
+                            child: Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(vertical: 24),
+                              decoration: BoxDecoration(
+                                border: Border.all(
+                                  color: Colors.grey[300]!,
+                                  style: BorderStyle.solid,
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                                color: Colors.grey[50],
+                              ),
+                              child: Column(
+                                children: [
+                                  if (isUploadingBanner) ...[
+                                    const CircularProgressIndicator(),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      'Uploading ${(uploadProgress * 100).toStringAsFixed(0)}%',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                  ] else ...[
+                                    Icon(
+                                      Icons.cloud_upload_outlined,
+                                      size: 32,
+                                      color: Colors.grey[400],
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Text(
+                                      "Upload Banner Image",
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      "JPG, PNG, WEBP • Max 5MB",
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 12,
+                                        color: Colors.grey[500],
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ),
+                        const SizedBox(height: 24),
+                        TextFormField(
+                          controller: phoneController,
+                          keyboardType: TextInputType.phone,
+                          maxLength: 10,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontWeight: FontWeight.w500,
+                          ),
+                          decoration: InputDecoration(
+                            labelText: "Phone Number *",
+                            labelStyle: GoogleFonts.plusJakartaSans(
+                              color: Colors.grey[700],
+                            ),
+                            hintText: "10-digit mobile number",
+                            hintStyle: GoogleFonts.plusJakartaSans(
+                              color: Colors.grey[400],
+                            ),
+                            filled: true,
+                            fillColor: Colors.white,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: Colors.grey[300]!),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: Colors.grey[300]!),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(
+                                color: Colors.teal,
+                                width: 2,
+                              ),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 18,
+                            ),
+                            counterText: "",
+                            prefixIcon: const Icon(
+                              Icons.phone_rounded,
+                              color: Colors.teal,
+                            ),
+                          ),
+                          validator: (val) {
+                            if (val == null || val.trim().isEmpty)
+                              return "Required";
+                            if (val.trim().length != 10)
+                              return "Must be exactly 10 digits";
+                            if (double.tryParse(val.trim()) == null)
+                              return "Numeric only";
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 20),
+                        IntlPhoneField(
+                          controller: whatsappController,
+                          initialCountryCode: whatsappCountryIso,
+                          keyboardType: TextInputType.phone,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontWeight: FontWeight.w500,
+                          ),
+                          decoration: InputDecoration(
+                            labelText: "WhatsApp Number (Optional)",
+                            labelStyle: GoogleFonts.plusJakartaSans(
+                              color: Colors.grey[700],
+                            ),
+                            hintText: "Mobile number",
+                            hintStyle: GoogleFonts.plusJakartaSans(
+                              color: Colors.grey[400],
+                            ),
+                            filled: true,
+                            fillColor: Colors.white,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: Colors.grey[300]!),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: Colors.grey[300]!),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(
+                                color: Colors.green,
+                                width: 2,
+                              ),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 18,
+                            ),
+                          ),
+                          onCountryChanged: (country) {
+                            whatsappCountryCode = '+${country.dialCode}';
+                            whatsappCountryIso = country.code;
+                          },
+                          validator: (phone) {
+                            if (phone == null || phone.number.isEmpty)
+                              return null;
+                            if (!RegExp(r'^[0-9]+$').hasMatch(phone.number)) {
+                              return "Numeric only";
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 32),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            TextButton(
+                              onPressed:
+                                  isSaving
+                                      ? null
+                                      : () => Navigator.pop(context),
+                              style: TextButton.styleFrom(
+                                foregroundColor: Colors.red,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                  vertical: 16,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                              child: Text(
+                                "Cancel",
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            ElevatedButton(
+                              onPressed: isSaving ? null : saveContact,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.green[800],
+                                foregroundColor: Colors.white,
+                                elevation: 0,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 24,
+                                  vertical: 16,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                              child:
+                                  isSaving
+                                      ? const SizedBox(
+                                        width: 20,
+                                        height: 20,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Colors.white,
+                                        ),
+                                      )
+                                      : Text(
+                                        "Save Details",
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 15,
+                                        ),
+                                      ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          );
+        },
       );
     } catch (e) {
       if (!mounted) return;
@@ -2500,6 +3085,7 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
   }
 
   Future<void> _saveForm(bool makeActive) async {
+    if (_isUploading) return;
     debugPrint("DEBUG: _saveForm called. makeActive: $makeActive");
     if (_startDate == null ||
         _startTime == null ||
@@ -3113,23 +3699,43 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
                       ),
                     ],
                   ),
-                  ElevatedButton.icon(
-                    onPressed:
-                        _isOptimizingImage ? null : () => _pickImage(true),
-                    icon: const Icon(Icons.cloud_upload_outlined, size: 18),
-                    label: const Text("Choose File"),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: _AdspromotionState.primaryNavy,
-                      elevation: 0,
-                      side: const BorderSide(
-                        color: _AdspromotionState.primaryNavy,
+                  (_imageBytes != null || _currentImageUrl != null)
+                      ? TextButton.icon(
+                        onPressed:
+                            _isOptimizingImage
+                                ? null
+                                : () {
+                                  setState(() {
+                                    _imageBytes = null;
+                                    _imageName = null;
+                                    _currentImageUrl = null;
+                                    _isImageValid = false;
+                                    _dimensionsText = "No image selected";
+                                  });
+                                },
+                        icon: const Icon(Icons.delete_outline, size: 18),
+                        label: const Text('Remove'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.red,
+                        ),
+                      )
+                      : ElevatedButton.icon(
+                        onPressed:
+                            _isOptimizingImage ? null : () => _pickImage(true),
+                        icon: const Icon(Icons.cloud_upload_outlined, size: 18),
+                        label: const Text("Choose File"),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: _AdspromotionState.primaryNavy,
+                          elevation: 0,
+                          side: const BorderSide(
+                            color: _AdspromotionState.primaryNavy,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
                       ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                  ),
                 ],
               ),
               const SizedBox(height: 12),
@@ -5008,6 +5614,7 @@ class _AdsContactDialogState extends State<AdsContactDialog> {
   }
 
   Future<void> _pickBannerImage() async {
+    if (_isUploadingBanner) return;
     try {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
@@ -5076,16 +5683,69 @@ class _AdsContactDialogState extends State<AdsContactDialog> {
     }
   }
 
-  void _removeBanner() {
+  Future<void> _removeBanner() async {
     setState(() {
-      _bannerImageBytes = null;
-      _bannerImageName = null;
-      _bannerImageUrl = null;
-      _bannerImagePath = null;
+      _isUploadingBanner = true;
     });
+    try {
+      if (_bannerImagePath != null && _bannerImagePath!.isNotEmpty) {
+        final service = AdvertisementImageService();
+        try {
+          await service.deleteBanner(_bannerImagePath!);
+        } catch (e) {
+          // Ignore ImageKit deletion errors (like file not found)
+          // so we can still clear it from Firestore and UI
+          debugPrint('ImageKit deletion warning: $e');
+        }
+      }
+
+      if (widget.existingContact != null) {
+        await FirebaseFirestore.instance
+            .collection('advertisements')
+            .doc('global_contact')
+            .collection('ads_contact')
+            .doc('contact')
+            .update({
+              'bannerImageUrl': FieldValue.delete(),
+              'bannerImagePath': FieldValue.delete(),
+            });
+      }
+
+      setState(() {
+        _bannerImageBytes = null;
+        _bannerImageName = null;
+        _bannerImageUrl = null;
+        _bannerImagePath = null;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Banner removed successfully!"),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Error removing banner: $e"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUploadingBanner = false;
+        });
+      }
+    }
   }
 
   Future<void> _saveContact() async {
+    if (_isSaving) return;
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isSaving = true);
@@ -5242,17 +5902,17 @@ class _AdsContactDialogState extends State<AdsContactDialog> {
                           vertical: 8,
                         ),
                         child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          mainAxisAlignment: MainAxisAlignment.end,
                           children: [
-                            TextButton.icon(
-                              onPressed:
-                                  _isUploadingBanner ? null : _pickBannerImage,
-                              icon: const Icon(Icons.refresh, size: 18),
-                              label: const Text('Replace'),
-                              style: TextButton.styleFrom(
-                                foregroundColor: Colors.blue,
-                              ),
-                            ),
+                            // TextButton.icon(
+                            //   onPressed:
+                            //       _isUploadingBanner ? null : _pickBannerImage,
+                            //   icon: const Icon(Icons.refresh, size: 18),
+                            //   label: const Text('Replace'),
+                            //   style: TextButton.styleFrom(
+                            //     foregroundColor: Colors.blue,
+                            //   ),
+                            // ),
                             TextButton.icon(
                               onPressed:
                                   _isUploadingBanner ? null : _removeBanner,

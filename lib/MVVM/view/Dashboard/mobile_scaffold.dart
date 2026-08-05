@@ -21,6 +21,8 @@ import 'package:swiftclean_admin/MVVM/view/pages.dart/User/Profile_user.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/AdminProfile/admin_profile.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/User/User_roles.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/User/Banned_users.dart';
+import 'package:swiftclean_admin/MVVM/view/pages.dart/User/Suspended_users.dart';
+import 'package:swiftclean_admin/MVVM/view/pages.dart/User/Grant_access.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/worker/All_workers.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/worker/Verification_Worker.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/worker/profile_Worker.dart';
@@ -147,6 +149,8 @@ class _MobileScaffoldState extends State<MobileScaffold> {
         );
       case "Banned Users":
         return const BannedUsersPage();
+      case "Suspended Users":
+        return const SuspendedUsersPage();
       case "Services":
       case "All Services":
         return const Services();
@@ -345,7 +349,8 @@ class _MobileScaffoldState extends State<MobileScaffold> {
                       isInitiallyExpanded:
                           selectedTile == "User Profile" ||
                           selectedTile == "User Roles" ||
-                          selectedTile == "Banned Users",
+                          selectedTile == "Banned Users" ||
+                          selectedTile == "Suspended Users",
                       onTap:
                           () => setState(() => selectedTile = "User Profile"),
                       children: [
@@ -373,6 +378,15 @@ class _MobileScaffoldState extends State<MobileScaffold> {
                           isSelected: selectedTile == "Banned Users",
                           onTap: () {
                             setState(() => selectedTile = "Banned Users");
+                            _scaffoldKey.currentState?.closeDrawer();
+                          },
+                        ),
+                        SidebarTile(
+                          title: "Suspended Users",
+                          icon: Icons.pause_circle_outline,
+                          isSelected: selectedTile == "Suspended Users",
+                          onTap: () {
+                            setState(() => selectedTile = "Suspended Users");
                             _scaffoldKey.currentState?.closeDrawer();
                           },
                         ),

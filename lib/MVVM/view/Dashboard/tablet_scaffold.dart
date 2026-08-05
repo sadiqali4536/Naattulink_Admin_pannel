@@ -22,6 +22,7 @@ import 'package:swiftclean_admin/MVVM/view/pages.dart/User/Profile_user.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/AdminProfile/admin_profile.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/User/User_roles.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/User/Banned_users.dart';
+import 'package:swiftclean_admin/MVVM/view/pages.dart/User/Suspended_users.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/User/Grant_access.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/worker/All_workers.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/worker/Verification_Worker.dart';
@@ -193,6 +194,12 @@ class _TabletScaffoldState extends State<TabletScaffold> {
           module: Modules.userManagement,
           action: Perms.view,
           child: const BannedUsersPage(),
+        );
+      case "Suspended Users":
+        return PermissionGuard(
+          module: Modules.userManagement,
+          action: Perms.view,
+          child: const SuspendedUsersPage(),
         );
       case "Grant Access":
         return PermissionGuard(
@@ -429,7 +436,8 @@ class _TabletScaffoldState extends State<TabletScaffold> {
                       isInitiallyExpanded:
                           selectedTile == "User Profile" ||
                           selectedTile == "User Roles" ||
-                          selectedTile == "Banned Users",
+                          selectedTile == "Banned Users" ||
+                          selectedTile == "Suspended Users",
                       onTap:
                           () => setState(() => selectedTile = "User Profile"),
                       children: [
@@ -457,6 +465,15 @@ class _TabletScaffoldState extends State<TabletScaffold> {
                           isSelected: selectedTile == "Banned Users",
                           onTap: () {
                             setState(() => selectedTile = "Banned Users");
+                            _scaffoldKey.currentState?.closeDrawer();
+                          },
+                        ),
+                        SidebarTile(
+                          title: "Suspended Users",
+                          icon: Icons.pause_circle_outline,
+                          isSelected: selectedTile == "Suspended Users",
+                          onTap: () {
+                            setState(() => selectedTile = "Suspended Users");
                             _scaffoldKey.currentState?.closeDrawer();
                           },
                         ),
@@ -1099,7 +1116,10 @@ class SidebarTile extends StatelessWidget {
                   style: GoogleFonts.inter(
                     fontSize: 12,
                     fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                    color: isSelected ? const Color(0xFF1E293B) : const Color(0xFF94A3B8),
+                    color:
+                        isSelected
+                            ? const Color(0xFF1E293B)
+                            : const Color(0xFF94A3B8),
                   ),
                 ),
               ),

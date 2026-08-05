@@ -81,6 +81,13 @@ class MyApp extends StatelessWidget {
       home: StreamBuilder(
         stream: FirebaseAuth.instance.authStateChanges(),
         builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Scaffold(
+              body: Center(
+                child: CircularProgressIndicator(color: Color(0xFF10B981)),
+              ),
+            );
+          }
           if (snapshot.hasData) {
             return const ResponsiveLayout(
               mobileScaffold: MobileScaffold(),

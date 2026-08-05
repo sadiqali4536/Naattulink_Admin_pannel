@@ -2,6 +2,7 @@ import 'dart:html' as html;
 import 'package:swiftclean_admin/MVVM/view/pages.dart/User/Profile_user.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/User/User_roles.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/User/Banned_users.dart';
+import 'package:swiftclean_admin/MVVM/view/pages.dart/User/Suspended_users.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/worker/All_workers.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/Bookings/Bookings.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/Services/Services.dart';
@@ -101,7 +102,8 @@ void printUsersList(List<UserModel> users) {
             border-bottom: 1px solid #CBD5E1;
           }
         }
-      </style>
+    .table-wrapper { overflow: auto; max-height: 70vh; border: 1px solid #E2E8F0; border-radius: 8px; } .table-wrapper::-webkit-scrollbar { width: 8px; height: 8px; } .table-wrapper::-webkit-scrollbar-track { background: #F1F5F9; } .table-wrapper::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; } th { position: sticky; top: 0; z-index: 10; }
+    </style>
     </head>
     <body>
       <div class="header-container">
@@ -111,7 +113,8 @@ void printUsersList(List<UserModel> users) {
         </div>
         <button onclick="window.print()" style="padding: 10px 20px; background-color: #10B981; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-family: inherit; font-size: 13px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">Print / Save PDF</button>
       </div>
-      <table>
+      <div class="table-wrapper">
+        <table>
         <thead>
           <tr>
             <th>Name & ID</th>
@@ -158,6 +161,7 @@ void printUsersList(List<UserModel> users) {
   htmlBuffer.write('''
         </tbody>
       </table>
+      </div>
       <script>
         window.addEventListener('load', () => {
           setTimeout(() => {
@@ -261,7 +265,8 @@ void printRolesList(List<RoleModel> roles) {
             border-bottom: 1px solid #CBD5E1;
           }
         }
-      </style>
+    .table-wrapper { overflow: auto; max-height: 70vh; border: 1px solid #E2E8F0; border-radius: 8px; } .table-wrapper::-webkit-scrollbar { width: 8px; height: 8px; } .table-wrapper::-webkit-scrollbar-track { background: #F1F5F9; } .table-wrapper::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; } th { position: sticky; top: 0; z-index: 10; }
+    </style>
     </head>
     <body>
       <div class="header-container">
@@ -271,7 +276,8 @@ void printRolesList(List<RoleModel> roles) {
         </div>
         <button onclick="window.print()" style="padding: 10px 20px; background-color: #10B981; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-family: inherit; font-size: 13px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">Print / Save PDF</button>
       </div>
-      <table>
+      <div class="table-wrapper">
+        <table>
         <thead>
           <tr>
             <th>Role Name & ID</th>
@@ -317,6 +323,7 @@ void printRolesList(List<RoleModel> roles) {
   htmlBuffer.write('''
         </tbody>
       </table>
+      </div>
       <script>
         window.addEventListener('load', () => {
           setTimeout(() => {
@@ -465,7 +472,8 @@ void printBannedUsersList(List<BannedUserModel> bannedUsers) {
             border-bottom: 1px solid #FCA5A5;
           }
         }
-      </style>
+    .table-wrapper { overflow: auto; max-height: 70vh; border: 1px solid #E2E8F0; border-radius: 8px; } .table-wrapper::-webkit-scrollbar { width: 8px; height: 8px; } .table-wrapper::-webkit-scrollbar-track { background: #F1F5F9; } .table-wrapper::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; } th { position: sticky; top: 0; z-index: 10; }
+    </style>
     </head>
     <body>
       <div class="header-container">
@@ -475,7 +483,8 @@ void printBannedUsersList(List<BannedUserModel> bannedUsers) {
         </div>
         <button onclick="window.print()" style="padding: 10px 20px; background-color: #EF4444; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-family: inherit; font-size: 13px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">Print / Save PDF</button>
       </div>
-      <table>
+      <div class="table-wrapper">
+        <table>
         <thead>
           <tr>
             <th>User Info</th>
@@ -513,6 +522,146 @@ void printBannedUsersList(List<BannedUserModel> bannedUsers) {
   htmlBuffer.write('''
         </tbody>
       </table>
+      </div>
+      <script>
+        window.addEventListener('load', () => {
+          setTimeout(() => {
+            window.print();
+          }, 500);
+        });
+      </script>
+    </body>
+    </html>
+  ''');
+
+  final blob = html.Blob([htmlBuffer.toString()], 'text/html');
+  final url = html.Url.createObjectUrlFromBlob(blob);
+  html.window.open(url, '_blank');
+}
+
+void printSuspendedUsersList(List<SuspendedUserModel> suspendedUsers) {
+  final htmlBuffer = StringBuffer();
+  htmlBuffer.write('''
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>Suspended Users Directory</title>
+      <style>
+        body {
+          font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+          margin: 40px;
+          color: #1E293B;
+          background-color: #FFFFFF;
+        }
+        h1 {
+          font-size: 22px;
+          margin: 0;
+          color: #B45309;
+          font-weight: 700;
+        }
+        .header-container {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 24px;
+          border-bottom: 2px solid #FEF3C7;
+          padding-bottom: 16px;
+        }
+        table {
+          width: 100%;
+          border-collapse: collapse;
+          margin-top: 10px;
+        }
+        th, td {
+          border: 1px solid #E2E8F0;
+          padding: 10px 12px;
+          text-align: left;
+          font-size: 12px;
+          vertical-align: middle;
+        }
+        th {
+          background-color: #FFFBEB;
+          font-weight: 600;
+          color: #B45309;
+          text-transform: uppercase;
+          font-size: 11px;
+          letter-spacing: 0.5px;
+        }
+        tr:nth-child(even) {
+          background-color: #FAFAFA;
+        }
+        .ban-badge {
+          font-weight: 600;
+          font-size: 11px;
+          padding: 3px 8px;
+          border-radius: 4px;
+          display: inline-block;
+          background-color: #FEF3C7;
+          color: #B45309;
+        }
+        @media print {
+          body {
+            margin: 20px 10px;
+          }
+          button {
+            display: none;
+          }
+          .header-container {
+            border-bottom: 1px solid #FDE68A;
+          }
+        }
+    .table-wrapper { overflow: auto; max-height: 70vh; border: 1px solid #E2E8F0; border-radius: 8px; } .table-wrapper::-webkit-scrollbar { width: 8px; height: 8px; } .table-wrapper::-webkit-scrollbar-track { background: #F1F5F9; } .table-wrapper::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; } th { position: sticky; top: 0; z-index: 10; }
+    </style>
+    </head>
+    <body>
+      <div class="header-container">
+        <div>
+          <h1>Suspended Users Directory</h1>
+          <p style="margin: 4px 0 0 0; font-size: 12px; color: #64748B;">Total Suspended: ${suspendedUsers.length} | Generated on ${DateTime.now().toString().split('.')[0]}</p>
+        </div>
+        <button onclick="window.print()" style="padding: 10px 20px; background-color: #F59E0B; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-family: inherit; font-size: 13px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">Print / Save PDF</button>
+      </div>
+      <div class="table-wrapper">
+        <table>
+        <thead>
+          <tr>
+            <th>User Info</th>
+            <th>Contact Details</th>
+            <th>Reason</th>
+            <th>Type</th>
+            <th>Duration</th>
+            <th>Suspended On</th>
+            <th>Suspended By</th>
+          </tr>
+        </thead>
+        <tbody>
+  ''');
+
+  for (final user in suspendedUsers) {
+    htmlBuffer.write('''
+          <tr>
+            <td>
+              <div style="font-weight: 600; color: #0F172A;">${_escapeHtml(user.name)}</div>
+              <div style="color: #64748B; font-size: 11px; margin-top: 2px;">ID: ${_escapeHtml(user.userId)}</div>
+            </td>
+            <td>
+              <div style="font-size: 12px;">${_escapeHtml(user.email)}</div>
+              <div style="color: #64748B; font-size: 11px; margin-top: 2px;">${_escapeHtml(user.phone)}</div>
+            </td>
+            <td style="color: #B45309; font-style: italic;">${_escapeHtml(user.reason)}</td>
+            <td><span class="ban-badge">${_escapeHtml(user.suspensionType)}</span></td>
+            <td>${_escapeHtml(user.suspensionDuration)}</td>
+            <td>${_escapeHtml(_formatDisplayDate(user.suspendedOn))}</td>
+            <td>${_escapeHtml(user.suspendedBy)}</td>
+          </tr>
+    ''');
+  }
+
+  htmlBuffer.write('''
+        </tbody>
+      </table>
+      </div>
       <script>
         window.addEventListener('load', () => {
           setTimeout(() => {
@@ -558,7 +707,8 @@ void printWorkersList(List<WorkerModel> workers) {
         .status-suspended { background-color: #F1F5F9; color: #475569; }
         .verified-badge { font-size: 11px; padding: 2px 6px; border-radius: 4px; font-weight: 500; background-color: #DBEAFE; color: #1E40AF; display: inline-block; }
         @media print { body { margin: 20px 10px; } button { display: none; } .header-container { border-bottom: 1px solid #A7F3D0; } }
-      </style>
+    .table-wrapper { overflow: auto; max-height: 70vh; border: 1px solid #E2E8F0; border-radius: 8px; } .table-wrapper::-webkit-scrollbar { width: 8px; height: 8px; } .table-wrapper::-webkit-scrollbar-track { background: #F1F5F9; } .table-wrapper::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; } th { position: sticky; top: 0; z-index: 10; }
+    </style>
     </head>
     <body>
       <div class="header-container">
@@ -568,7 +718,8 @@ void printWorkersList(List<WorkerModel> workers) {
         </div>
         <button onclick="window.print()" style="padding: 10px 20px; background-color: #10B981; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-family: inherit; font-size: 13px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">Print / Save PDF</button>
       </div>
-      <table>
+      <div class="table-wrapper">
+        <table>
         <thead>
           <tr>
             <th>Name &amp; ID</th><th>Contact</th><th>Category</th><th>Experience</th>
@@ -622,6 +773,7 @@ void printWorkersList(List<WorkerModel> workers) {
   htmlBuffer.write('''
         </tbody>
       </table>
+      </div>
       <script>
         window.addEventListener('load', () => {
           setTimeout(() => { window.print(); }, 500);
@@ -673,7 +825,8 @@ void printBookingsList(List<BookingModel> bookings) {
         .payment-pending { background-color: #FEF3C7; color: #92400E; }
         .payment-failed { background-color: #FEE2E2; color: #991B1B; }
         @media print { body { margin: 20px 10px; } button { display: none; } .header-container { border-bottom: 1px solid #BFDBFE; } }
-      </style>
+    .table-wrapper { overflow: auto; max-height: 70vh; border: 1px solid #E2E8F0; border-radius: 8px; } .table-wrapper::-webkit-scrollbar { width: 8px; height: 8px; } .table-wrapper::-webkit-scrollbar-track { background: #F1F5F9; } .table-wrapper::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; } th { position: sticky; top: 0; z-index: 10; }
+    </style>
     </head>
     <body>
       <div class="header-container">
@@ -683,7 +836,8 @@ void printBookingsList(List<BookingModel> bookings) {
         </div>
         <button onclick="window.print()" style="padding: 10px 20px; background-color: #3B82F6; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-family: inherit; font-size: 13px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">Print / Save PDF</button>
       </div>
-      <table>
+      <div class="table-wrapper">
+        <table>
         <thead>
           <tr>
             <th>Booking ID &amp; Date</th><th>Customer</th><th>Worker</th><th>Service &amp; Category</th>
@@ -746,6 +900,7 @@ void printBookingsList(List<BookingModel> bookings) {
   htmlBuffer.write('''
         </tbody>
       </table>
+      </div>
       <script>
         window.addEventListener('load', () => {
           setTimeout(() => { window.print(); }, 500);
@@ -781,7 +936,8 @@ void printServicesList(List<ServiceModel> services) {
         th, td { border: 1px solid #E2E8F0; padding: 10px 12px; text-align: left; font-size: 12px; }
         th { background-color: #EFF6FF; font-weight: 600; color: #1E40AF; text-transform: uppercase; font-size: 11px; }
         tr:nth-child(even) { background-color: #F8FAFC; }
-      </style>
+    .table-wrapper { overflow: auto; max-height: 70vh; border: 1px solid #E2E8F0; border-radius: 8px; } .table-wrapper::-webkit-scrollbar { width: 8px; height: 8px; } .table-wrapper::-webkit-scrollbar-track { background: #F1F5F9; } .table-wrapper::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; } th { position: sticky; top: 0; z-index: 10; }
+    </style>
     </head>
     <body>
       <div class="header-container">
@@ -791,7 +947,8 @@ void printServicesList(List<ServiceModel> services) {
         </div>
         <button onclick="window.print()" style="padding: 10px 20px; background-color: #3B82F6; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-family: inherit; font-size: 13px;">Print / Save PDF</button>
       </div>
-      <table>
+      <div class="table-wrapper">
+        <table>
         <thead>
           <tr>
             <th>Service ID</th>
@@ -828,6 +985,7 @@ void printServicesList(List<ServiceModel> services) {
   htmlBuffer.write('''
         </tbody>
       </table>
+      </div>
       <script> window.addEventListener('load', () => { setTimeout(() => { window.print(); }, 500); }); </script>
     </body>
     </html>
@@ -859,7 +1017,8 @@ void printCategoriesList(List<CategoryModel> categories) {
         th, td { border: 1px solid #E2E8F0; padding: 10px 12px; text-align: left; font-size: 12px; }
         th { background-color: #EFF6FF; font-weight: 600; color: #1E40AF; text-transform: uppercase; font-size: 11px; }
         tr:nth-child(even) { background-color: #F8FAFC; }
-      </style>
+    .table-wrapper { overflow: auto; max-height: 70vh; border: 1px solid #E2E8F0; border-radius: 8px; } .table-wrapper::-webkit-scrollbar { width: 8px; height: 8px; } .table-wrapper::-webkit-scrollbar-track { background: #F1F5F9; } .table-wrapper::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; } th { position: sticky; top: 0; z-index: 10; }
+    </style>
     </head>
     <body>
       <div class="header-container">
@@ -869,7 +1028,8 @@ void printCategoriesList(List<CategoryModel> categories) {
         </div>
         <button onclick="window.print()" style="padding: 10px 20px; background-color: #3B82F6; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-family: inherit; font-size: 13px;">Print / Save PDF</button>
       </div>
-      <table>
+      <div class="table-wrapper">
+        <table>
         <thead>
           <tr>
             <th>Category ID</th>
@@ -894,6 +1054,7 @@ void printCategoriesList(List<CategoryModel> categories) {
   htmlBuffer.write('''
         </tbody>
       </table>
+      </div>
       <script> window.addEventListener('load', () => { setTimeout(() => { window.print(); }, 500); }); </script>
     </body>
     </html>
@@ -925,7 +1086,8 @@ void exportPaymentsToPdfWeb(List<Map<String, String>> payments) {
         th, td { border: 1px solid #E2E8F0; padding: 10px 12px; text-align: left; font-size: 12px; }
         th { background-color: #EFF6FF; font-weight: 600; color: #1E40AF; text-transform: uppercase; font-size: 11px; }
         tr:nth-child(even) { background-color: #F8FAFC; }
-      </style>
+    .table-wrapper { overflow: auto; max-height: 70vh; border: 1px solid #E2E8F0; border-radius: 8px; } .table-wrapper::-webkit-scrollbar { width: 8px; height: 8px; } .table-wrapper::-webkit-scrollbar-track { background: #F1F5F9; } .table-wrapper::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; } th { position: sticky; top: 0; z-index: 10; }
+    </style>
     </head>
     <body>
       <div class="header-container">
@@ -935,7 +1097,8 @@ void exportPaymentsToPdfWeb(List<Map<String, String>> payments) {
         </div>
         <button onclick="window.print()" style="padding: 10px 20px; background-color: #3B82F6; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-family: inherit; font-size: 13px;">Print / Save PDF</button>
       </div>
-      <table>
+      <div class="table-wrapper">
+        <table>
         <thead>
           <tr>
             <th>No.</th>
@@ -978,6 +1141,7 @@ void exportPaymentsToPdfWeb(List<Map<String, String>> payments) {
   htmlBuffer.write('''
         </tbody>
       </table>
+      </div>
       <script> window.addEventListener('load', () => { setTimeout(() => { window.print(); }, 500); }); </script>
     </body>
     </html>
@@ -1009,7 +1173,8 @@ void printBusRoutesList(List<Map<String, dynamic>> busRoutes) {
         th, td { border: 1px solid #E2E8F0; padding: 10px 12px; text-align: left; font-size: 12px; }
         th { background-color: #EFF6FF; font-weight: 600; color: #1E40AF; text-transform: uppercase; font-size: 11px; }
         tr:nth-child(even) { background-color: #F8FAFC; }
-      </style>
+    .table-wrapper { overflow: auto; max-height: 70vh; border: 1px solid #E2E8F0; border-radius: 8px; } .table-wrapper::-webkit-scrollbar { width: 8px; height: 8px; } .table-wrapper::-webkit-scrollbar-track { background: #F1F5F9; } .table-wrapper::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; } th { position: sticky; top: 0; z-index: 10; }
+    </style>
     </head>
     <body>
       <div class="header-container">
@@ -1019,7 +1184,8 @@ void printBusRoutesList(List<Map<String, dynamic>> busRoutes) {
         </div>
         <button onclick="window.print()" style="padding: 10px 20px; background-color: #3B82F6; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-family: inherit; font-size: 13px;">Print / Save PDF</button>
       </div>
-      <table>
+      <div class="table-wrapper">
+        <table>
         <thead>
           <tr>
             <th>Reg No</th>
@@ -1125,6 +1291,7 @@ void printBusRoutesList(List<Map<String, dynamic>> busRoutes) {
   htmlBuffer.write('''
         </tbody>
       </table>
+      </div>
       <script> window.addEventListener('load', () => { setTimeout(() => { window.print(); }, 500); }); </script>
     </body>
     </html>
@@ -1156,7 +1323,8 @@ void printTaxiDriversList(List<Map<String, dynamic>> taxiDrivers) {
         th, td { border: 1px solid #E2E8F0; padding: 10px 12px; text-align: left; font-size: 12px; }
         th { background-color: #EFF6FF; font-weight: 600; color: #1E40AF; text-transform: uppercase; font-size: 11px; }
         tr:nth-child(even) { background-color: #F8FAFC; }
-      </style>
+    .table-wrapper { overflow: auto; max-height: 70vh; border: 1px solid #E2E8F0; border-radius: 8px; } .table-wrapper::-webkit-scrollbar { width: 8px; height: 8px; } .table-wrapper::-webkit-scrollbar-track { background: #F1F5F9; } .table-wrapper::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; } th { position: sticky; top: 0; z-index: 10; }
+    </style>
     </head>
     <body>
       <div class="header-container">
@@ -1166,7 +1334,8 @@ void printTaxiDriversList(List<Map<String, dynamic>> taxiDrivers) {
         </div>
         <button onclick="window.print()" style="padding: 10px 20px; background-color: #3B82F6; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-family: inherit; font-size: 13px;">Print / Save PDF</button>
       </div>
-      <table>
+      <div class="table-wrapper">
+        <table>
         <thead>
           <tr>
             <th>Driver Name</th>
@@ -1214,6 +1383,7 @@ void printTaxiDriversList(List<Map<String, dynamic>> taxiDrivers) {
   htmlBuffer.write('''
         </tbody>
       </table>
+      </div>
       <script> window.addEventListener('load', () => { setTimeout(() => { window.print(); }, 500); }); </script>
     </body>
     </html>
@@ -1245,7 +1415,8 @@ void printTruckJcbList(List<Map<String, dynamic>> truckJcbList) {
         th, td { border: 1px solid #E2E8F0; padding: 10px 12px; text-align: left; font-size: 12px; }
         th { background-color: #EFF6FF; font-weight: 600; color: #1E40AF; text-transform: uppercase; font-size: 11px; }
         tr:nth-child(even) { background-color: #F8FAFC; }
-      </style>
+    .table-wrapper { overflow: auto; max-height: 70vh; border: 1px solid #E2E8F0; border-radius: 8px; } .table-wrapper::-webkit-scrollbar { width: 8px; height: 8px; } .table-wrapper::-webkit-scrollbar-track { background: #F1F5F9; } .table-wrapper::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; } th { position: sticky; top: 0; z-index: 10; }
+    </style>
     </head>
     <body>
       <div class="header-container">
@@ -1255,7 +1426,8 @@ void printTruckJcbList(List<Map<String, dynamic>> truckJcbList) {
         </div>
         <button onclick="window.print()" style="padding: 10px 20px; background-color: #3B82F6; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-family: inherit; font-size: 13px;">Print / Save PDF</button>
       </div>
-      <table>
+      <div class="table-wrapper">
+        <table>
         <thead>
           <tr>
             <th>Name</th>
@@ -1303,6 +1475,7 @@ void printTruckJcbList(List<Map<String, dynamic>> truckJcbList) {
   htmlBuffer.write('''
         </tbody>
       </table>
+      </div>
       <script> window.addEventListener('load', () => { setTimeout(() => { window.print(); }, 500); }); </script>
     </body>
     </html>
@@ -1334,7 +1507,8 @@ void printHealthcareList(List<Map<String, dynamic>> healthcareList) {
         th, td { border: 1px solid #E2E8F0; padding: 10px 12px; text-align: left; font-size: 12px; }
         th { background-color: #EFF6FF; font-weight: 600; color: #1E40AF; text-transform: uppercase; font-size: 11px; }
         tr:nth-child(even) { background-color: #F8FAFC; }
-      </style>
+    .table-wrapper { overflow: auto; max-height: 70vh; border: 1px solid #E2E8F0; border-radius: 8px; } .table-wrapper::-webkit-scrollbar { width: 8px; height: 8px; } .table-wrapper::-webkit-scrollbar-track { background: #F1F5F9; } .table-wrapper::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; } th { position: sticky; top: 0; z-index: 10; }
+    </style>
     </head>
     <body>
       <div class="header-container">
@@ -1344,7 +1518,8 @@ void printHealthcareList(List<Map<String, dynamic>> healthcareList) {
         </div>
         <button onclick="window.print()" style="padding: 10px 20px; background-color: #3B82F6; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-family: inherit; font-size: 13px;">Print / Save PDF</button>
       </div>
-      <table>
+      <div class="table-wrapper">
+        <table>
         <thead>
           <tr>
             <th>Provider Name</th>
@@ -1389,6 +1564,7 @@ void printHealthcareList(List<Map<String, dynamic>> healthcareList) {
   htmlBuffer.write('''
         </tbody>
       </table>
+      </div>
       <script> window.addEventListener('load', () => { setTimeout(() => { window.print(); }, 500); }); </script>
     </body>
     </html>
@@ -1420,7 +1596,8 @@ void printBusinessesList(List<Map<String, dynamic>> businessesList) {
         th, td { border: 1px solid #E2E8F0; padding: 10px 12px; text-align: left; font-size: 12px; }
         th { background-color: #F5F3FF; font-weight: 600; color: #7C3AED; text-transform: uppercase; font-size: 11px; }
         tr:nth-child(even) { background-color: #F8FAFC; }
-      </style>
+    .table-wrapper { overflow: auto; max-height: 70vh; border: 1px solid #E2E8F0; border-radius: 8px; } .table-wrapper::-webkit-scrollbar { width: 8px; height: 8px; } .table-wrapper::-webkit-scrollbar-track { background: #F1F5F9; } .table-wrapper::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; } th { position: sticky; top: 0; z-index: 10; }
+    </style>
     </head>
     <body>
       <div class="header-container">
@@ -1430,7 +1607,8 @@ void printBusinessesList(List<Map<String, dynamic>> businessesList) {
         </div>
         <button onclick="window.print()" style="padding: 10px 20px; background-color: #7C3AED; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-family: inherit; font-size: 13px;">Print / Save PDF</button>
       </div>
-      <table>
+      <div class="table-wrapper">
+        <table>
         <thead>
           <tr>
             <th>Owner Name</th>
@@ -1475,6 +1653,7 @@ void printBusinessesList(List<Map<String, dynamic>> businessesList) {
   htmlBuffer.write('''
         </tbody>
       </table>
+      </div>
       <script> window.addEventListener('load', () => { setTimeout(() => { window.print(); }, 500); }); </script>
     </body>
     </html>
@@ -1489,3 +1668,4 @@ void printBusinessesList(List<Map<String, dynamic>> businessesList) {
   final url = html.Url.createObjectUrlFromBlob(blob);
   html.window.open(url, '_blank');
 }
+

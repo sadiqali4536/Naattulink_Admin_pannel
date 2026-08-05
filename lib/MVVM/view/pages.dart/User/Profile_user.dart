@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
@@ -19,6 +20,7 @@ class UserModel {
   final int points;
   final String userId;
   final String role;
+  final Timestamp? createdAt;
 
   UserModel({
     required this.no,
@@ -32,6 +34,7 @@ class UserModel {
     required this.points,
     required this.userId,
     required this.role,
+    this.createdAt,
   });
 
   factory UserModel.fromMap(Map<String, dynamic> map, String id, int index) {
@@ -101,6 +104,7 @@ class UserModel {
       points: points,
       userId: userId,
       role: role,
+      createdAt: map['createdAt'] as Timestamp?,
     );
   }
 }
@@ -259,9 +263,22 @@ class _ProfileUserState extends State<ProfileUser> {
     _allFetchedDocs.clear();
     _hasMore = true;
     _currentPage = 1;
-    await _fetchNextBatch();
-    _fetchTotalCount();
-    _fetchStats();
+    await Future.wait([_fetchNextBatch(), _fetchTotalCount(), _fetchStats()]);
+  }
+
+  Future<void> _updateSingleUserLocally(String docId) async {
+    try {
+      final updatedDoc =
+          await FirebaseFirestore.instance.collection("users").doc(docId).get();
+      final index = _allFetchedDocs.indexWhere((doc) => doc.id == docId);
+      if (index != -1) {
+        setState(() {
+          _allFetchedDocs[index] = updatedDoc;
+        });
+      }
+    } catch (e) {
+      print("Error updating user locally: $e");
+    }
   }
 
   Future<void> _fetchNextBatch() async {
@@ -452,8 +469,17 @@ class _ProfileUserState extends State<ProfileUser> {
             points: rawUser.points,
             userId: rawUser.userId,
             role: rawUser.role,
+            createdAt: rawUser.createdAt,
           );
         }).toList();
+
+    // Sort by createdAt descending so new users appear at the top
+    allUsers.sort((a, b) {
+      if (a.createdAt == null && b.createdAt == null) return 0;
+      if (a.createdAt == null) return 1;
+      if (b.createdAt == null) return -1;
+      return b.createdAt!.compareTo(a.createdAt!);
+    });
 
     // ── Step 2: Apply ALL client-side filters ────────────────────────────────
     final q = _searchQuery.trim().toLowerCase();
@@ -654,6 +680,8 @@ class _ProfileUserState extends State<ProfileUser> {
     bool obscurePassword = true;
     List<String> availableRoles = [];
     bool rolesLoading = true;
+    bool isAddingUser = false;
+    bool showRoleAndStatus = false;
 
     // Pre-fetch roles
     FirebaseFirestore.instance.collection("roles").get().then((snap) {
@@ -900,12 +928,21 @@ class _ProfileUserState extends State<ProfileUser> {
                               fontSize: 13,
                               color: const Color(0xFF1E293B),
                             ),
-                            validator:
-                                (v) =>
-                                    v == null || v.isEmpty
-                                        ? "Phone number is required"
-                                        : null,
-                            onSaved: (v) => phone = v!,
+                            keyboardType: TextInputType.phone,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                              LengthLimitingTextInputFormatter(10),
+                            ],
+                            validator: (v) {
+                              if (v == null || v.isEmpty) {
+                                return "Phone number is required";
+                              }
+                              if (v.length != 10) {
+                                return "Enter a valid 10-digit number";
+                              }
+                              return null;
+                            },
+                            onSaved: (v) => phone = '+91 $v',
                           ),
                           const SizedBox(height: 16),
 
@@ -937,105 +974,139 @@ class _ProfileUserState extends State<ProfileUser> {
                           ),
                           const SizedBox(height: 16),
 
-                          // Assign Role + Status row
+                          // Customize Role & Status checkbox
                           Row(
                             children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      "Assign Role",
-                                      style: GoogleFonts.inter(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                        color: const Color(0xFF475569),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    availableRoles.isEmpty
-                                        ? const SizedBox(
-                                          height: 48,
-                                          child: Center(
-                                            child: SizedBox(
-                                              width: 20,
-                                              height: 20,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2,
-                                                color: Color(0xFF10B981),
-                                              ),
-                                            ),
-                                          ),
-                                        )
-                                        : DropdownButtonFormField<String>(
-                                          value: selectedRole,
-                                          decoration: _inputDecoration(
-                                            "",
-                                            null,
-                                          ),
-                                          items:
-                                              availableRoles
-                                                  .map(
-                                                    (r) => DropdownMenuItem(
-                                                      value: r,
-                                                      child: Text(
-                                                        r,
-                                                        style:
-                                                            GoogleFonts.inter(
-                                                              fontSize: 13,
-                                                            ),
-                                                      ),
-                                                    ),
-                                                  )
-                                                  .toList(),
-                                          onChanged: (v) {
-                                            setDialogState(
-                                              () => selectedRole = v,
-                                            );
-                                          },
-                                          validator:
-                                              (v) =>
-                                                  v == null || v.isEmpty
-                                                      ? "Role is required"
-                                                      : null,
-                                        ),
-                                  ],
+                              SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: Checkbox(
+                                  value: showRoleAndStatus,
+                                  activeColor: const Color(0xFF10B981),
+                                  onChanged: (v) {
+                                    setDialogState(() {
+                                      showRoleAndStatus = v ?? false;
+                                    });
+                                  },
                                 ),
                               ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      "Status",
-                                      style: GoogleFonts.inter(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                        color: const Color(0xFF475569),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    DropdownButtonFormField<String>(
-                                      initialValue: status,
-                                      decoration: _inputDecoration("", null),
-                                      items:
-                                          ["Active", "Inactive"]
-                                              .map(
-                                                (st) => DropdownMenuItem(
-                                                  value: st,
-                                                  child: Text(st),
-                                                ),
-                                              )
-                                              .toList(),
-                                      onChanged: (v) => status = v!,
-                                    ),
-                                  ],
+                              const SizedBox(width: 8),
+                              Text(
+                                "Customize Role & Status",
+                                style: GoogleFonts.inter(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                  color: const Color(0xFF475569),
                                 ),
                               ),
                             ],
                           ),
                           const SizedBox(height: 16),
+
+                          if (showRoleAndStatus) ...[
+                            // Assign Role + Status row
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        "Assign Role",
+                                        style: GoogleFonts.inter(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: const Color(0xFF475569),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      availableRoles.isEmpty
+                                          ? const SizedBox(
+                                            height: 48,
+                                            child: Center(
+                                              child: SizedBox(
+                                                width: 20,
+                                                height: 20,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                      strokeWidth: 2,
+                                                      color: Color(0xFF10B981),
+                                                    ),
+                                              ),
+                                            ),
+                                          )
+                                          : DropdownButtonFormField<String>(
+                                            value: selectedRole,
+                                            decoration: _inputDecoration(
+                                              "",
+                                              null,
+                                            ),
+                                            items:
+                                                availableRoles
+                                                    .map(
+                                                      (r) => DropdownMenuItem(
+                                                        value: r,
+                                                        child: Text(
+                                                          r,
+                                                          style:
+                                                              GoogleFonts.inter(
+                                                                fontSize: 13,
+                                                              ),
+                                                        ),
+                                                      ),
+                                                    )
+                                                    .toList(),
+                                            onChanged: (v) {
+                                              setDialogState(
+                                                () => selectedRole = v,
+                                              );
+                                            },
+                                            validator:
+                                                (v) =>
+                                                    v == null || v.isEmpty
+                                                        ? "Role is required"
+                                                        : null,
+                                          ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        "Status",
+                                        style: GoogleFonts.inter(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: const Color(0xFF475569),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      DropdownButtonFormField<String>(
+                                        initialValue: status,
+                                        decoration: _inputDecoration("", null),
+                                        items:
+                                            ["Active", "Inactive"]
+                                                .map(
+                                                  (st) => DropdownMenuItem(
+                                                    value: st,
+                                                    child: Text(st),
+                                                  ),
+                                                )
+                                                .toList(),
+                                        onChanged: (v) => status = v!,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                          ],
 
                           // Initial Loyalty Points
                           Text(
@@ -1090,71 +1161,89 @@ class _ProfileUserState extends State<ProfileUser> {
                               ),
                               const SizedBox(width: 12),
                               ElevatedButton(
-                                onPressed: () async {
-                                  if (formKey.currentState!.validate()) {
-                                    formKey.currentState!.save();
-                                    Navigator.pop(dialogContext);
-                                    try {
-                                      // Create Firebase Auth account
-                                      final credential = await FirebaseAuth
-                                          .instance
-                                          .createUserWithEmailAndPassword(
-                                            email: email,
-                                            password: password,
-                                          );
-                                      final uid = credential.user!.uid;
+                                onPressed:
+                                    isAddingUser
+                                        ? null
+                                        : () async {
+                                          if (formKey.currentState!
+                                              .validate()) {
+                                            formKey.currentState!.save();
+                                            setDialogState(() {
+                                              isAddingUser = true;
+                                            });
+                                            try {
+                                              // Create Firebase Auth account
+                                              final credential = await FirebaseAuth
+                                                  .instance
+                                                  .createUserWithEmailAndPassword(
+                                                    email: email,
+                                                    password: password,
+                                                  );
+                                              final uid = credential.user!.uid;
 
-                                      // Save user profile in Firestore
-                                      await FirebaseFirestore.instance
-                                          .collection("users")
-                                          .doc(uid)
-                                          .set({
-                                            'username': username,
-                                            'name': name,
-                                            'email': email,
-                                            'phone': phone,
-                                            'address': address,
-                                            'role': selectedRole ?? 'Customer',
-                                            'status': status,
-                                            'userType': 'Admin',
-                                            'points': points,
-                                            'joinedDate': _formatDate(
-                                              DateTime.now(),
-                                            ),
-                                            'createdAt':
-                                                FieldValue.serverTimestamp(),
-                                            'userId':
-                                                '#USR12' +
-                                                DateTime.now().millisecond
-                                                    .toString()
-                                                    .padLeft(2, '0'),
-                                          });
+                                              // Save user profile in Firestore
+                                              await FirebaseFirestore.instance
+                                                  .collection("users")
+                                                  .doc(uid)
+                                                  .set({
+                                                    'username': username,
+                                                    'name': name,
+                                                    'email': email,
+                                                    'phone': phone,
+                                                    'address': address,
+                                                    'role':
+                                                        showRoleAndStatus
+                                                            ? (selectedRole ??
+                                                                'Customer')
+                                                            : 'Customer',
+                                                    'status':
+                                                        showRoleAndStatus
+                                                            ? status
+                                                            : 'Active',
+                                                    'userType': 'Admin',
+                                                    'points': points,
+                                                    'joinedDate': _formatDate(
+                                                      DateTime.now(),
+                                                    ),
+                                                    'createdAt':
+                                                        FieldValue.serverTimestamp(),
+                                                    'userId':
+                                                        '#USR12' +
+                                                        DateTime.now()
+                                                            .millisecond
+                                                            .toString()
+                                                            .padLeft(2, '0'),
+                                                  });
 
-                                      if (!mounted) return;
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        const SnackBar(
-                                          content: Text(
-                                            "User added successfully.",
-                                          ),
-                                        ),
-                                      );
-                                      _refreshData();
-                                    } catch (e) {
-                                      if (!mounted) return;
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        SnackBar(
-                                          content: Text(
-                                            "Error adding user: $e",
-                                          ),
-                                        ),
-                                      );
-                                    }
-                                  }
-                                },
+                                              if (!mounted) return;
+                                              Navigator.pop(dialogContext);
+                                              ScaffoldMessenger.of(
+                                                context,
+                                              ).showSnackBar(
+                                                const SnackBar(
+                                                  content: Text(
+                                                    "User added successfully.",
+                                                  ),
+                                                ),
+                                              );
+                                              _refreshData();
+                                            } catch (e) {
+                                              setDialogState(() {
+                                                isAddingUser = false;
+                                              });
+                                              if (!mounted) return;
+                                              ScaffoldMessenger.of(
+                                                context,
+                                              ).showSnackBar(
+                                                SnackBar(
+                                                  content: Text(
+                                                    "Error adding user: $e",
+                                                  ),
+                                                ),
+                                              );
+                                            }
+                                          }
+                                        },
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: const Color(0xFF10B981),
                                   foregroundColor: Colors.white,
@@ -1167,13 +1256,23 @@ class _ProfileUserState extends State<ProfileUser> {
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                 ),
-                                child: Text(
-                                  "Add User",
-                                  style: GoogleFonts.inter(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 13,
-                                  ),
-                                ),
+                                child:
+                                    isAddingUser
+                                        ? const SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Colors.white,
+                                          ),
+                                        )
+                                        : Text(
+                                          "Add User",
+                                          style: GoogleFonts.inter(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 13,
+                                          ),
+                                        ),
                               ),
                             ],
                           ),
@@ -1598,8 +1697,21 @@ class _ProfileUserState extends State<ProfileUser> {
   void _showBanUserDialog(UserModel user) {
     final formKey = GlobalKey<FormState>();
     String reason = "Violation of community guidelines";
-    String banType = "Permanent";
-    String banDuration = "7 Days";
+    String banType = "Permanent Ban";
+    int selectedDurationValue = 7;
+    bool isBanning = false;
+
+    final List<Map<String, dynamic>> banDurationsList = [
+      {'value': 1, 'label': '1 Day'},
+      {'value': 3, 'label': '3 Days'},
+      {'value': 7, 'label': '7 Days'},
+      {'value': 14, 'label': '14 Days'},
+      {'value': 30, 'label': '30 Days'},
+      {'value': 60, 'label': '60 Days'},
+      {'value': 90, 'label': '90 Days'},
+      {'value': 180, 'label': '6 Months'},
+      {'value': 365, 'label': '1 Year'},
+    ];
 
     showDialog(
       context: context,
@@ -1680,7 +1792,7 @@ class _ProfileUserState extends State<ProfileUser> {
                               color: const Color(0xFF1E293B),
                             ),
                             items:
-                                ["Permanent", "Temporary"]
+                                ["Permanent Ban", "Temporary Ban"]
                                     .map(
                                       (type) => DropdownMenuItem(
                                         value: type,
@@ -1694,8 +1806,9 @@ class _ProfileUserState extends State<ProfileUser> {
                               });
                             },
                           ),
-                          if (banType == "Temporary") ...[
+                          if (banType == "Temporary Ban") ...[
                             const SizedBox(height: 16),
+                            // Ban Duration
                             Text(
                               "Duration",
                               style: GoogleFonts.inter(
@@ -1705,25 +1818,25 @@ class _ProfileUserState extends State<ProfileUser> {
                               ),
                             ),
                             const SizedBox(height: 6),
-                            DropdownButtonFormField<String>(
-                              value: banDuration,
+                            DropdownButtonFormField<int>(
+                              value: selectedDurationValue,
                               decoration: _inputDecoration("", null),
                               style: GoogleFonts.inter(
                                 fontSize: 13,
                                 color: const Color(0xFF1E293B),
                               ),
                               items:
-                                  ["1 Day", "7 Days", "30 Days"]
+                                  banDurationsList
                                       .map(
-                                        (dur) => DropdownMenuItem(
-                                          value: dur,
-                                          child: Text(dur),
+                                        (item) => DropdownMenuItem<int>(
+                                          value: item['value'] as int,
+                                          child: Text(item['label'] as String),
                                         ),
                                       )
                                       .toList(),
                               onChanged: (val) {
                                 setDialogState(() {
-                                  banDuration = val!;
+                                  selectedDurationValue = val!;
                                 });
                               },
                             ),
@@ -1778,52 +1891,79 @@ class _ProfileUserState extends State<ProfileUser> {
                               ),
                               const SizedBox(width: 12),
                               ElevatedButton(
-                                onPressed: () async {
-                                  if (formKey.currentState!.validate()) {
-                                    formKey.currentState!.save();
-                                    Navigator.pop(dialogContext);
-                                    try {
-                                      await FirebaseFirestore.instance
-                                          .collection("users")
-                                          .doc(user.no)
-                                          .update({
-                                            "status": "Banned",
-                                            "banType": banType,
-                                            "banReason": reason,
-                                            "bannedOn": _formatDate(
-                                              DateTime.now(),
-                                            ),
-                                            "bannedBy": "Admin",
-                                            "banDuration":
-                                                banType == "Temporary"
-                                                    ? banDuration
-                                                    : "-",
-                                          });
-                                      if (!mounted) return;
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        SnackBar(
-                                          content: Text(
-                                            "${user.name} has been banned.",
-                                          ),
-                                        ),
-                                      );
-                                      _refreshData();
-                                    } catch (e) {
-                                      if (!mounted) return;
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        SnackBar(
-                                          content: Text(
-                                            "Error banning user: $e",
-                                          ),
-                                        ),
-                                      );
-                                    }
-                                  }
-                                },
+                                onPressed:
+                                    isBanning
+                                        ? null
+                                        : () async {
+                                          if (formKey.currentState!
+                                              .validate()) {
+                                            formKey.currentState!.save();
+
+                                            setDialogState(() {
+                                              isBanning = true;
+                                            });
+
+                                            try {
+                                              await FirebaseFirestore.instance
+                                                  .collection("users")
+                                                  .doc(user.no)
+                                                  .update({
+                                                    "status": "Banned",
+                                                    "banType":
+                                                        banType ==
+                                                                "Permanent Ban"
+                                                            ? "Permanent"
+                                                            : "Temporary",
+                                                    "banReason": reason,
+                                                    "bannedOn": _formatDate(
+                                                      DateTime.now(),
+                                                    ),
+                                                    "bannedBy": "Admin",
+                                                    "banDuration":
+                                                        banType ==
+                                                                "Permanent Ban"
+                                                            ? "-"
+                                                            : banDurationsList
+                                                                    .firstWhere(
+                                                                      (item) =>
+                                                                          item['value'] ==
+                                                                          selectedDurationValue,
+                                                                    )['label']
+                                                                as String,
+                                                  });
+                                              if (!mounted) return;
+
+                                              Navigator.pop(dialogContext);
+
+                                              ScaffoldMessenger.of(
+                                                context,
+                                              ).showSnackBar(
+                                                SnackBar(
+                                                  content: Text(
+                                                    "${user.name} has been banned.",
+                                                  ),
+                                                ),
+                                              );
+                                              _updateSingleUserLocally(user.no);
+                                            } catch (e) {
+                                              if (!mounted) return;
+
+                                              setDialogState(() {
+                                                isBanning = false;
+                                              });
+
+                                              ScaffoldMessenger.of(
+                                                context,
+                                              ).showSnackBar(
+                                                SnackBar(
+                                                  content: Text(
+                                                    "Error banning user: $e",
+                                                  ),
+                                                ),
+                                              );
+                                            }
+                                          }
+                                        },
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: const Color(0xFFEF4444),
                                   foregroundColor: Colors.white,
@@ -1836,13 +1976,23 @@ class _ProfileUserState extends State<ProfileUser> {
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                 ),
-                                child: Text(
-                                  "Ban User",
-                                  style: GoogleFonts.inter(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 13,
-                                  ),
-                                ),
+                                child:
+                                    isBanning
+                                        ? const SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Colors.white,
+                                          ),
+                                        )
+                                        : Text(
+                                          "Ban User",
+                                          style: GoogleFonts.inter(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 13,
+                                          ),
+                                        ),
                               ),
                             ],
                           ),
@@ -2452,7 +2602,7 @@ class _ProfileUserState extends State<ProfileUser> {
   }
 
   Widget _buildStatsCardsGrid(double width, [List<UserModel>? users]) {
-    int crossAxisCount = 4;
+    int crossAxisCount = 3;
     if (width < 600) {
       crossAxisCount = 1;
     } else if (width < 1100) {
@@ -2466,7 +2616,6 @@ class _ProfileUserState extends State<ProfileUser> {
 
     final int totalUsers = _statTotalUsers;
     final int activeUsers = _statActiveUsers;
-    final int suspendedUsers = _statSuspendedUsers;
     final int newUsersThisWeek = _statNewUsersThisWeek;
 
     return GridView.count(
@@ -2488,7 +2637,7 @@ class _ProfileUserState extends State<ProfileUser> {
           iconBgColor: const Color(0xFFEFF6FF),
           onTap: () {
             setState(() {
-              _selectedStatus = "Active";
+              _selectedStatus = "All Status";
             });
             _onFilterChanged();
           },
@@ -2509,17 +2658,7 @@ class _ProfileUserState extends State<ProfileUser> {
             _onFilterChanged();
           },
         ),
-        StatsCard(
-          title: "Suspended Users",
-          value: suspendedUsers.toString(),
-          trendPercentage: "",
-          trendPeriod: "Accounts suspended",
-          isPositiveTrend: false,
-          icon: Icons.block_rounded,
-          iconColor: const Color(0xFFF59E0B),
-          iconBgColor: const Color(0xFFFEF3C7),
-          onTap: null,
-        ),
+
         StatsCard(
           title: "New Users (This Week)",
           value: newUsersThisWeek.toString(),
@@ -2898,7 +3037,8 @@ class _ProfileUserState extends State<ProfileUser> {
               child: Scrollbar(
                 thumbVisibility: true,
                 controller: _tableHorizontalBodyController,
-                notificationPredicate: (notification) => notification.depth == 1,
+                notificationPredicate:
+                    (notification) => notification.depth == 1,
                 child: SingleChildScrollView(
                   controller: _tableVerticalController,
                   physics: const ClampingScrollPhysics(),
@@ -2914,8 +3054,9 @@ class _ProfileUserState extends State<ProfileUser> {
                             TableCellVerticalAlignment.middle,
                         children: [
                           ...users.map((user) {
-                            final isChecked =
-                                _selectedUserIds.contains(user.no);
+                            final isChecked = _selectedUserIds.contains(
+                              user.no,
+                            );
                             return TableRow(
                               decoration: const BoxDecoration(
                                 border: Border(
@@ -2953,8 +3094,11 @@ class _ProfileUserState extends State<ProfileUser> {
                                           width: 32,
                                           height: 32,
                                           fit: BoxFit.cover,
-                                          errorBuilder:
-                                              (context, error, stackTrace) {
+                                          errorBuilder: (
+                                            context,
+                                            error,
+                                            stackTrace,
+                                          ) {
                                             return Container(
                                               width: 32,
                                               height: 32,
@@ -3124,6 +3268,10 @@ class _ProfileUserState extends State<ProfileUser> {
                                                     .doc(user.no)
                                                     .update({
                                                       "status": "Suspended",
+                                                      "suspendedOn":
+                                                          _formatDate(
+                                                            DateTime.now(),
+                                                          ),
                                                     });
                                                 if (!mounted) return;
                                                 ScaffoldMessenger.of(
@@ -3152,6 +3300,15 @@ class _ProfileUserState extends State<ProfileUser> {
                                           );
                                         },
                                       ),
+                                    const SizedBox(width: 6),
+                                    _buildActionButton(
+                                      Icons.gavel_rounded,
+                                      Colors.red,
+                                      "Ban",
+                                      () {
+                                        _showBanUserDialog(user);
+                                      },
+                                    ),
                                     const SizedBox(width: 6),
                                     _buildActionButton(
                                       Icons.delete_outline_rounded,
@@ -3194,15 +3351,6 @@ class _ProfileUserState extends State<ProfileUser> {
                                             }
                                           },
                                         );
-                                      },
-                                    ),
-                                    const SizedBox(width: 6),
-                                    _buildActionButton(
-                                      Icons.gavel_rounded,
-                                      Colors.red,
-                                      "Ban",
-                                      () {
-                                        _showBanUserDialog(user);
                                       },
                                     ),
                                   ],

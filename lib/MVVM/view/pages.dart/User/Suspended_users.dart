@@ -4,48 +4,48 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:swiftclean_admin/MVVM/utils/printer_helper.dart';
 
-class BannedUserModel {
+class SuspendedUserModel {
   final String name;
   final String userId;
   final String email;
   final String phone;
   final String reason;
-  final String banType;
-  final String bannedOn;
-  final String bannedBy;
-  final String banDuration;
+  final String suspensionType;
+  final String suspendedOn;
+  final String suspendedBy;
+  final String suspensionDuration;
   final String status;
   final String avatarUrl;
 
-  BannedUserModel({
+  SuspendedUserModel({
     required this.name,
     required this.userId,
     required this.email,
     required this.phone,
     required this.reason,
-    required this.banType,
-    required this.bannedOn,
-    required this.bannedBy,
-    required this.banDuration,
+    required this.suspensionType,
+    required this.suspendedOn,
+    required this.suspendedBy,
+    required this.suspensionDuration,
     required this.status,
     required this.avatarUrl,
   });
 }
 
-class BannedUsersPage extends StatefulWidget {
-  const BannedUsersPage({super.key});
+class SuspendedUsersPage extends StatefulWidget {
+  const SuspendedUsersPage({super.key});
 
   @override
-  State<BannedUsersPage> createState() => _BannedUsersPageState();
+  State<SuspendedUsersPage> createState() => _SuspendedUsersPageState();
 }
 
-class _BannedUsersPageState extends State<BannedUsersPage> {
+class _SuspendedUsersPageState extends State<SuspendedUsersPage> {
   String _searchQuery = "";
-  String _selectedBanType = "All Types";
+  String _selectedsuspensionType = "All Types";
   String _selectedDuration = "All Durations";
   DateTimeRange? _selectedDateRange;
 
-  List<DocumentSnapshot> _bannedDocs = [];
+  List<DocumentSnapshot> _suspendedDocs = [];
   bool _isLoading = false;
 
   final Set<String> _selectedUserIds = {};
@@ -69,10 +69,10 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
         final docRef = FirebaseFirestore.instance.collection('users').doc(id);
         batch.update(docRef, {
           'status': 'Active',
-          'banType': FieldValue.delete(),
-          'banDuration': FieldValue.delete(),
-          'bannedOn': FieldValue.delete(),
-          'bannedBy': FieldValue.delete(),
+          'suspensionType': FieldValue.delete(),
+          'suspensionDuration': FieldValue.delete(),
+          'suspendedOn': FieldValue.delete(),
+          'suspendedBy': FieldValue.delete(),
           'banReason': FieldValue.delete(),
           'reason': FieldValue.delete(),
         });
@@ -92,7 +92,7 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
         setState(() {
           _selectedUserIds.clear();
         });
-        _fetchBannedUsers(); // Refresh
+        _fetchSuspendedUsers(); // Refresh
       }
     } catch (e) {
       if (mounted) {
@@ -184,7 +184,7 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
         setState(() {
           _selectedUserIds.clear();
         });
-        _fetchBannedUsers(); // Refresh
+        _fetchSuspendedUsers(); // Refresh
       }
     } catch (e) {
       if (mounted) {
@@ -373,65 +373,69 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
   }
 
   // Table scroll controllers for sticky header + scrollable body
-  final ScrollController _bannedTableVerticalController = ScrollController();
-  final ScrollController _bannedTableHorizontalHeaderController =
+  final ScrollController _suspendedTableVerticalController = ScrollController();
+  final ScrollController _suspendedTableHorizontalHeaderController =
       ScrollController();
-  final ScrollController _bannedTableHorizontalBodyController =
+  final ScrollController _suspendedTableHorizontalBodyController =
       ScrollController();
-  bool _isBannedSyncingScroll = false;
+  bool _isSuspendedSyncingScroll = false;
 
   @override
   void initState() {
     super.initState();
-    _fetchBannedUsers();
-    _bannedTableHorizontalHeaderController.addListener(_onBannedHeaderHScroll);
-    _bannedTableHorizontalBodyController.addListener(_onBannedBodyHScroll);
+    _fetchSuspendedUsers();
+    _suspendedTableHorizontalHeaderController.addListener(
+      _onSuspendedHeaderHScroll,
+    );
+    _suspendedTableHorizontalBodyController.addListener(
+      _onSuspendedBodyHScroll,
+    );
   }
 
   @override
   void dispose() {
-    _bannedTableVerticalController.dispose();
-    _bannedTableHorizontalHeaderController.dispose();
-    _bannedTableHorizontalBodyController.dispose();
+    _suspendedTableVerticalController.dispose();
+    _suspendedTableHorizontalHeaderController.dispose();
+    _suspendedTableHorizontalBodyController.dispose();
     super.dispose();
   }
 
-  void _onBannedHeaderHScroll() {
-    if (_isBannedSyncingScroll) return;
-    _isBannedSyncingScroll = true;
-    if (_bannedTableHorizontalBodyController.hasClients) {
-      _bannedTableHorizontalBodyController.jumpTo(
-        _bannedTableHorizontalHeaderController.offset,
+  void _onSuspendedHeaderHScroll() {
+    if (_isSuspendedSyncingScroll) return;
+    _isSuspendedSyncingScroll = true;
+    if (_suspendedTableHorizontalBodyController.hasClients) {
+      _suspendedTableHorizontalBodyController.jumpTo(
+        _suspendedTableHorizontalHeaderController.offset,
       );
     }
-    _isBannedSyncingScroll = false;
+    _isSuspendedSyncingScroll = false;
   }
 
-  void _onBannedBodyHScroll() {
-    if (_isBannedSyncingScroll) return;
-    _isBannedSyncingScroll = true;
-    if (_bannedTableHorizontalHeaderController.hasClients) {
-      _bannedTableHorizontalHeaderController.jumpTo(
-        _bannedTableHorizontalBodyController.offset,
+  void _onSuspendedBodyHScroll() {
+    if (_isSuspendedSyncingScroll) return;
+    _isSuspendedSyncingScroll = true;
+    if (_suspendedTableHorizontalHeaderController.hasClients) {
+      _suspendedTableHorizontalHeaderController.jumpTo(
+        _suspendedTableHorizontalBodyController.offset,
       );
     }
-    _isBannedSyncingScroll = false;
+    _isSuspendedSyncingScroll = false;
   }
 
-  Future<void> _fetchBannedUsers() async {
+  Future<void> _fetchSuspendedUsers() async {
     setState(() => _isLoading = true);
     try {
       final snap =
           await FirebaseFirestore.instance
               .collection("users")
-              .where("status", whereIn: ["Banned", "banned"])
+              .where("status", whereIn: ["Suspended", "Suspended"])
               .get();
       setState(() {
-        _bannedDocs = snap.docs;
+        _suspendedDocs = snap.docs;
         _isLoading = false;
       });
     } catch (e) {
-      print("Error fetching banned users: $e");
+      print("Error fetching Suspended Users: $e");
       setState(() => _isLoading = false);
     }
   }
@@ -466,7 +470,7 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
           color: Color(0xFF94A3B8),
         ),
         Text(
-          "Banned Users",
+          "Suspended Users",
           style: GoogleFonts.inter(
             fontSize: 12,
             color: const Color(0xFF0F172A),
@@ -483,8 +487,8 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
       builder: (context, constraints) {
         final double width = constraints.maxWidth;
 
-        final List<BannedUserModel> bannedUsersList =
-            _bannedDocs.asMap().entries.map((entry) {
+        final List<SuspendedUserModel> SuspendedUsersList =
+            _suspendedDocs.asMap().entries.map((entry) {
               final doc = entry.value;
               final data = doc.data() as Map<String, dynamic>? ?? {};
               final name = data['name'] ?? data['username'] ?? 'User';
@@ -494,23 +498,23 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
                   data['banReason'] ??
                   data['reason'] ??
                   'Violation of community guidelines';
-              final banType = data['banType'] ?? 'Permanent';
-              final bannedOn =
-                  data['bannedOn'] ?? data['joinedDate'] ?? 'Recently';
-              final bannedBy = data['bannedBy'] ?? 'Admin';
-              final banDuration = data['banDuration'] ?? '-';
+              final suspensionType = data['suspensionType'] ?? 'Suspended';
+              final suspendedOn =
+                  data['suspendedOn'] ?? data['joinedDate'] ?? 'Recently';
+              final suspendedBy = data['suspendedBy'] ?? 'Admin';
+              final suspensionDuration = data['suspensionDuration'] ?? '-';
 
-              return BannedUserModel(
+              return SuspendedUserModel(
                 name: name,
                 userId: doc.id,
                 email: email,
                 phone: phone,
                 reason: reason,
-                banType: banType,
-                bannedOn: bannedOn,
-                bannedBy: bannedBy,
-                banDuration: banDuration,
-                status: "Banned",
+                suspensionType: suspensionType,
+                suspendedOn: suspendedOn,
+                suspendedBy: suspendedBy,
+                suspensionDuration: suspensionDuration,
+                status: "Suspended",
                 avatarUrl:
                     "https://randomuser.me/api/portraits/men/${entry.key % 10 + 1}.jpg",
               );
@@ -518,7 +522,7 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
 
         // Apply filters
         final filteredUsers =
-            bannedUsersList.where((user) {
+            SuspendedUsersList.where((user) {
               final matchesSearch =
                   user.name.toLowerCase().contains(
                     _searchQuery.toLowerCase(),
@@ -532,19 +536,25 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
                   );
 
               final matchesType =
-                  _selectedBanType == "All Types" ||
-                  user.banType == _selectedBanType;
+                  _selectedsuspensionType == "All Types" ||
+                  user.suspensionType == _selectedsuspensionType;
               final matchesDuration =
                   _selectedDuration == "All Durations" ||
-                  user.banDuration == _selectedDuration ||
-                  user.banDuration.contains(_selectedDuration);
+                  (_selectedDuration == "1 Day" &&
+                      user.suspensionDuration.contains("1 Day")) ||
+                  (_selectedDuration == "7 Days" &&
+                      user.suspensionDuration.contains("7 Days")) ||
+                  (_selectedDuration == "30 Days" &&
+                      user.suspensionDuration.contains("30 Days"));
 
               bool matchesDate = true;
               if (_selectedDateRange != null) {
                 try {
-                  DateTime? cellDateTime = DateTime.tryParse(user.bannedOn);
+                  DateTime? cellDateTime = DateTime.tryParse(user.suspendedOn);
                   if (cellDateTime == null) {
-                    final parts = user.bannedOn.replaceAll(',', '').split(' ');
+                    final parts = user.suspendedOn
+                        .replaceAll(',', '')
+                        .split(' ');
                     if (parts.length >= 3) {
                       const months = {
                         'Jan': 1,
@@ -603,7 +613,7 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
 
               // Page Title
               Text(
-                "Banned Users Management",
+                "Suspended Users Management",
                 style: GoogleFonts.inter(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
@@ -613,14 +623,14 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
               const SizedBox(height: 24),
 
               // Stats Cards
-              _buildStatsGrid(width, bannedUsersList),
+              _buildStatsGrid(width, SuspendedUsersList),
               const SizedBox(height: 24),
 
               // Filter Controls
               _buildFilterRow(context, width, filteredUsers),
               const SizedBox(height: 24),
 
-              // Banned Users Table
+              // Suspended Users Table
               _isLoading
                   ? const Padding(
                     padding: EdgeInsets.symmetric(vertical: 60),
@@ -630,11 +640,14 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
                       ),
                     ),
                   )
-                  : _buildBannedTable(filteredUsers),
+                  : _buildsuspendedTable(filteredUsers),
               const SizedBox(height: 16),
 
               // Table Footer
-              _buildTableFooter(filteredUsers.length, bannedUsersList.length),
+              _buildTableFooter(
+                filteredUsers.length,
+                SuspendedUsersList.length,
+              ),
             ],
           ),
         );
@@ -642,8 +655,11 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
     );
   }
 
-  Widget _buildStatsGrid(double width, List<BannedUserModel> bannedUsersList) {
-    int crossAxisCount = 4;
+  Widget _buildStatsGrid(
+    double width,
+    List<SuspendedUserModel> SuspendedUsersList,
+  ) {
+    int crossAxisCount = 3;
     if (width < 600) {
       crossAxisCount = 1;
     } else if (width < 1100) {
@@ -655,11 +671,11 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
     const double itemHeight = 115;
     final double aspectRatio = itemWidth / itemHeight;
 
-    final totalBanned = bannedUsersList.length;
+    final totalSuspended = SuspendedUsersList.length;
     final permanentBans =
-        bannedUsersList.where((u) => u.banType == "Permanent").length;
+        SuspendedUsersList.where((u) => u.suspensionType == "Suspended").length;
     final temporaryBans =
-        bannedUsersList.where((u) => u.banType == "Temporary").length;
+        SuspendedUsersList.where((u) => u.suspensionType == "Temporary").length;
 
     int thisMonthBans = 0;
     try {
@@ -681,9 +697,10 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
       final currentMonthStr = monthsShort[now.month - 1];
       final currentYearStr = now.year.toString();
       thisMonthBans =
-          bannedUsersList.where((u) {
-            return u.bannedOn.contains(currentMonthStr) &&
-                u.bannedOn.contains(currentYearStr);
+          SuspendedUsersList.where((u) {
+            return (u.suspendedOn.contains(currentMonthStr) &&
+                    u.suspendedOn.contains(currentYearStr)) ||
+                u.suspendedOn == 'Recently';
           }).length;
     } catch (_) {}
 
@@ -696,9 +713,9 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
       childAspectRatio: aspectRatio > 0 ? aspectRatio : 2.0,
       children: [
         StatsCard(
-          title: "Total Banned Users",
-          value: totalBanned.toString(),
-          trendPeriod: "Users are banned from the platform",
+          title: "Total Suspended Users",
+          value: totalSuspended.toString(),
+          trendPeriod: "Users are Suspended from the platform",
           icon: Icons.person_off_rounded,
           iconColor: const Color(0xFFEF4444),
           iconBgColor: const Color(0xFFFEF2F2),
@@ -706,16 +723,15 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
         StatsCard(
           title: "This Month",
           value: thisMonthBans.toString(),
-          trendPeriod: "Users banned this month",
+          trendPeriod: "Users Suspended this month",
           icon: Icons.calendar_month_rounded,
           iconColor: const Color(0xFFF59E0B),
           iconBgColor: const Color(0xFFFEF3C7),
         ),
-
         StatsCard(
-          title: "Permanent Bans",
+          title: "Suspended",
           value: permanentBans.toString(),
-          trendPeriod: "Permanent banned users",
+          trendPeriod: "Suspended Users",
           icon: Icons.lock_outline_rounded,
           iconColor: const Color(0xFF6366F1),
           iconBgColor: const Color(0xFFEEF2FF),
@@ -727,7 +743,7 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
   Widget _buildFilterRow(
     BuildContext context,
     double width,
-    List<BannedUserModel> filteredUsers,
+    List<SuspendedUserModel> filteredUsers,
   ) {
     final bool isSmall = width < 800;
 
@@ -770,199 +786,10 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
       ),
     );
 
-    final typeDropdown = SizedBox(
-      width: isSmall ? double.infinity : 140,
-      height: 38,
-      child: DropdownButtonFormField<String>(
-        initialValue: _selectedBanType,
-        decoration: InputDecoration(
-          isDense: true,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 12,
-            vertical: 8,
-          ),
-          fillColor: Colors.white,
-          filled: true,
-          border: OutlineInputBorder(
-            borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-            borderRadius: BorderRadius.circular(8),
-          ),
-        ),
-        style: GoogleFonts.inter(color: const Color(0xFF1E293B), fontSize: 12),
-        items:
-            ["All Types", "Permanent", "Temporary"]
-                .map((type) => DropdownMenuItem(value: type, child: Text(type)))
-                .toList(),
-        onChanged:
-            (val) => setState(() {
-              _selectedBanType = val!;
-            }),
-      ),
-    );
-
-    final durationDropdown = SizedBox(
-      width: isSmall ? double.infinity : 190,
-      height: 38,
-      child: DropdownButtonFormField<String>(
-        isExpanded: true,
-        initialValue: _selectedDuration,
-        decoration: InputDecoration(
-          isDense: true,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 12,
-            vertical: 8,
-          ),
-          fillColor: Colors.white,
-          filled: true,
-          border: OutlineInputBorder(
-            borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-            borderRadius: BorderRadius.circular(8),
-          ),
-        ),
-        style: GoogleFonts.inter(color: const Color(0xFF1E293B), fontSize: 12),
-        items:
-            [
-                  "All Durations",
-                  "1 Day",
-                  "3 Days",
-                  "7 Days",
-                  "14 Days",
-                  "30 Days",
-                  "60 Days",
-                  "90 Days",
-                  "6 Months (180 Days)",
-                  "1 Year (365 Days)",
-                ]
-                .map(
-                  (duration) =>
-                      DropdownMenuItem(value: duration, child: Text(duration)),
-                )
-                .toList(),
-        onChanged:
-            (val) => setState(() {
-              _selectedDuration = val!;
-            }),
-      ),
-    );
-
-    final dateRangeButton = InkWell(
-      onTap: () async {
-        final DateTimeRange? picked = await showGeneralDialog<DateTimeRange>(
-          context: context,
-          barrierDismissible: true,
-          barrierLabel: "Dismiss",
-          barrierColor: Colors.black.withValues(alpha: 0.4),
-          transitionDuration: const Duration(milliseconds: 220),
-          pageBuilder: (context, anim1, anim2) {
-            return PremiumDateRangePickerDialog(
-              initialDateRange: _selectedDateRange,
-            );
-          },
-          transitionBuilder: (context, anim1, anim2, child) {
-            return FadeTransition(
-              opacity: anim1,
-              child: ScaleTransition(
-                scale: Tween<double>(begin: 0.95, end: 1.0).animate(
-                  CurvedAnimation(parent: anim1, curve: Curves.easeOutCubic),
-                ),
-                child: child,
-              ),
-            );
-          },
-        );
-        if (picked != null) {
-          setState(() {
-            _selectedDateRange = picked;
-          });
-        }
-      },
-      borderRadius: BorderRadius.circular(18),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
-        height: 38,
-        width: isSmall ? double.infinity : 200,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color:
-                _selectedDateRange != null
-                    ? const Color(0xFF10B981)
-                    : const Color(0xFFE2E8F0),
-            width: 1,
-          ),
-          gradient:
-              _selectedDateRange != null
-                  ? const LinearGradient(
-                    colors: [Color(0xFFECFDF5), Color(0xFFF0FDF4)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  )
-                  : null,
-        ),
-        child: Row(
-          children: [
-            Icon(
-              _selectedDateRange != null
-                  ? Icons.calendar_month_rounded
-                  : Icons.calendar_today_outlined,
-              color:
-                  _selectedDateRange != null
-                      ? const Color(0xFF10B981)
-                      : const Color(0xFF64748B),
-              size: 14,
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                _selectedDateRange == null
-                    ? "Select Date Range"
-                    : "${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][_selectedDateRange!.start.month - 1]} ${_selectedDateRange!.start.day.toString().padLeft(2, '0')} • ${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][_selectedDateRange!.end.month - 1]} ${_selectedDateRange!.end.day.toString().padLeft(2, '0')}",
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  fontWeight:
-                      _selectedDateRange == null
-                          ? FontWeight.normal
-                          : FontWeight.w600,
-                  color:
-                      _selectedDateRange == null
-                          ? const Color(0xFF475569)
-                          : const Color(0xFF1E293B),
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 200),
-              child: Icon(
-                _selectedDateRange != null
-                    ? Icons.check_circle_rounded
-                    : Icons.arrow_drop_down_rounded,
-                key: ValueKey(_selectedDateRange != null),
-                color:
-                    _selectedDateRange != null
-                        ? const Color(0xFF10B981)
-                        : const Color(0xFF64748B),
-                size: 16,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-
     final exportButton = ElevatedButton.icon(
       onPressed: () {
-        // TODO: Implement export functionality
+        // ignore: argument_type_not_assignable
+        printSuspendedUsersList(filteredUsers);
       },
       icon: const Icon(Icons.download_rounded, size: 14),
       label: Text(
@@ -984,34 +811,12 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           searchField,
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(child: typeDropdown),
-              const SizedBox(width: 12),
-              Expanded(child: durationDropdown),
-            ],
-          ),
-          const SizedBox(height: 12),
-          dateRangeButton,
           const SizedBox(height: 16),
           Align(alignment: Alignment.centerRight, child: exportButton),
         ],
       );
     } else {
-      return Row(
-        children: [
-          searchField,
-          const SizedBox(width: 12),
-          typeDropdown,
-          const SizedBox(width: 12),
-          durationDropdown,
-          const SizedBox(width: 12),
-          dateRangeButton,
-          const Spacer(),
-          exportButton,
-        ],
-      );
+      return Row(children: [searchField, const Spacer(), exportButton]);
     }
   }
 
@@ -1033,18 +838,16 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
     return "${months[date.month - 1]} ${date.day}, ${date.year}";
   }
 
-  Widget _buildBannedTable(List<BannedUserModel> users) {
+  Widget _buildsuspendedTable(List<SuspendedUserModel> users) {
     const columnWidths = <int, TableColumnWidth>{
       0: FlexColumnWidth(0.5), // Checkbox
       1: FlexColumnWidth(2.6), // User Profile
       2: FlexColumnWidth(2.6), // Email / Phone
       3: FlexColumnWidth(2.3), // Reason
-      4: FlexColumnWidth(1.2), // Ban Type Badge
-      5: FlexColumnWidth(1.5), // Banned On
-      6: FlexColumnWidth(1.4), // Banned By
-      7: FlexColumnWidth(1.4), // Ban Duration
-      8: FlexColumnWidth(1.4), // Status
-      9: FlexColumnWidth(1.6), // Actions
+      4: FlexColumnWidth(1.5), // Suspended On
+      5: FlexColumnWidth(1.4), // Suspended By
+      6: FlexColumnWidth(1.4), // Status
+      7: FlexColumnWidth(1.6), // Actions
     };
     const double tableWidth = 1450;
 
@@ -1057,10 +860,10 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // ── STICKY HEADER ──
+          // â”€â”€ STICKY HEADER â”€â”€
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
-            controller: _bannedTableHorizontalHeaderController,
+            controller: _suspendedTableHorizontalHeaderController,
             physics: const ClampingScrollPhysics(),
             child: SizedBox(
               width: tableWidth,
@@ -1093,7 +896,7 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
                               }
                             });
                           },
-                          activeColor: const Color(0xFFEF4444),
+                          activeColor: const Color(0xFFD97706),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(4),
                           ),
@@ -1102,10 +905,8 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
                       _buildHeaderCell("User"),
                       _buildHeaderCell("Email / Phone"),
                       _buildHeaderCell("Reason"),
-                      _buildHeaderCell("Ban Type"),
-                      _buildHeaderCell("Banned On"),
-                      _buildHeaderCell("Banned By"),
-                      _buildHeaderCell("Ban Duration"),
+                      _buildHeaderCell("Suspended On"),
+                      _buildHeaderCell("Suspended By"),
                       _buildHeaderCell("Status"),
                       _buildHeaderCell("Actions"),
                     ],
@@ -1115,23 +916,23 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
             ),
           ),
 
-          // ── SCROLLABLE BODY ──
+          // â”€â”€ SCROLLABLE BODY â”€â”€
           ConstrainedBox(
             constraints: const BoxConstraints(maxHeight: 500),
             child: Scrollbar(
               thumbVisibility: true,
-              controller: _bannedTableVerticalController,
+              controller: _suspendedTableVerticalController,
               child: Scrollbar(
                 thumbVisibility: true,
-                controller: _bannedTableHorizontalBodyController,
+                controller: _suspendedTableHorizontalBodyController,
                 notificationPredicate:
                     (notification) => notification.depth == 1,
                 child: SingleChildScrollView(
-                  controller: _bannedTableVerticalController,
+                  controller: _suspendedTableVerticalController,
                   physics: const ClampingScrollPhysics(),
                   child: SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
-                    controller: _bannedTableHorizontalBodyController,
+                    controller: _suspendedTableHorizontalBodyController,
                     physics: const ClampingScrollPhysics(),
                     child: SizedBox(
                       width: tableWidth,
@@ -1169,7 +970,7 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
                                         }
                                       });
                                     },
-                                    activeColor: const Color(0xFFEF4444),
+                                    activeColor: const Color(0xFFD97706),
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(4),
                                     ),
@@ -1282,48 +1083,32 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
-                                // Ban Type Badge
-                                _buildBanTypeBadge(user.banType),
-                                // Banned On
+                                // Suspended On
                                 Padding(
                                   padding: const EdgeInsets.symmetric(
                                     vertical: 10.0,
                                     horizontal: 16.0,
                                   ),
                                   child: Text(
-                                    user.bannedOn,
+                                    user.suspendedOn,
                                     style: GoogleFonts.inter(
                                       fontSize: 12,
                                       color: const Color(0xFF475569),
                                     ),
                                   ),
                                 ),
-                                // Banned By
+                                // Suspended By
                                 Padding(
                                   padding: const EdgeInsets.symmetric(
                                     vertical: 10.0,
                                     horizontal: 16.0,
                                   ),
                                   child: Text(
-                                    user.bannedBy,
+                                    user.suspendedBy,
                                     style: GoogleFonts.inter(
                                       fontSize: 12,
                                       fontWeight: FontWeight.w500,
                                       color: const Color(0xFF1E293B),
-                                    ),
-                                  ),
-                                ),
-                                // Ban Duration
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 10.0,
-                                    horizontal: 16.0,
-                                  ),
-                                  child: Text(
-                                    user.banDuration,
-                                    style: GoogleFonts.inter(
-                                      fontSize: 13,
-                                      color: const Color(0xFF475569),
                                     ),
                                   ),
                                 ),
@@ -1336,7 +1121,7 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
                                       Icons.visibility_outlined,
                                       Colors.blue,
                                       () {
-                                        _showBannedUserDetailsDialog(
+                                        _showSuspendedUserDetailsDialog(
                                           context,
                                           user,
                                         );
@@ -1390,15 +1175,15 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
     );
   }
 
-  Widget _buildBanTypeBadge(String type) {
-    final bool isPermanent = type == "Permanent";
+  Widget _buildsuspensionTypeBadge(String type) {
+    final bool isPermanent = type == "Suspended";
     return Align(
       alignment: Alignment.centerLeft,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
           color:
-              isPermanent ? const Color(0xFFFEF2F2) : const Color(0xFFFFFBEB),
+              isPermanent ? const Color(0xFFFFFBEB) : const Color(0xFFFFFBEB),
           borderRadius: BorderRadius.circular(6),
         ),
         child: Text(
@@ -1407,7 +1192,7 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
             fontSize: 11,
             fontWeight: FontWeight.bold,
             color:
-                isPermanent ? const Color(0xFFEF4444) : const Color(0xFFD97706),
+                isPermanent ? const Color(0xFFD97706) : const Color(0xFFD97706),
           ),
         ),
       ),
@@ -1420,7 +1205,7 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
-          color: const Color(0xFFFEF2F2),
+          color: const Color(0xFFFFFBEB),
           borderRadius: BorderRadius.circular(6),
         ),
         child: Text(
@@ -1428,7 +1213,7 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
           style: GoogleFonts.inter(
             fontSize: 11,
             fontWeight: FontWeight.bold,
-            color: const Color(0xFFEF4444),
+            color: const Color(0xFFD97706),
           ),
         ),
       ),
@@ -1450,11 +1235,11 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
     );
   }
 
-  Widget _buildTableFooter(int totalFiltered, int totalBanned) {
+  Widget _buildTableFooter(int totalFiltered, int totalSuspended) {
     return Row(
       children: [
         Text(
-          "Showing 1 to $totalFiltered of $totalBanned banned users",
+          "Showing 1 to $totalFiltered of $totalSuspended Suspended Users",
           style: GoogleFonts.inter(
             fontSize: 12,
             color: const Color(0xFF64748B),
@@ -1541,7 +1326,7 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
     );
   }
 
-  void _showUnbanConfirmation(BuildContext context, BannedUserModel user) {
+  void _showUnbanConfirmation(BuildContext context, SuspendedUserModel user) {
     showDialog(
       context: context,
       builder:
@@ -1575,11 +1360,11 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text(
-                          "User '${user.name}' has been restored and unbanned.",
+                          "User '${user.name}' has been restored and unSuspended.",
                         ),
                       ),
                     );
-                    _fetchBannedUsers();
+                    _fetchSuspendedUsers();
                   } catch (e) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text("Error restoring user: $e")),
@@ -1597,7 +1382,7 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
     );
   }
 
-  void _showDeleteConfirmation(BuildContext context, BannedUserModel user) {
+  void _showDeleteConfirmation(BuildContext context, SuspendedUserModel user) {
     showDialog(
       context: context,
       builder:
@@ -1635,7 +1420,7 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
                         ),
                       ),
                     );
-                    _fetchBannedUsers();
+                    _fetchSuspendedUsers();
                   } catch (e) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text("Error deleting user: $e")),
@@ -1653,9 +1438,9 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
     );
   }
 
-  void _showBannedUserDetailsDialog(
+  void _showSuspendedUserDetailsDialog(
     BuildContext context,
-    BannedUserModel user,
+    SuspendedUserModel user,
   ) {
     showDialog(
       context: context,
@@ -1690,7 +1475,7 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
                       vertical: 20,
                     ),
                     decoration: const BoxDecoration(
-                      color: Color(0xFFEF4444),
+                      color: Color(0xFFD97706),
                       borderRadius: BorderRadius.vertical(
                         top: Radius.circular(20),
                       ),
@@ -1705,7 +1490,7 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
-                            "Banned User Details",
+                            "Suspended User Details",
                             style: GoogleFonts.inter(
                               color: Colors.white,
                               fontSize: 18,
@@ -1735,7 +1520,7 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
                           children: [
                             CircleAvatar(
                               radius: 30,
-                              backgroundColor: const Color(0xFFFEE2E2),
+                              backgroundColor: const Color(0xFFFFFBEB),
                               backgroundImage: NetworkImage(user.avatarUrl),
                               onBackgroundImageError: (_, __) {},
                               child:
@@ -1743,7 +1528,7 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
                                       ? const Icon(
                                         Icons.person,
                                         size: 30,
-                                        color: Color(0xFFEF4444),
+                                        color: Color(0xFFD97706),
                                       )
                                       : null,
                             ),
@@ -1777,13 +1562,13 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
                                 vertical: 6,
                               ),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFFEE2E2),
+                                color: const Color(0xFFFFFBEB),
                                 borderRadius: BorderRadius.circular(20),
                               ),
                               child: Text(
-                                "Banned",
+                                "Suspended",
                                 style: GoogleFonts.inter(
-                                  color: const Color(0xFFEF4444),
+                                  color: const Color(0xFFD97706),
                                   fontSize: 12,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -1809,22 +1594,22 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
                         const SizedBox(height: 16),
                         _buildDetailRow(
                           "Ban Type",
-                          user.banType,
+                          user.suspensionType,
                           Icons.lock_outline_rounded,
                         ),
                         _buildDetailRow(
                           "Ban Duration",
-                          user.banDuration,
+                          user.suspensionDuration,
                           Icons.timer_outlined,
                         ),
                         _buildDetailRow(
-                          "Banned On",
-                          user.bannedOn,
+                          "Suspended On",
+                          user.suspendedOn,
                           Icons.calendar_today_rounded,
                         ),
                         _buildDetailRow(
-                          "Banned By",
-                          user.bannedBy,
+                          "Suspended By",
+                          user.suspendedBy,
                           Icons.admin_panel_settings_outlined,
                         ),
                         const SizedBox(height: 12),
@@ -2101,7 +1886,7 @@ class _PremiumDateRangePickerDialogState
       "Nov",
       "Dec",
     ];
-    return "${months[range.start.month - 1]} ${range.start.day} – ${months[range.end.month - 1]} ${range.end.day}";
+    return "${months[range.start.month - 1]} ${range.start.day} â€“ ${months[range.end.month - 1]} ${range.end.day}";
   }
 
   int _daysInMonth(DateTime date) {
@@ -2163,7 +1948,7 @@ class _PremiumDateRangePickerDialogState
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // ── Header (Gradient) ──────────────────────────────────────────
+            // â”€â”€ Header (Gradient) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             Container(
               height: 90,
               decoration: const BoxDecoration(
@@ -2221,13 +2006,13 @@ class _PremiumDateRangePickerDialogState
               ),
             ),
 
-            // ── Body ───────────────────────────────────────────────────────
+            // â”€â”€ Body â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             Padding(
               padding: const EdgeInsets.all(20.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // ── Selected Range Summary or Empty State ────────────────────
+                  // â”€â”€ Selected Range Summary or Empty State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                   AnimatedSwitcher(
                     duration: const Duration(milliseconds: 200),
                     child:
@@ -2377,7 +2162,7 @@ class _PremiumDateRangePickerDialogState
                   ),
                   const SizedBox(height: 20),
 
-                  // ── Month Selector Row ───────────────────────────────────────
+                  // â”€â”€ Month Selector Row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -2422,7 +2207,7 @@ class _PremiumDateRangePickerDialogState
                   ),
                   const SizedBox(height: 14),
 
-                  // ── Calendar Month Card ──────────────────────────────────────
+                  // â”€â”€ Calendar Month Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                   Container(
                     decoration: BoxDecoration(
                       color: Colors.white,
@@ -2487,7 +2272,7 @@ class _PremiumDateRangePickerDialogState
                   ),
                   const SizedBox(height: 24),
 
-                  // ── Action Buttons ───────────────────────────────────────────
+                  // â”€â”€ Action Buttons â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                   Row(
                     children: [
                       if (_startDate != null || _endDate != null)

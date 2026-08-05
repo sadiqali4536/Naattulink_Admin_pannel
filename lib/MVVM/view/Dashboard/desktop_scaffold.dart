@@ -24,6 +24,7 @@ import 'package:swiftclean_admin/MVVM/view/pages.dart/User/Profile_user.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/AdminProfile/admin_profile.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/User/User_roles.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/User/Banned_users.dart';
+import 'package:swiftclean_admin/MVVM/view/pages.dart/User/Suspended_users.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/User/Grant_access.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/worker/All_workers.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/worker/Verification_Worker.dart';
@@ -195,6 +196,12 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
           module: Modules.userManagement,
           action: Perms.view,
           child: const BannedUsersPage(),
+        );
+      case "Suspended Users":
+        return PermissionGuard(
+          module: Modules.userManagement,
+          action: Perms.view,
+          child: const SuspendedUsersPage(),
         );
       case "Grant Access":
         return PermissionGuard(
@@ -405,6 +412,7 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
                                   selectedTile == "User Profile" ||
                                   selectedTile == "User Roles" ||
                                   selectedTile == "Banned Users" ||
+                                  selectedTile == "Suspended Users" ||
                                   selectedTile == "Grant Access",
                               onTap:
                                   () => setState(
@@ -439,6 +447,16 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
                                     onTap:
                                         () => setState(
                                           () => selectedTile = "Banned Users",
+                                        ),
+                                  ),
+                                if (_can(Modules.userManagement, Perms.view))
+                                  SidebarTile(
+                                    title: "Suspended Users",
+                                    icon: Icons.pause_circle_outline,
+                                    isSelected: selectedTile == "Suspended Users",
+                                    onTap:
+                                        () => setState(
+                                          () => selectedTile = "Suspended Users",
                                         ),
                                   ),
                                 if (_can(Modules.grantAccess, Perms.view))
