@@ -1,10 +1,11 @@
 import 'dart:typed_data';
-import '../../../core/imagekit/imagekit_account2.dart';
 import '../../../core/imagekit/imagekit_models.dart';
+import '../../../services/imagekit_service.dart';
+import '../../../core/imagekit/image_storage_type.dart';
 
-/// Service for handling Service Image uploads using ImageKit Account 2.
+/// Service for handling Service Image uploads using centralized ImageKitService.
 class ServiceImageService {
-  final _service = ImageKitAccount2().service;
+  final _service = ImageKitService();
   
   static const String _folder = 'services/service_images/';
   static const String _categoryFolder = 'services/categories/';
@@ -15,10 +16,10 @@ class ServiceImageService {
     required String fileName,
     void Function(double progress)? onProgress,
   }) async {
-    final safeName = _service.generateFileName(fileName, 'service');
     return await _service.uploadImage(
+      storageType: ImageStorageType.services,
       imageBytes: imageBytes,
-      fileName: safeName,
+      fileName: fileName,
       folder: _folder,
       onProgress: onProgress,
     );
@@ -30,10 +31,10 @@ class ServiceImageService {
     required String fileName,
     void Function(double progress)? onProgress,
   }) async {
-    final safeName = _service.generateFileName(fileName, 'category');
     return await _service.uploadImage(
+      storageType: ImageStorageType.services,
       imageBytes: imageBytes,
-      fileName: safeName,
+      fileName: fileName,
       folder: _categoryFolder,
       onProgress: onProgress,
     );
@@ -41,11 +42,18 @@ class ServiceImageService {
 
   /// Deletes a service image from ImageKit using its fileId.
   Future<void> deleteServiceImage(String fileId) async {
-    await _service.deleteImage(fileId);
+    await _service.deleteImage(
+      storageType: ImageStorageType.services,
+      imageFileId: fileId,
+    );
   }
 
   /// Deletes a category image from ImageKit using its fileId.
   Future<void> deleteCategoryImage(String fileId) async {
-    await _service.deleteImage(fileId);
+    await _service.deleteImage(
+      storageType: ImageStorageType.services,
+      imageFileId: fileId,
+    );
   }
 }
+

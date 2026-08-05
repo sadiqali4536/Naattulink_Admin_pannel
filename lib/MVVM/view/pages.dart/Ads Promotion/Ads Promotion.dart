@@ -64,7 +64,9 @@ class AdBanner {
   final String description;
   final String category;
   final String imageUrl;
+  final String imagePath;
   final String imageFileId;
+  final String storageType;
   final String buttonText;
   final String bannerAction;
   final String actionValue;
@@ -101,7 +103,9 @@ class AdBanner {
     required this.description,
     required this.category,
     required this.imageUrl,
+    this.imagePath = '',
     required this.imageFileId,
+    this.storageType = 'banners',
     required this.buttonText,
     required this.bannerAction,
     required this.actionValue,
@@ -141,7 +145,9 @@ class AdBanner {
       description: data['description'] ?? '',
       category: data['category'] ?? '',
       imageUrl: data['imageUrl'] ?? '',
+      imagePath: data['imagePath'] ?? '',
       imageFileId: data['imageFileId'] ?? '',
+      storageType: data['storageType'] ?? 'banners',
       buttonText: data['buttonText'] ?? '',
       bannerAction: data['bannerAction'] ?? data['buttonAction'] ?? '',
       actionValue: data['actionValue'] ?? '',
@@ -184,7 +190,9 @@ class AdBanner {
       'description': description,
       'category': category,
       'imageUrl': imageUrl,
+      'imagePath': imagePath,
       'imageFileId': imageFileId,
+      'storageType': storageType,
       'buttonText': buttonText,
       'bannerAction': bannerAction,
       'buttonAction':
@@ -1735,69 +1743,103 @@ class _AdspromotionState extends State<Adspromotion> {
   }
 
   void _confirmDeleteBanner(AdBanner banner) {
+    bool isDeleting = false;
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder:
-          (dialogContext) => AlertDialog(
-            backgroundColor: Colors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            title: Text(
-              "Delete Advertisement",
-              style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold),
-            ),
-            content: Text(
-              "Are you sure you want to permanently delete '${banner.title}'? This action cannot be undone.",
-              style: GoogleFonts.plusJakartaSans(fontSize: 14),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext),
-                child: Text(
-                  "Cancel",
-                  style: GoogleFonts.plusJakartaSans(color: textGrey),
+          (dialogContext) => StatefulBuilder(
+            builder: (context, setState) {
+              return AlertDialog(
+                backgroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
                 ),
-              ),
-              ElevatedButton(
-                onPressed: () async {
-                  Navigator.pop(dialogContext);
-                  try {
-                    await _firestore
-                        .collection('advertisements')
-                        .doc(banner.id)
-                        .delete();
-                    // Note: ImageKit images are managed separately.
-                    // To delete from ImageKit, use the ImageKit Media Management API.
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("Advertisement deleted successfully!"),
-                          backgroundColor: Colors.green,
-                        ),
-                      );
-                    }
-                  } catch (e) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text("Error deleting: $e"),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                    }
-                  }
-                },
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                child: Text(
-                  "Delete",
+                title: Text(
+                  "Delete Advertisement",
                   style: GoogleFonts.plusJakartaSans(
-                    color: Colors.white,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-              ),
-            ],
+                content: Text(
+                  "Are you sure you want to permanently delete '${banner.title}'? This action cannot be undone.",
+                  style: GoogleFonts.plusJakartaSans(fontSize: 14),
+                ),
+                actions:
+                    isDeleting
+                        ? [
+                          const Padding(
+                            padding: EdgeInsets.all(8.0),
+                            child: CircularProgressIndicator(color: Colors.red),
+                          ),
+                        ]
+                        : [
+                          TextButton(
+                            onPressed: () => Navigator.pop(dialogContext),
+                            child: Text(
+                              "Cancel",
+                              style: GoogleFonts.plusJakartaSans(
+                                color: textGrey,
+                              ),
+                            ),
+                          ),
+                          ElevatedButton(
+                            onPressed: () async {
+                              setState(() {
+                                isDeleting = true;
+                              });
+                              try {
+                                // 1. Delete image from ImageKit first
+                                if (banner.imageFileId.isNotEmpty) {
+                                  final service = AdvertisementImageService();
+                                  await service.deleteBanner(
+                                    banner.imageFileId,
+                                  );
+                                }
+
+                                // 2. Delete Firestore Document
+                                await _firestore
+                                    .collection('advertisements')
+                                    .doc(banner.id)
+                                    .delete();
+
+                                if (mounted) {
+                                  Navigator.pop(dialogContext); // Close dialog
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        "Advertisement deleted successfully!",
+                                      ),
+                                      backgroundColor: Colors.green,
+                                    ),
+                                  );
+                                }
+                              } catch (e) {
+                                if (mounted) {
+                                  Navigator.pop(dialogContext); // Close dialog
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text("Error deleting: $e"),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                }
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red,
+                            ),
+                            child: Text(
+                              "Delete",
+                              style: GoogleFonts.plusJakartaSans(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+              );
+            },
           ),
     );
   }
@@ -1958,7 +2000,7 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
 
   bool _isActive = true;
   bool _isFeatured = false;
-  bool _showInForYou = true;
+  bool _showInForYou = false;
   double _priority = 50.0;
   bool _isOptimizingImage = false;
 
@@ -2536,7 +2578,7 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
           },
         );
         finalImageUrl = result.imageUrl;
-        finalImageFileId = result.fileId;
+        finalImageFileId = result.imageFileId;
         debugPrint('DEBUG: ImageKit upload successful. URL: $finalImageUrl');
       }
 
@@ -2555,7 +2597,7 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
           },
         );
         finalProductImageUrl = result.imageUrl;
-        finalProductImageFileId = result.fileId;
+        finalProductImageFileId = result.imageFileId;
         debugPrint(
           'DEBUG: Local product ImageKit upload successful. URL: $finalProductImageUrl',
         );
@@ -2611,8 +2653,9 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
         'description': _descController.text.trim(),
         'category': _selectedCategory,
         'imageUrl': finalImageUrl,
+        'imagePath': finalImageFileId,
         'imageFileId': finalImageFileId,
-        'storage': 'advertisement',
+        'storageType': 'banners',
         'buttonText': resolvedButtonText,
         'bannerAction': _noBannerAction ? 'None' : _selectedBannerAction,
         'buttonAction':
@@ -5018,7 +5061,7 @@ class _AdsContactDialogState extends State<AdsContactDialog> {
             _bannerImageBytes = optimizedBytes;
             _bannerImageName = file.name;
             _bannerImageUrl = uploadResult.imageUrl;
-            _bannerImagePath = uploadResult.fileId;
+            _bannerImagePath = uploadResult.imageFileId;
             _isUploadingBanner = false;
           });
         }

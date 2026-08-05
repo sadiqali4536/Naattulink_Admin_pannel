@@ -54,6 +54,7 @@ dependencies:
   intl_phone_field: ^3.2.0
   country_code_picker: ^3.4.1
   country_picker: ^2.0.28
+  cloud_functions: ^5.6.2
 
 dev_dependencies:
   flutter_test:

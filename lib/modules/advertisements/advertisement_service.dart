@@ -1,10 +1,11 @@
 import 'dart:typed_data';
-import '../../../core/imagekit/imagekit_account1.dart';
 import '../../../core/imagekit/imagekit_models.dart';
+import '../../../services/imagekit_service.dart';
+import '../../../core/imagekit/image_storage_type.dart';
 
-/// Service for handling Advertisement Image uploads using ImageKit Account 1.
+/// Service for handling Advertisement Image uploads using centralized ImageKitService.
 class AdvertisementImageService {
-  final _service = ImageKitAccount1().service;
+  final _service = ImageKitService();
   
   static const String _folder = 'advertisements/banners/';
   static const String _localProductsFolder = 'advertisements/local_products/';
@@ -15,10 +16,10 @@ class AdvertisementImageService {
     required String fileName,
     void Function(double progress)? onProgress,
   }) async {
-    final safeName = _service.generateFileName(fileName, 'banner');
     return await _service.uploadImage(
+      storageType: ImageStorageType.banners,
       imageBytes: imageBytes,
-      fileName: safeName,
+      fileName: fileName,
       folder: _folder,
       onProgress: onProgress,
     );
@@ -30,17 +31,21 @@ class AdvertisementImageService {
     required String fileName,
     void Function(double progress)? onProgress,
   }) async {
-    final safeName = _service.generateFileName(fileName, 'prod');
     return await _service.uploadImage(
+      storageType: ImageStorageType.banners,
       imageBytes: imageBytes,
-      fileName: safeName,
+      fileName: fileName,
       folder: _localProductsFolder,
       onProgress: onProgress,
     );
   }
 
   /// Deletes a banner image from ImageKit using its fileId.
-  Future<void> deleteBanner(String fileId) async {
-    await _service.deleteImage(fileId);
+  Future<void> deleteBanner(String imageFileId) async {
+    await _service.deleteImage(
+      storageType: ImageStorageType.banners, 
+      imageFileId: imageFileId,
+    );
   }
 }
+

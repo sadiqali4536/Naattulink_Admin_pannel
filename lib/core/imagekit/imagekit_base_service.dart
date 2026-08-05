@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'imagekit_models.dart';
 import 'imagekit_exceptions.dart';
@@ -89,7 +90,7 @@ class ImageKitBaseService {
         final Map<String, dynamic> data = json.decode(responseBody);
         final result = ImageKitUploadResult.fromJson(data);
         
-        if (result.imageUrl.isNotEmpty && result.fileId.isNotEmpty) {
+        if (result.imageUrl.isNotEmpty && result.imageFileId.isNotEmpty) {
           return result;
         }
         throw ImageKitUploadException(
@@ -111,21 +112,34 @@ class ImageKitBaseService {
     }
   }
 
-  /// Deletes an image from ImageKit using its [fileId].
+  /// Deletes an image from ImageKit using its [imageFileId].
   ///
   /// Throws [ImageKitDeleteException] on failure.
-  Future<void> deleteImage(String fileId) async {
-    if (fileId.isEmpty) {
+  Future<void> deleteImage(String imageFileId) async {
+    if (imageFileId.isEmpty) {
       throw const ImageKitDeleteException('File ID cannot be empty');
     }
 
     final authHeader = _getAuthHeader();
-    final uri = Uri.parse('$_apiUrl/$fileId');
+    
+    // Workaround for ImageKit CORS issues on Flutter Web when Firebase Functions are unavailable.
+    // ImageKit explicitly blocks the DELETE method from browsers.
+    // This uses an open proxy to route the request and bypass the browser's preflight.
+    String targetUrl = '$_apiUrl/$imageFileId';
+    if (kIsWeb) {
+      targetUrl = 'https://corsproxy.io/?${Uri.encodeComponent(targetUrl)}';
+    }
+    
+    final uri = Uri.parse(targetUrl);
 
     try {
       final response = await http.delete(
         uri,
-        headers: {'Authorization': authHeader},
+        headers: {
+          'Authorization': authHeader,
+          // Match official ImageKit API documentation headers
+          'Accept': 'application/json',
+        },
       );
 
       if (response.statusCode != 204) {

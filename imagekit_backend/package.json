@@ -1,0 +1,10 @@
+{
+  "name": "imagekit-backend",
+  "version": "1.0.0",
+  "description": "ImageKit Vercel Serverless Function",
+  "main": "api/deleteImage.js",
+  "dependencies": {
+    "imagekit": "^4.1.3",
+    "cors": "^2.8.5"
+  }
+}

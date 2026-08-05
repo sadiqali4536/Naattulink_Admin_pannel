@@ -596,7 +596,7 @@ class _ServicesState extends State<Services> {
                                             final String uploadedImageUrl =
                                                 result.imageUrl;
                                             final String uploadedImageFileId =
-                                                result.fileId;
+                                                result.imageFileId;
 
                                             final double original =
                                                 double.tryParse(
