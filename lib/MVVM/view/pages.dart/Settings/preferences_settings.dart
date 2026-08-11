@@ -24,14 +24,25 @@ class _PreferencesSettingsPageState extends State<PreferencesSettingsPage> {
       TextEditingController();
   final TextEditingController _maintenanceMessageController =
       TextEditingController();
+  final TextEditingController _appVersionController = TextEditingController();
+  final TextEditingController _platformNameController = TextEditingController();
+  final TextEditingController _platformTaglineController =
+      TextEditingController();
+  String _defaultLanguage = 'English';
+  String _timezone = 'Asia/Kolkata (GMT +05:30)';
+  String _lastUpdated = 'Never';
 
   String appVersion = 'Loading...';
+  String _initialAppVersion = '1.0.0';
 
   final List<String> tabs = ["General"];
 
   @override
   void initState() {
     super.initState();
+    _appVersionController.addListener(() {
+      setState(() {});
+    });
     _loadSettings();
   }
 
@@ -65,7 +76,14 @@ class _PreferencesSettingsPageState extends State<PreferencesSettingsPage> {
         _maintenanceMessageController.text =
             data['maintenanceMessage'] ??
             'We are currently performing scheduled\nmaintenance. Please try again later.';
+        _appVersionController.text = data['appVersion'] ?? '1.0.0';
+        _initialAppVersion = _appVersionController.text;
       } else {
+        _platformNameController.text = 'NaattuLink';
+        _platformTaglineController.text = 'Your City, One App';
+        _defaultLanguage = 'English';
+        _timezone = 'Asia/Kolkata (GMT +05:30)';
+        _lastUpdated = 'Never';
         _supportEmailController.text = 'support@naattulink.com';
         _supportPhoneController.text = '+91 98765 43210';
         _adminEmailController.text = 'admin@naattulink.com';
@@ -75,6 +93,8 @@ class _PreferencesSettingsPageState extends State<PreferencesSettingsPage> {
         maintenanceMode = false;
         _maintenanceMessageController.text =
             'We are currently performing scheduled\nmaintenance. Please try again later.';
+        _appVersionController.text = '1.0.0';
+        _initialAppVersion = '1.0.0';
       }
     } catch (e) {
       debugPrint('Error loading settings: $e');
@@ -84,12 +104,15 @@ class _PreferencesSettingsPageState extends State<PreferencesSettingsPage> {
 
   @override
   void dispose() {
+    _platformNameController.dispose();
+    _platformTaglineController.dispose();
     _supportEmailController.dispose();
     _supportPhoneController.dispose();
     _adminEmailController.dispose();
     _adminPhoneController.dispose();
     _officeAddressController.dispose();
     _maintenanceMessageController.dispose();
+    _appVersionController.dispose();
     super.dispose();
   }
 
@@ -98,7 +121,9 @@ class _PreferencesSettingsPageState extends State<PreferencesSettingsPage> {
     if (isLoading) {
       return const Scaffold(
         backgroundColor: Color(0xFFF8F9FA),
-        body: Center(child: CircularProgressIndicator(color: const Color(0xFFFFC107))),
+        body: Center(
+          child: CircularProgressIndicator(color: const Color(0xFFFFC107)),
+        ),
       );
     }
     return Scaffold(
@@ -153,6 +178,11 @@ class _PreferencesSettingsPageState extends State<PreferencesSettingsPage> {
           .collection('platform_settings')
           .doc('general')
           .set({
+            'platformName': _platformNameController.text,
+            'platformTagline': _platformTaglineController.text,
+            'defaultLanguage': _defaultLanguage,
+            'timezone': _timezone,
+            'lastUpdated': FieldValue.serverTimestamp(),
             'supportEmail': _supportEmailController.text,
             'supportPhone': _supportPhoneController.text,
             'adminEmail': _adminEmailController.text,
@@ -160,6 +190,7 @@ class _PreferencesSettingsPageState extends State<PreferencesSettingsPage> {
             'officeAddress': _officeAddressController.text,
             'maintenanceMode': maintenanceMode,
             'maintenanceMessage': _maintenanceMessageController.text,
+            'appVersion': _appVersionController.text,
           }, SetOptions(merge: true));
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -224,7 +255,10 @@ class _PreferencesSettingsPageState extends State<PreferencesSettingsPage> {
               ),
               label: const Text(
                 'Save Changes',
-                style: TextStyle(color: Color(0xFF1E293B), fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  color: Color(0xFF1E293B),
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFFFC107), // Theme yellow
@@ -441,7 +475,12 @@ class _PreferencesSettingsPageState extends State<PreferencesSettingsPage> {
     );
   }
 
-  Widget _buildDropdown(String label, String value, List<String> items) {
+  Widget _buildDropdown(
+    String label,
+    String value,
+    List<String> items, {
+    void Function(String?)? onChanged,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -542,6 +581,83 @@ class _PreferencesSettingsPageState extends State<PreferencesSettingsPage> {
                   'Asia/Kolkata (GMT +05:30)',
                   'UTC',
                 ]),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _buildTextField(
+                  'Required Client App Version',
+                  _appVersionController,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child:
+                    _appVersionController.text != _initialAppVersion
+                        ? Align(
+                          alignment: Alignment.centerLeft,
+                          child: ElevatedButton.icon(
+                            onPressed: () async {
+                              final newVersion =
+                                  _appVersionController.text.trim();
+                              if (newVersion.isEmpty) {
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Please enter a valid App Version',
+                                      ),
+                                    ),
+                                  );
+                                }
+                                return;
+                              }
+
+                              try {
+                                await FirebaseFirestore.instance
+                                    .collection('platform_settings')
+                                    .doc('general')
+                                    .set({
+                                      'appVersion': newVersion,
+                                    }, SetOptions(merge: true));
+                                setState(() {
+                                  _initialAppVersion = newVersion;
+                                  _appVersionController.text =
+                                      newVersion; // ensures trimmed text is set
+                                });
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'App version updated successfully',
+                                      ),
+                                    ),
+                                  );
+                                }
+                              } catch (e) {
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('Error: $e')),
+                                  );
+                                }
+                              }
+                            },
+                            icon: const Icon(Icons.check, size: 18),
+                            label: const Text('Save Version'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
+                            ),
+                          ),
+                        )
+                        : const SizedBox(),
               ),
             ],
           ),
@@ -682,7 +798,7 @@ class _PreferencesSettingsPageState extends State<PreferencesSettingsPage> {
             !maintenanceMode,
           ),
           const SizedBox(height: 16),
-          _buildStatusRowText('Last Updated', 'Placeholder'),
+          _buildStatusRowText('Last Updated', _lastUpdated),
           const SizedBox(height: 16),
           _buildStatusRowText('Version', appVersion),
 

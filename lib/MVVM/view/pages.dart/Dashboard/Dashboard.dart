@@ -32,6 +32,12 @@ class _DashboardState extends State<Dashboard> {
   int _totalActiveBuses = 0;
   int _totalBusDistricts = 0;
   int _totalTaxiDrivers = 0;
+  List<Map<String, dynamic>> _latestBookings = [];
+  Map<String, int> _serviceCategoryCounts = {};
+  List<Map<String, dynamic>> _topProducts = [];
+  List<Map<String, dynamic>> _recentActivities = [];
+  List<Map<String, dynamic>> _bookingTrends = [];
+
 
   @override
   void initState() {
@@ -56,24 +62,24 @@ class _DashboardState extends State<Dashboard> {
       final now = DateTime.now();
       final startOfDay = DateTime(now.year, now.month, now.day);
       final todayBookingsFuture = db
-          .collection('bookings')
+          .collection('service_bookings')
           .where(
             'timestamp',
             isGreaterThanOrEqualTo: startOfDay.toIso8601String(),
           )
           .count()
           .get()
-          .catchError((e) => db.collection('bookings').count().get());
+          .catchError((e) => db.collection('service_bookings').count().get());
 
       final completedFuture =
           db
-              .collection('bookings')
+              .collection('service_bookings')
               .where('status', isEqualTo: 'Completed')
               .count()
               .get();
       final cancelledFuture =
           db
-              .collection('bookings')
+              .collection('service_bookings')
               .where('status', isEqualTo: 'Cancelled')
               .count()
               .get();
@@ -163,8 +169,86 @@ class _DashboardState extends State<Dashboard> {
         }
       } catch (_) {}
 
+
+      // Fetch Latest Bookings
+      List<Map<String, dynamic>> fetchedBookings = [];
+      Map<String, int> fetchedCategoryCounts = {};
+      List<Map<String, dynamic>> fetchedTrends = [];
+      try {
+        final bookingsQuery = await db
+            .collection('service_bookings')
+            .orderBy('timestamp', descending: true)
+            .limit(50)
+            .get();
+            
+        int i = 0;
+        for (var doc in bookingsQuery.docs) {
+          final data = doc.data();
+          final String cat = data['service_category']?.toString() ?? 'Others';
+          fetchedCategoryCounts[cat] = (fetchedCategoryCounts[cat] ?? 0) + 1;
+          
+          if (i < 5) {
+             fetchedBookings.add({
+               'id': doc.id.substring(0, 8).toUpperCase(),
+               'customer': data['customer_name']?.toString() ?? 'Unknown',
+               'service': cat,
+               'dateTime': data['timestamp']?.toString() ?? '',
+               'status': data['status']?.toString() ?? 'Pending',
+               'amount': data['amount']?.toString() ?? data['total_amount']?.toString() ?? '₹0',
+             });
+          }
+          i++;
+        }
+      } catch(e) {}
+      
+      // Fetch Products
+      List<Map<String, dynamic>> fetchedProducts = [];
+      try {
+        final productsQuery = await db
+            .collection('products')
+            .limit(5)
+            .get();
+        for (var doc in productsQuery.docs) {
+           final data = doc.data();
+           fetchedProducts.add({
+              'name': data['product_name']?.toString() ?? data['name']?.toString() ?? 'Product',
+              'sales': data['soldCount'] ?? data['sales'] ?? 0,
+              'revenue': data['price']?.toString() ?? '₹0',
+           });
+        }
+      } catch(e) {}
+
+      // Fetch Recent Activities
+      List<Map<String, dynamic>> fetchedActivities = [];
+      try {
+         final usersQuery = await db.collection('users').orderBy('createdAt', descending: true).limit(3).get().catchError((e) => db.collection('users').limit(3).get());
+         for (var doc in usersQuery.docs) {
+            fetchedActivities.add({
+               'title': 'New user registered',
+               'subtitle': '${doc.data()['name'] ?? 'A user'} joined the platform',
+               'time': 'Recent',
+               'type': 'user'
+            });
+         }
+         if (fetchedBookings.isNotEmpty) {
+            for (var b in fetchedBookings.take(3)) {
+               fetchedActivities.add({
+                  'title': 'New booking received',
+                  'subtitle': 'Booking #${b['id']} received',
+                  'time': 'Recent',
+                  'type': 'booking'
+               });
+            }
+         }
+      } catch(e) {}
       if (mounted) {
         setState(() {
+
+          _latestBookings = fetchedBookings;
+          _serviceCategoryCounts = fetchedCategoryCounts;
+          _topProducts = fetchedProducts;
+          _recentActivities = fetchedActivities;
+
           _totalUsers = results[0].count ?? 0;
           _totalWorkers = results[1].count ?? 0;
           _pendingApprovals = results[2].count ?? 0;
@@ -599,34 +683,34 @@ class _DashboardState extends State<Dashboard> {
 
   Widget _buildMiddleSection(bool isLargeScreen, double width) {
     if (isLargeScreen) {
-      return const Row(
+      return Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(flex: 4, child: BookingTrendsChart()),
+          Expanded(flex: 4, child: BookingTrendsChart(data: _bookingTrends)),
           SizedBox(width: 24),
-          Expanded(flex: 3, child: ServiceCategoryChart()),
+          Expanded(flex: 3, child: ServiceCategoryChart(categoryCounts: _serviceCategoryCounts)),
           SizedBox(width: 24),
-          Expanded(flex: 3, child: RecentActivitiesList()),
+          Expanded(flex: 3, child: RecentActivitiesList(activitiesData: _recentActivities)),
         ],
       );
     } else {
       return Column(
         children: [
-          const BookingTrendsChart(),
+          BookingTrendsChart(data: _bookingTrends),
           const SizedBox(height: 24),
           if (width > 750)
-            const Row(
+            Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(child: ServiceCategoryChart()),
-                SizedBox(width: 24),
-                Expanded(child: RecentActivitiesList()),
+                Expanded(child: ServiceCategoryChart(categoryCounts: _serviceCategoryCounts)),
+                const SizedBox(width: 24),
+                Expanded(child: RecentActivitiesList(activitiesData: _recentActivities)),
               ],
             )
           else ...[
-            const ServiceCategoryChart(),
+            ServiceCategoryChart(categoryCounts: _serviceCategoryCounts),
             const SizedBox(height: 24),
-            const RecentActivitiesList(),
+            RecentActivitiesList(activitiesData: _recentActivities),
           ],
         ],
       );
@@ -635,20 +719,20 @@ class _DashboardState extends State<Dashboard> {
 
   Widget _buildBottomSection(bool isLargeScreen) {
     if (isLargeScreen) {
-      return const Row(
+      return Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(flex: 13, child: LatestBookingsTable()),
+          Expanded(flex: 13, child: LatestBookingsTable(bookingsData: _latestBookings)),
           SizedBox(width: 24),
-          Expanded(flex: 7, child: TopSellingProducts()),
+          Expanded(flex: 7, child: TopSellingProducts(productsData: _topProducts)),
         ],
       );
     } else {
-      return const Column(
+      return Column(
         children: [
-          LatestBookingsTable(),
+          LatestBookingsTable(bookingsData: _latestBookings),
           SizedBox(height: 24),
-          TopSellingProducts(),
+          TopSellingProducts(productsData: _topProducts),
         ],
       );
     }
@@ -798,7 +882,9 @@ class StatsCard extends StatelessWidget {
 }
 
 class BookingTrendsChart extends StatelessWidget {
-  const BookingTrendsChart({super.key});
+  final List<Map<String, dynamic>> data;
+  const BookingTrendsChart({super.key, required this.data});
+
 
   @override
   Widget build(BuildContext context) {
@@ -985,19 +1071,36 @@ class BookingTrendsChart extends StatelessWidget {
 }
 
 class ServiceCategoryChart extends StatelessWidget {
-  const ServiceCategoryChart({super.key});
+  final Map<String, int> categoryCounts;
+  const ServiceCategoryChart({super.key, required this.categoryCounts});
+
 
   @override
   Widget build(BuildContext context) {
-    final data = [
-      _ServiceData("Home Cleaning", 28, const Color(0xFF10B981)),
-      _ServiceData("Vehicle Cleaning", 18, const Color(0xFF3B82F6)),
-      _ServiceData("Garden Services", 14, const Color(0xFFF59E0B)),
-      _ServiceData("Pet Grooming", 10, const Color(0xFF8B5CF6)),
-      _ServiceData("Interior Cleaning", 10, const Color(0xFF06B6D4)),
-      _ServiceData("Room Cleaning", 9, const Color(0xFFEC4899)),
-      _ServiceData("Others", 11, const Color(0xFF64748B)),
+    
+    final List<Color> colors = [
+      const Color(0xFF10B981),
+      const Color(0xFF3B82F6),
+      const Color(0xFFF59E0B),
+      const Color(0xFF8B5CF6),
+      const Color(0xFF06B6D4),
+      const Color(0xFFEC4899),
+      const Color(0xFF64748B),
     ];
+    
+    int total = categoryCounts.values.fold(0, (sum, val) => sum + val);
+    List<_ServiceData> data = [];
+    if (total == 0) {
+      data.add(_ServiceData("No Data", 100, Colors.grey));
+    } else {
+      int i = 0;
+      categoryCounts.forEach((key, value) {
+        int percentage = ((value / total) * 100).round();
+        data.add(_ServiceData(key, percentage, colors[i % colors.length]));
+        i++;
+      });
+    }
+
 
     return Container(
       height: 360,
@@ -1093,60 +1196,34 @@ class _ServiceData {
 }
 
 class RecentActivitiesList extends StatelessWidget {
-  const RecentActivitiesList({super.key});
+  final List<Map<String, dynamic>> activitiesData;
+  const RecentActivitiesList({super.key, required this.activitiesData});
+
 
   @override
   Widget build(BuildContext context) {
-    final activities = [
-      _ActivityItem(
-        title: "New user registered",
-        subtitle: "John Doe joined the platform",
-        time: "2 min ago",
-        icon: Icons.person_add_rounded,
-        color: const Color(0xFF6366F1),
-        bgColor: const Color(0xFFEEF2FF),
-      ),
-      _ActivityItem(
-        title: "Worker waiting approval",
-        subtitle: "Suresh Kumar submitted documents",
-        time: "10 min ago",
-        icon: Icons.assignment_ind_rounded,
-        color: const Color(0xFFF59E0B),
-        bgColor: const Color(0xFFFEF3C7),
-      ),
-      _ActivityItem(
-        title: "New booking received",
-        subtitle: "Booking #BK12345 received",
-        time: "15 min ago",
-        icon: Icons.calendar_today_rounded,
-        color: const Color(0xFF10B981),
-        bgColor: const Color(0xFFECFDF5),
-      ),
-      _ActivityItem(
-        title: "Order completed",
-        subtitle: "Order #OR67890 delivered",
-        time: "30 min ago",
-        icon: Icons.check_circle_outline_rounded,
-        color: const Color(0xFF10B981),
-        bgColor: const Color(0xFFECFDF5),
-      ),
-      _ActivityItem(
-        title: "New product added",
-        subtitle: "Organic Rice 5kg added by shop",
-        time: "45 min ago",
-        icon: Icons.shopping_bag_rounded,
-        color: const Color(0xFFEC4899),
-        bgColor: const Color(0xFFFDF2F8),
-      ),
-      _ActivityItem(
-        title: "New complaint",
-        subtitle: "Complaint #CP54321 received",
-        time: "1 hr ago",
-        icon: Icons.warning_amber_rounded,
-        color: const Color(0xFFEF4444),
-        bgColor: const Color(0xFFFEF2F2),
-      ),
-    ];
+    final activities = activitiesData.map((d) {
+      bool isUser = d['type'] == 'user';
+      return _ActivityItem(
+        title: d['title'] ?? '',
+        subtitle: d['subtitle'] ?? '',
+        time: d['time'] ?? 'Recent',
+        icon: isUser ? Icons.person_add_rounded : Icons.calendar_today_rounded,
+        color: isUser ? const Color(0xFF6366F1) : const Color(0xFF10B981),
+        bgColor: isUser ? const Color(0xFFEEF2FF) : const Color(0xFFECFDF5),
+      );
+    }).toList();
+    if (activities.isEmpty) {
+       activities.add(_ActivityItem(
+          title: "No recent activities",
+          subtitle: "Waiting for new actions",
+          time: "-",
+          icon: Icons.hourglass_empty,
+          color: Colors.grey,
+          bgColor: Colors.grey.shade200,
+       ));
+    }
+
 
     return Container(
       height: 360,
@@ -1274,52 +1351,25 @@ class _ActivityItem {
 }
 
 class LatestBookingsTable extends StatelessWidget {
-  const LatestBookingsTable({super.key});
+  final List<Map<String, dynamic>> bookingsData;
+  const LatestBookingsTable({super.key, required this.bookingsData});
+
 
   @override
   Widget build(BuildContext context) {
-    final bookings = [
-      _BookingRow(
-        "#BK12345",
-        "Arun Kumar",
-        "Home Cleaning",
-        "May 18, 2024 10:00 AM",
-        "Pending",
-        "₹1,250",
-      ),
-      _BookingRow(
-        "#BK12344",
-        "Fathima Ali",
-        "Vehicle Cleaning",
-        "May 18, 2024 11:00 AM",
-        "Assigned",
-        "₹850",
-      ),
-      _BookingRow(
-        "#BK12343",
-        "Ramesh Babu",
-        "Garden Services",
-        "May 18, 2024 02:30 PM",
-        "In Progress",
-        "₹1,500",
-      ),
-      _BookingRow(
-        "#BK12342",
-        "Neha Nair",
-        "Pet Grooming",
-        "May 18, 2024 03:00 PM",
-        "Completed",
-        "₹700",
-      ),
-      _BookingRow(
-        "#BK12341",
-        "Sujith K",
-        "Interior Cleaning",
-        "May 17, 2024 09:30 AM",
-        "Cancelled",
-        "₹1,100",
-      ),
-    ];
+    final bookings = bookingsData.map((d) {
+      // formatting date safely if it's ISO string
+      String dt = d['dateTime'] ?? '';
+      if (dt.contains('T')) dt = dt.split('T')[0] + ' ' + dt.split('T')[1].substring(0, 5);
+      return _BookingRow(
+        "#${d['id']}",
+        d['customer'] ?? 'Unknown',
+        d['service'] ?? 'Service',
+        dt,
+        d['status'] ?? 'Pending',
+        "${d['amount']}",
+      );
+    }).toList();
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -1549,17 +1599,29 @@ class _BookingRow {
 }
 
 class TopSellingProducts extends StatelessWidget {
-  const TopSellingProducts({super.key});
+  final List<Map<String, dynamic>> productsData;
+  const TopSellingProducts({super.key, required this.productsData});
+
 
   @override
   Widget build(BuildContext context) {
-    final products = [
-      _ProductItem("Organic Rice 5kg", 245, "₹73,500", Colors.green[50]!),
-      _ProductItem("Sunflower Oil 1L", 189, "₹37,800", Colors.amber[50]!),
-      _ProductItem("Farm Fresh Eggs (12)", 156, "₹23,400", Colors.orange[50]!),
-      _ProductItem("Fresh Banana 1kg", 142, "₹14,200", Colors.yellow[50]!),
-      _ProductItem("Green Tea 100g", 118, "₹11,800", Colors.teal[50]!),
+    
+    final List<Color> bgColors = [
+      Colors.green[50]!, Colors.amber[50]!, Colors.orange[50]!, Colors.yellow[50]!, Colors.teal[50]!
     ];
+    final products = List.generate(productsData.length, (i) {
+      final d = productsData[i];
+      return _ProductItem(
+        d['name'] ?? 'Product',
+        int.tryParse(d['sales'].toString()) ?? 0,
+        "${d['revenue']}",
+        bgColors[i % bgColors.length],
+      );
+    });
+    if (products.isEmpty) {
+       products.add(_ProductItem("No products found", 0, "₹0", Colors.grey[50]!));
+    }
+
 
     return Container(
       padding: const EdgeInsets.all(20),

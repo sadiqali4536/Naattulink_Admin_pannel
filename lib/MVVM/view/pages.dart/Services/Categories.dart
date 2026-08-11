@@ -3,9 +3,11 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:swiftclean_admin/MVVM/model/models/admin_model.dart';
 import 'package:swiftclean_admin/MVVM/utils/printer_helper.dart';
 
 import 'package:intl/intl.dart';
+import 'package:swiftclean_admin/MVVM/utils/rbac_session.dart';
 
 class CategoryModel {
   final String id;
@@ -81,6 +83,15 @@ class _ServiceCategoriesPageState extends State<ServiceCategoriesPage> {
   }
 
   void _openCreateCategoryDialog() {
+    if (!RbacSession().hasPermission(Modules.services, 'manage_categories')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Access Denied: You do not have permission to manage categories."),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
     final TextEditingController titleController = TextEditingController();
     final TextEditingController descController = TextEditingController();
 
@@ -350,7 +361,11 @@ class _ServiceCategoriesPageState extends State<ServiceCategoriesPage> {
               FirebaseFirestore.instance.collection('categories').snapshots(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator(color: const Color(0xFFFFC107)));
+              return const Center(
+                child: CircularProgressIndicator(
+                  color: const Color(0xFFFFC107),
+                ),
+              );
             }
 
             final List<CategoryModel> categoriesList = [];
@@ -453,22 +468,23 @@ class _ServiceCategoriesPageState extends State<ServiceCategoriesPage> {
             ),
           ],
         ),
-        ElevatedButton.icon(
-          onPressed: _openCreateCategoryDialog,
-          icon: const Icon(Icons.add, size: 16),
-          label: Text(
-            "Add New Category",
-            style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13),
-          ),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF047857),
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
+        if (RbacSession().hasPermission(Modules.services, 'manage_categories'))
+          ElevatedButton.icon(
+            onPressed: _openCreateCategoryDialog,
+            icon: const Icon(Icons.add, size: 16),
+            label: Text(
+              "Add New Category",
+              style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13),
             ),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF047857),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            ),
           ),
-        ),
       ],
     );
   }
@@ -806,6 +822,7 @@ class _ServiceCategoriesPageState extends State<ServiceCategoriesPage> {
                                       Icons.edit_outlined,
                                       Colors.blue,
                                       () {},
+                                      'manage_categories',
                                     ),
                                     const SizedBox(width: 8),
                                     _buildActionButton(
@@ -814,6 +831,7 @@ class _ServiceCategoriesPageState extends State<ServiceCategoriesPage> {
                                       () {
                                         _showDeleteConfirmationDialog(cat);
                                       },
+                                      'manage_categories',
                                     ),
                                   ],
                                 ),
@@ -889,7 +907,16 @@ class _ServiceCategoriesPageState extends State<ServiceCategoriesPage> {
     );
   }
 
-  Widget _buildActionButton(IconData icon, Color color, VoidCallback onTap) {
+  Widget _buildActionButton(
+    IconData icon,
+    Color color,
+    VoidCallback onTap, [
+    String? permissionAction,
+  ]) {
+    if (permissionAction != null &&
+        !RbacSession().hasPermission(Modules.services, permissionAction)) {
+      return const SizedBox.shrink();
+    }
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(6),
@@ -989,6 +1016,15 @@ class _ServiceCategoriesPageState extends State<ServiceCategoriesPage> {
   }
 
   void _showDeleteConfirmationDialog(CategoryModel cat) {
+    if (!RbacSession().hasPermission(Modules.services, 'manage_categories')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Access Denied: You do not have permission to delete categories."),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
     showDialog(
       context: context,
       builder:

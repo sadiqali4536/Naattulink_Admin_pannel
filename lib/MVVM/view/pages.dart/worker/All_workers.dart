@@ -3,7 +3,9 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:swiftclean_admin/MVVM/model/models/admin_model.dart';
 import 'package:swiftclean_admin/MVVM/utils/printer_helper.dart';
+import 'package:swiftclean_admin/MVVM/utils/rbac_session.dart';
 
 class WorkerModel {
   final String id;
@@ -542,6 +544,24 @@ class _AllWorkersPageState extends State<AllWorkersPage> {
   }
 
   void _changeWorkerStatus(WorkerModel worker, String newStatus) async {
+    String perm = 'view';
+    if (newStatus == 'Approved')
+      perm = 'approve_worker';
+    else if (newStatus == 'Rejected')
+      perm = 'reject_worker';
+    else if (newStatus == 'Suspended')
+      perm = 'suspend_worker';
+    if (!RbacSession().hasPermission(Modules.workerManagement, perm)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "Access Denied: You do not have permission to perform this action.",
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
     String newVerification = worker.verification;
     int isVerifiedVal = 0;
 
@@ -844,6 +864,17 @@ class _AllWorkersPageState extends State<AllWorkersPage> {
   }
 
   void _showEditWorkerDialog(WorkerModel worker) {
+    if (!RbacSession().hasPermission(Modules.workerManagement, Perms.edit)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "Access Denied: You do not have permission to edit workers.",
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
     final formKey = GlobalKey<FormState>();
     String name = worker.name;
     String email = worker.email;
@@ -1457,6 +1488,17 @@ class _AllWorkersPageState extends State<AllWorkersPage> {
   }
 
   void _showAddWorkerDialog() {
+    if (!RbacSession().hasPermission(Modules.workerManagement, Perms.edit)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "Access Denied: You do not have permission to add workers.",
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
     final formKey = GlobalKey<FormState>();
     String name = "";
     String email = "";
@@ -2030,27 +2072,48 @@ class _AllWorkersPageState extends State<AllWorkersPage> {
     );
   }
 
+  bool _can(String module, String action) {
+    return RbacSession().hasPermission(module, action);
+  }
+
+  int _getValidTabIndex(int requestedIndex) {
+    final validIndices = <int>[];
+    if (_can(Modules.workerManagement, Perms.view)) validIndices.add(0);
+    if (_can(Modules.workerManagement, 'approve_worker')) {
+      validIndices.add(1);
+      validIndices.add(2);
+    }
+    if (_can(Modules.workerManagement, 'reject_worker')) validIndices.add(3);
+    if (_can(Modules.workerManagement, 'suspend_worker')) validIndices.add(4);
+
+    if (validIndices.contains(requestedIndex)) return requestedIndex;
+    if (validIndices.isNotEmpty) return validIndices.first;
+    return -1;
+  }
+
   @override
   void initState() {
     super.initState();
+    int requestedIndex = 0;
     switch (widget.initialFilter) {
       case "Pending":
-        _selectedTabIndex = 1;
+        requestedIndex = 1;
         break;
       case "Approved":
-        _selectedTabIndex = 2;
+        requestedIndex = 2;
         break;
       case "Rejected":
-        _selectedTabIndex = 3;
+        requestedIndex = 3;
         break;
       case "Suspended":
-        _selectedTabIndex = 4;
+        requestedIndex = 4;
         break;
       case "All":
       default:
-        _selectedTabIndex = 0;
+        requestedIndex = 0;
         break;
     }
+    _selectedTabIndex = _getValidTabIndex(requestedIndex);
 
     _verticalScrollController.addListener(() {
       if (_verticalScrollController.position.pixels >=
@@ -2072,24 +2135,26 @@ class _AllWorkersPageState extends State<AllWorkersPage> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.initialFilter != widget.initialFilter) {
       setState(() {
+        int requestedIndex = 0;
         switch (widget.initialFilter) {
           case "Pending":
-            _selectedTabIndex = 1;
+            requestedIndex = 1;
             break;
           case "Approved":
-            _selectedTabIndex = 2;
+            requestedIndex = 2;
             break;
           case "Rejected":
-            _selectedTabIndex = 3;
+            requestedIndex = 3;
             break;
           case "Suspended":
-            _selectedTabIndex = 4;
+            requestedIndex = 4;
             break;
           case "All":
           default:
-            _selectedTabIndex = 0;
+            requestedIndex = 0;
             break;
         }
+        _selectedTabIndex = _getValidTabIndex(requestedIndex);
       });
       _refreshData();
     }
@@ -2283,29 +2348,33 @@ class _AllWorkersPageState extends State<AllWorkersPage> {
                         color: const Color(0xFF1E293B),
                       ),
                     ),
-                    ElevatedButton.icon(
-                      onPressed: () => _showAddWorkerDialog(),
-                      icon: const Icon(Icons.add, size: 14),
-                      label: Text(
-                        "Add New Worker",
-                        style: GoogleFonts.inter(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
+                    if (RbacSession().hasPermission(
+                      Modules.workerManagement,
+                      Perms.edit,
+                    ))
+                      ElevatedButton.icon(
+                        onPressed: () => _showAddWorkerDialog(),
+                        icon: const Icon(Icons.add, size: 14),
+                        label: Text(
+                          "Add New Worker",
+                          style: GoogleFonts.inter(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF10B981),
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 10,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
                         ),
                       ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF10B981),
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 10,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                    ),
                   ],
                 ),
                 const SizedBox(height: 24),
@@ -2317,10 +2386,6 @@ class _AllWorkersPageState extends State<AllWorkersPage> {
                 // Filter controls Row
                 _buildFilterRow(context, width),
                 const SizedBox(height: 24),
-
-                // Tab bar selectors
-                _buildCustomTabBar(),
-                const SizedBox(height: 16),
 
                 // Worker list data table
                 _isFetching && _allFetchedDocs.isEmpty
@@ -2376,14 +2441,9 @@ class _AllWorkersPageState extends State<AllWorkersPage> {
     final int rejected = _statRejectedWorkers;
     final int suspended = _statSuspendedWorkers;
 
-    return GridView.count(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: crossAxisCount,
-      crossAxisSpacing: 16,
-      mainAxisSpacing: 16,
-      childAspectRatio: aspectRatio > 0 ? aspectRatio : 2.0,
-      children: [
+    final List<Widget> cards = [];
+    if (_can(Modules.workerManagement, Perms.view)) {
+      cards.add(
         StatsCard(
           title: "Total Workers",
           value: total.toString(),
@@ -2392,6 +2452,10 @@ class _AllWorkersPageState extends State<AllWorkersPage> {
           iconColor: const Color(0xFF3B82F6),
           iconBgColor: const Color(0xFFEFF6FF),
         ),
+      );
+    }
+    if (_can(Modules.workerManagement, 'approve_worker')) {
+      cards.add(
         StatsCard(
           title: "Pending Approvals",
           value: pending.toString(),
@@ -2400,6 +2464,8 @@ class _AllWorkersPageState extends State<AllWorkersPage> {
           iconColor: const Color(0xFFF59E0B),
           iconBgColor: const Color(0xFFFEF3C7),
         ),
+      );
+      cards.add(
         StatsCard(
           title: "Approved Workers",
           value: approved.toString(),
@@ -2408,6 +2474,10 @@ class _AllWorkersPageState extends State<AllWorkersPage> {
           iconColor: const Color(0xFF10B981),
           iconBgColor: const Color(0xFFECFDF5),
         ),
+      );
+    }
+    if (_can(Modules.workerManagement, 'reject_worker')) {
+      cards.add(
         StatsCard(
           title: "Rejected Workers",
           value: rejected.toString(),
@@ -2416,6 +2486,10 @@ class _AllWorkersPageState extends State<AllWorkersPage> {
           iconColor: const Color(0xFFEF4444),
           iconBgColor: const Color(0xFFFEF2F2),
         ),
+      );
+    }
+    if (_can(Modules.workerManagement, 'suspend_worker')) {
+      cards.add(
         StatsCard(
           title: "Suspended Workers",
           value: suspended.toString(),
@@ -2424,7 +2498,24 @@ class _AllWorkersPageState extends State<AllWorkersPage> {
           iconColor: const Color(0xFF6366F1),
           iconBgColor: const Color(0xFFEEF2FF),
         ),
-      ],
+      );
+    }
+
+    if (cards.isEmpty) return const SizedBox.shrink();
+
+    // Adjust cross axis count if cards are fewer than default
+    if (cards.length < crossAxisCount) {
+      crossAxisCount = cards.length;
+    }
+
+    return GridView.count(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisCount: crossAxisCount,
+      crossAxisSpacing: 16,
+      mainAxisSpacing: 16,
+      childAspectRatio: aspectRatio > 0 ? aspectRatio : 2.0,
+      children: cards,
     );
   }
 
@@ -2599,7 +2690,11 @@ class _AllWorkersPageState extends State<AllWorkersPage> {
             ],
           ),
           const SizedBox(height: 16),
-          Align(alignment: Alignment.centerRight, child: exportButton),
+          if (RbacSession().hasPermission(
+            Modules.workerManagement,
+            'export_worker',
+          ))
+            Align(alignment: Alignment.centerRight, child: exportButton),
         ],
       );
     } else {
@@ -2611,135 +2706,32 @@ class _AllWorkersPageState extends State<AllWorkersPage> {
           const SizedBox(width: 12),
           ratingDropdown,
           const Spacer(),
-          exportButton,
+          if (RbacSession().hasPermission(
+            Modules.workerManagement,
+            'export_worker',
+          ))
+            exportButton,
         ],
       );
     }
   }
 
-  Widget _buildCustomTabBar([List<WorkerModel>? allWorkers]) {
-    final int total = _statTotalWorkers;
-    final int pending = _statPendingWorkers;
-    final int approved = _statApprovedWorkers;
-    final int rejected = _statRejectedWorkers;
-    final int suspended = _statSuspendedWorkers;
-
-    final List<Map<String, dynamic>> tabs = [
-      {"label": "All Workers", "count": total},
-      {"label": "Pending Approvals", "count": pending},
-      {"label": "Approved Workers", "count": approved},
-      {"label": "Rejected Workers", "count": rejected},
-      {"label": "Suspended Workers", "count": suspended},
-    ];
-
-    return Container(
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1)),
-      ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: List.generate(tabs.length, (index) {
-            final tab = tabs[index];
-            final bool isSelected = index == _selectedTabIndex;
-            final String label = tab["label"];
-            final int count = tab["count"];
-
-            return InkWell(
-              onTap: () {
-                setState(() {
-                  _selectedTabIndex = index;
-                });
-                _onFilterChanged();
-                if (widget.onTabChanged != null) {
-                  String tabName;
-                  switch (index) {
-                    case 1:
-                      tabName = "Pending Approvals";
-                      break;
-                    case 2:
-                      tabName = "Approved Workers";
-                      break;
-                    case 3:
-                      tabName = "Rejected Workers";
-                      break;
-                    case 4:
-                      tabName = "Suspended Workers";
-                      break;
-                    case 0:
-                    default:
-                      tabName = "All Workers";
-                      break;
-                  }
-                  widget.onTabChanged!(tabName);
-                }
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-                decoration: BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(
-                      color:
-                          isSelected
-                              ? const Color(0xFF10B981)
-                              : Colors.transparent,
-                      width: 2,
-                    ),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Text(
-                      label,
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        fontWeight:
-                            isSelected ? FontWeight.bold : FontWeight.w500,
-                        color:
-                            isSelected
-                                ? const Color(0xFF10B981)
-                                : const Color(0xFF64748B),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color:
-                            isSelected
-                                ? const Color(0xFFD1FAE5)
-                                : const Color(0xFFF1F5F9),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        count.toString(),
-                        style: GoogleFonts.inter(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          color:
-                              isSelected
-                                  ? const Color(0xFF047857)
-                                  : const Color(0xFF64748B),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }),
-        ),
-      ),
-    );
-  }
-
   Future<void> _exportToPdf() async {
+    if (!RbacSession().hasPermission(
+      Modules.workerManagement,
+      'export_worker',
+    )) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "Access Denied: You do not have permission to export workers.",
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text("Preparing export... Please wait.")),
     );
@@ -3032,59 +3024,83 @@ class _AllWorkersPageState extends State<AllWorkersPage> {
                             spacing: 8,
                             runSpacing: 4,
                             children: [
-                              _buildActionButton(
-                                "View",
-                                Icons.visibility_outlined,
-                                Colors.blue,
-                                () {
-                                  _showWorkerDetailsDialog(worker);
-                                },
-                              ),
-                              _buildActionButton(
-                                "Edit",
-                                Icons.edit_outlined,
-                                Colors.blue,
-                                () {
-                                  _showEditWorkerDialog(worker);
-                                },
-                              ),
+                              if (_can(Modules.workerManagement, Perms.view))
+                                _buildActionButton(
+                                  "View",
+                                  Icons.visibility_outlined,
+                                  Colors.blue,
+                                  () {
+                                    _showWorkerDetailsDialog(worker);
+                                  },
+                                ),
+                              if (_can(Modules.workerManagement, Perms.edit))
+                                _buildActionButton(
+                                  "Edit",
+                                  Icons.edit_outlined,
+                                  Colors.blue,
+                                  () {
+                                    _showEditWorkerDialog(worker);
+                                  },
+                                ),
                               if (worker.status == "Pending") ...[
-                                _buildActionButton(
-                                  "Approve",
-                                  Icons.check_circle_outline_rounded,
-                                  Colors.green,
-                                  () => _changeWorkerStatus(worker, "Approved"),
-                                ),
-                                _buildActionButton(
-                                  "Reject",
-                                  Icons.cancel_outlined,
-                                  Colors.red,
-                                  () => _changeWorkerStatus(worker, "Rejected"),
-                                ),
+                                if (_can(
+                                  Modules.workerManagement,
+                                  'approve_worker',
+                                ))
+                                  _buildActionButton(
+                                    "Approve",
+                                    Icons.check_circle_outline_rounded,
+                                    Colors.green,
+                                    () =>
+                                        _changeWorkerStatus(worker, "Approved"),
+                                  ),
+                                if (_can(
+                                  Modules.workerManagement,
+                                  'reject_worker',
+                                ))
+                                  _buildActionButton(
+                                    "Reject",
+                                    Icons.cancel_outlined,
+                                    Colors.red,
+                                    () =>
+                                        _changeWorkerStatus(worker, "Rejected"),
+                                  ),
                               ] else if (worker.status == "Approved") ...[
-                                _buildActionButton(
-                                  "Suspend",
-                                  Icons.pause_circle_outline_rounded,
-                                  Colors.orange,
-                                  () =>
-                                      _changeWorkerStatus(worker, "Suspended"),
-                                ),
+                                if (_can(
+                                  Modules.workerManagement,
+                                  'suspend_worker',
+                                ))
+                                  _buildActionButton(
+                                    "Suspend",
+                                    Icons.pause_circle_outline_rounded,
+                                    Colors.orange,
+                                    () => _changeWorkerStatus(
+                                      worker,
+                                      "Suspended",
+                                    ),
+                                  ),
                               ] else ...[
-                                _buildActionButton(
-                                  "Approve",
-                                  Icons.check_circle_outline_rounded,
-                                  Colors.green,
-                                  () => _changeWorkerStatus(worker, "Approved"),
-                                ),
+                                if (_can(
+                                  Modules.workerManagement,
+                                  'approve_worker',
+                                ))
+                                  _buildActionButton(
+                                    "Approve",
+                                    Icons.check_circle_outline_rounded,
+                                    Colors.green,
+                                    () =>
+                                        _changeWorkerStatus(worker, "Approved"),
+                                  ),
                               ],
-                              _buildActionButton(
-                                "Delete",
-                                Icons.delete_outline_rounded,
-                                Colors.red,
-                                () {
-                                  _showDeleteConfirmation(worker);
-                                },
-                              ),
+                              if (_can(Modules.workerManagement, Perms.delete))
+                                _buildActionButton(
+                                  "Delete",
+                                  Icons.delete_outline_rounded,
+                                  Colors.red,
+                                  () {
+                                    _showDeleteConfirmation(worker);
+                                  },
+                                ),
                             ],
                           ),
                         ],
@@ -3291,6 +3307,22 @@ class _AllWorkersPageState extends State<AllWorkersPage> {
     Color color,
     VoidCallback onTap,
   ) {
+    String permAction = 'view';
+    if (label == 'Edit')
+      permAction = 'edit';
+    else if (label == 'Approve')
+      permAction = 'approve_worker';
+    else if (label == 'Reject')
+      permAction = 'reject_worker';
+    else if (label == 'Suspend')
+      permAction = 'suspend_worker';
+    else if (label == 'Delete')
+      permAction = 'delete';
+
+    if (!RbacSession().hasPermission(Modules.workerManagement, permAction)) {
+      return const SizedBox.shrink();
+    }
+
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(6),
@@ -3434,6 +3466,17 @@ class _AllWorkersPageState extends State<AllWorkersPage> {
   }
 
   void _showDeleteConfirmation(WorkerModel worker) {
+    if (!RbacSession().hasPermission(Modules.workerManagement, Perms.delete)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "Access Denied: You do not have permission to delete workers.",
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
     showDialog(
       context: context,
       builder:

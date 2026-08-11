@@ -499,11 +499,14 @@ class _GrantAccessPageState extends State<GrantAccessPage> {
                                               .collection('roles')
                                               .doc(roleId)
                                               .set({
+                                                'roleId': roleId,
                                                 'name': name,
+                                                'displayName': name,
                                                 'description': description,
                                                 'level': level,
                                                 'status': 'Active',
                                                 'createdAt': Timestamp.now(),
+                                                'updatedAt': Timestamp.now(),
                                                 'initials': initials,
                                                 'badgeColor': color.toARGB32(),
                                                 'permissions': {},
@@ -662,6 +665,10 @@ class _GrantAccessPageState extends State<GrantAccessPage> {
         permissionsAdded: addedOverrides,
         permissionsRemoved: removedOverrides,
       );
+
+      if (_selectedUser!['uid'] == RbacSession().uid) {
+        await RbacSession().loadSession();
+      }
 
       // 3. Create (or verify) the web-panel Firebase Auth account
       //    If the user already had one, createWebAdminAccount() returns the

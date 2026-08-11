@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:swiftclean_admin/MVVM/utils/rbac_session.dart';
 import 'package:swiftclean_admin/MVVM/utils/printer_helper.dart';
+import 'package:swiftclean_admin/MVVM/model/models/admin_model.dart';
 
 class UserModel {
   final String no;
@@ -1007,70 +1008,70 @@ class _ProfileUserState extends State<ProfileUser> {
                             // Assign Role + Status row
                             Row(
                               children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        "Assign Role",
-                                        style: GoogleFonts.inter(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                          color: const Color(0xFF475569),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 6),
-                                      availableRoles.isEmpty
-                                          ? const SizedBox(
-                                            height: 48,
-                                            child: Center(
-                                              child: SizedBox(
-                                                width: 20,
-                                                height: 20,
-                                                child:
-                                                    CircularProgressIndicator(
-                                                      strokeWidth: 2,
-                                                      color: Color(0xFF10B981),
-                                                    ),
-                                              ),
-                                            ),
-                                          )
-                                          : DropdownButtonFormField<String>(
-                                            value: selectedRole,
-                                            decoration: _inputDecoration(
-                                              "",
-                                              null,
-                                            ),
-                                            items:
-                                                availableRoles
-                                                    .map(
-                                                      (r) => DropdownMenuItem(
-                                                        value: r,
-                                                        child: Text(
-                                                          r,
-                                                          style:
-                                                              GoogleFonts.inter(
-                                                                fontSize: 13,
-                                                              ),
-                                                        ),
-                                                      ),
-                                                    )
-                                                    .toList(),
-                                            onChanged: (v) {
-                                              setDialogState(
-                                                () => selectedRole = v,
-                                              );
-                                            },
-                                            validator:
-                                                (v) =>
-                                                    v == null || v.isEmpty
-                                                        ? "Role is required"
-                                                        : null,
-                                          ),
-                                    ],
-                                  ),
-                                ),
+                                // Expanded(
+                                //   child: Column(
+                                //     crossAxisAlignment:
+                                //         CrossAxisAlignment.start,
+                                //     children: [
+                                //       Text(
+                                //         "Assign Role",
+                                //         style: GoogleFonts.inter(
+                                //           fontSize: 12,
+                                //           fontWeight: FontWeight.w600,
+                                //           color: const Color(0xFF475569),
+                                //         ),
+                                //       ),
+                                //       const SizedBox(height: 6),
+                                //       availableRoles.isEmpty
+                                //           ? const SizedBox(
+                                //             height: 48,
+                                //             child: Center(
+                                //               child: SizedBox(
+                                //                 width: 20,
+                                //                 height: 20,
+                                //                 child:
+                                //                     CircularProgressIndicator(
+                                //                       strokeWidth: 2,
+                                //                       color: Color(0xFF10B981),
+                                //                     ),
+                                //               ),
+                                //             ),
+                                //           )
+                                //           : DropdownButtonFormField<String>(
+                                //             value: selectedRole,
+                                //             decoration: _inputDecoration(
+                                //               "",
+                                //               null,
+                                //             ),
+                                //             items:
+                                //                 availableRoles
+                                //                     .map(
+                                //                       (r) => DropdownMenuItem(
+                                //                         value: r,
+                                //                         child: Text(
+                                //                           r,
+                                //                           style:
+                                //                               GoogleFonts.inter(
+                                //                                 fontSize: 13,
+                                //                               ),
+                                //                         ),
+                                //                       ),
+                                //                     )
+                                //                     .toList(),
+                                //             onChanged: (v) {
+                                //               setDialogState(
+                                //                 () => selectedRole = v,
+                                //               );
+                                //             },
+                                //             validator:
+                                //                 (v) =>
+                                //                     v == null || v.isEmpty
+                                //                         ? "Role is required"
+                                //                         : null,
+                                //           ),
+                                //     ],
+                                //   ),
+                                // ),
                                 const SizedBox(width: 16),
                                 Expanded(
                                   child: Column(
@@ -1288,6 +1289,17 @@ class _ProfileUserState extends State<ProfileUser> {
   }
 
   void _showEditUserDialog(UserModel user) {
+    if (!RbacSession().hasPermission(Modules.userManagement, 'edit')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "Access Denied: You do not have permission to edit users.",
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
     final formKey = GlobalKey<FormState>();
     String name = user.name;
     String email = user.email;
@@ -1695,6 +1707,17 @@ class _ProfileUserState extends State<ProfileUser> {
   }
 
   void _showBanUserDialog(UserModel user) {
+    if (!RbacSession().hasPermission(Modules.userManagement, 'ban_user')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "Access Denied: You do not have permission to ban users.",
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
     final formKey = GlobalKey<FormState>();
     String reason = "Violation of community guidelines";
     String banType = "Permanent Ban";
@@ -2419,6 +2442,19 @@ class _ProfileUserState extends State<ProfileUser> {
   }
 
   Widget _buildBulkActionBar(List<UserModel> allUsers) {
+    final bool canSuspend = RbacSession().hasPermission(
+      'user_management',
+      'suspend_user',
+    );
+    final bool canDelete = RbacSession().hasPermission(
+      'user_management',
+      'delete',
+    );
+
+    if (!canSuspend && !canDelete) {
+      return const SizedBox();
+    }
+
     final int count = _selectedUserIds.length;
 
     return AnimatedContainer(
@@ -2478,73 +2514,105 @@ class _ProfileUserState extends State<ProfileUser> {
           ),
           const Spacer(),
           // Suspend All button
-          _buildBulkButton(
-            icon: Icons.lock_outline_rounded,
-            label: "Suspend All",
-            color: const Color(0xFFF97316),
-            onTap: () {
-              _showConfirmationDialog(
-                title: "Suspend $count User${count > 1 ? 's' : ''}",
-                content:
-                    "Are you sure you want to suspend the $count selected user${count > 1 ? 's' : ''}?",
-                confirmText: "Suspend",
-                onConfirm: () async {
-                  final batch = FirebaseFirestore.instance.batch();
-                  for (final id in _selectedUserIds) {
-                    batch.update(
-                      FirebaseFirestore.instance.collection("users").doc(id),
-                      {"status": "Suspended"},
-                    );
-                  }
-                  await batch.commit();
-                  if (!mounted) return;
-                  setState(() => _selectedUserIds.clear());
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        "$count user${count > 1 ? 's' : ''} suspended successfully.",
+          if (canSuspend) ...[
+            _buildBulkButton(
+              icon: Icons.lock_outline_rounded,
+              label: "Suspend All",
+              color: const Color(0xFFF97316),
+              onTap: () {
+                _showConfirmationDialog(
+                  title: "Suspend $count User${count > 1 ? 's' : ''}",
+                  content:
+                      "Are you sure you want to suspend the $count selected user${count > 1 ? 's' : ''}?",
+                  confirmText: "Suspend",
+                  onConfirm: () async {
+                    if (!RbacSession().hasPermission(
+                      'user_management',
+                      'suspend_user',
+                    )) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            "Access Denied: You do not have permission to suspend users.",
+                          ),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                      return;
+                    }
+                    final batch = FirebaseFirestore.instance.batch();
+                    for (final id in _selectedUserIds) {
+                      batch.update(
+                        FirebaseFirestore.instance.collection("users").doc(id),
+                        {"status": "Suspended"},
+                      );
+                    }
+                    await batch.commit();
+                    if (!mounted) return;
+                    setState(() => _selectedUserIds.clear());
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          "$count user${count > 1 ? 's' : ''} suspended successfully.",
+                        ),
                       ),
-                    ),
-                  );
-                  _refreshData();
-                },
-              );
-            },
-          ),
-          const SizedBox(width: 10),
+                    );
+                    _refreshData();
+                  },
+                );
+              },
+            ),
+          ],
+          if (canSuspend) const SizedBox(width: 10),
           // Delete All button
-          _buildBulkButton(
-            icon: Icons.delete_outline_rounded,
-            label: "Delete All",
-            color: const Color(0xFFEF4444),
-            onTap: () {
-              _showConfirmationDialog(
-                title: "Delete $count User${count > 1 ? 's' : ''}",
-                content:
-                    "Are you sure you want to permanently delete the $count selected user${count > 1 ? 's' : ''}? This cannot be undone.",
-                confirmText: "Delete",
-                onConfirm: () async {
-                  final batch = FirebaseFirestore.instance.batch();
-                  for (final id in _selectedUserIds) {
-                    batch.delete(
-                      FirebaseFirestore.instance.collection("users").doc(id),
-                    );
-                  }
-                  await batch.commit();
-                  if (!mounted) return;
-                  setState(() => _selectedUserIds.clear());
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        "$count user${count > 1 ? 's' : ''} deleted.",
+          if (canDelete) ...[
+            _buildBulkButton(
+              icon: Icons.delete_outline_rounded,
+              label: "Delete All",
+              color: const Color(0xFFEF4444),
+              onTap: () {
+                _showConfirmationDialog(
+                  title: "Delete $count User${count > 1 ? 's' : ''}",
+                  content:
+                      "Are you sure you want to permanently delete the $count selected user${count > 1 ? 's' : ''}? This cannot be undone.",
+                  confirmText: "Delete",
+                  onConfirm: () async {
+                    if (!RbacSession().hasPermission(
+                      'user_management',
+                      'delete',
+                    )) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            "Access Denied: You do not have permission to delete users.",
+                          ),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                      return;
+                    }
+                    final batch = FirebaseFirestore.instance.batch();
+                    for (final id in _selectedUserIds) {
+                      batch.delete(
+                        FirebaseFirestore.instance.collection("users").doc(id),
+                      );
+                    }
+                    await batch.commit();
+                    if (!mounted) return;
+                    setState(() => _selectedUserIds.clear());
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          "$count user${count > 1 ? 's' : ''} deleted.",
+                        ),
                       ),
-                    ),
-                  );
-                  _refreshData();
-                },
-              );
-            },
-          ),
+                    );
+                    _refreshData();
+                  },
+                );
+              },
+            ),
+          ],
           const SizedBox(width: 10),
           // Clear Selection button
           TextButton.icon(
@@ -2863,41 +2931,72 @@ class _ProfileUserState extends State<ProfileUser> {
       ),
     );
 
-    final exportButton = ElevatedButton.icon(
-      onPressed: () {
-        // ignore: argument_type_not_assignable
-        printUsersList(filteredUsers);
-      },
-      icon: const Icon(Icons.download_rounded, size: 14),
-      label: Text(
-        "Export",
-        style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 12),
-      ),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.white,
-        foregroundColor: const Color(0xFF475569),
-        elevation: 0,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        side: const BorderSide(color: Color(0xFFE2E8F0)),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      ),
+    final hasExport = RbacSession().hasPermission(
+      Modules.userManagement,
+      'export',
+    );
+    final hasCreate = RbacSession().hasPermission(
+      Modules.userManagement,
+      'create',
     );
 
-    final addUserButton = ElevatedButton.icon(
-      onPressed: () => _showAddUserDialog(),
-      icon: const Icon(Icons.add, size: 14),
-      label: Text(
-        "Add User",
-        style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 12),
-      ),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: const Color(0xFF10B981),
-        foregroundColor: Colors.white,
-        elevation: 0,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      ),
-    );
+    final exportButton =
+        hasExport
+            ? ElevatedButton.icon(
+              onPressed: () {
+                // ignore: argument_type_not_assignable
+                printUsersList(filteredUsers);
+              },
+              icon: const Icon(Icons.download_rounded, size: 14),
+              label: Text(
+                "Export",
+                style: GoogleFonts.inter(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: const Color(0xFF475569),
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
+                side: const BorderSide(color: Color(0xFFE2E8F0)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            )
+            : const SizedBox.shrink();
+
+    final addUserButton =
+        hasCreate
+            ? ElevatedButton.icon(
+              onPressed: () => _showAddUserDialog(),
+              icon: const Icon(Icons.add, size: 14),
+              label: Text(
+                "Add User",
+                style: GoogleFonts.inter(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF10B981),
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            )
+            : const SizedBox.shrink();
 
     if (isSmall) {
       return Column(
@@ -3203,83 +3302,204 @@ class _ProfileUserState extends State<ProfileUser> {
                                         _showEditUserDialog(user);
                                       },
                                     ),
-                                    const SizedBox(width: 6),
-                                    if (user.status == "Suspended")
+                                    if (RbacSession().hasPermission(
+                                      Modules.userManagement,
+                                      'suspend_user',
+                                    )) ...[
+                                      const SizedBox(width: 6),
+                                      if (user.status == "Suspended")
+                                        _buildActionButton(
+                                          Icons.lock_open_rounded,
+                                          Colors.green,
+                                          "Activate",
+                                          () {
+                                            _showConfirmationDialog(
+                                              title: "Confirm Activation",
+                                              content:
+                                                  "Are you sure you want to activate ${user.name}?",
+                                              confirmText: "Activate",
+                                              onConfirm: () async {
+                                                if (!RbacSession()
+                                                    .hasPermission(
+                                                      Modules.userManagement,
+                                                      'suspend_user',
+                                                    )) {
+                                                  ScaffoldMessenger.of(
+                                                    context,
+                                                  ).showSnackBar(
+                                                    const SnackBar(
+                                                      content: Text(
+                                                        "Access Denied: You do not have permission to activate users.",
+                                                      ),
+                                                      backgroundColor:
+                                                          Colors.red,
+                                                    ),
+                                                  );
+                                                  return;
+                                                }
+                                                try {
+                                                  await FirebaseFirestore
+                                                      .instance
+                                                      .collection("users")
+                                                      .doc(user.no)
+                                                      .update({
+                                                        "status": "Active",
+                                                      });
+                                                  if (!mounted) return;
+                                                  ScaffoldMessenger.of(
+                                                    context,
+                                                  ).showSnackBar(
+                                                    SnackBar(
+                                                      content: Text(
+                                                        "${user.name} activated successfully.",
+                                                      ),
+                                                    ),
+                                                  );
+                                                  _refreshData();
+                                                } catch (e) {
+                                                  if (!mounted) return;
+                                                  ScaffoldMessenger.of(
+                                                    context,
+                                                  ).showSnackBar(
+                                                    SnackBar(
+                                                      content: Text(
+                                                        "Error activating user: $e",
+                                                      ),
+                                                    ),
+                                                  );
+                                                }
+                                              },
+                                            );
+                                          },
+                                        )
+                                      else
+                                        _buildActionButton(
+                                          Icons.lock_outline_rounded,
+                                          Colors.orange,
+                                          "Suspend",
+                                          () {
+                                            _showConfirmationDialog(
+                                              title: "Confirm Suspension",
+                                              content:
+                                                  "Are you sure you want to suspend ${user.name}?",
+                                              confirmText: "Suspend",
+                                              onConfirm: () async {
+                                                if (!RbacSession()
+                                                    .hasPermission(
+                                                      Modules.userManagement,
+                                                      'suspend_user',
+                                                    )) {
+                                                  ScaffoldMessenger.of(
+                                                    context,
+                                                  ).showSnackBar(
+                                                    const SnackBar(
+                                                      content: Text(
+                                                        "Access Denied: You do not have permission to suspend users.",
+                                                      ),
+                                                      backgroundColor:
+                                                          Colors.red,
+                                                    ),
+                                                  );
+                                                  return;
+                                                }
+                                                try {
+                                                  await FirebaseFirestore
+                                                      .instance
+                                                      .collection("users")
+                                                      .doc(user.no)
+                                                      .update({
+                                                        "status": "Suspended",
+                                                        "suspendedOn":
+                                                            _formatDate(
+                                                              DateTime.now(),
+                                                            ),
+                                                      });
+                                                  if (!mounted) return;
+                                                  ScaffoldMessenger.of(
+                                                    context,
+                                                  ).showSnackBar(
+                                                    SnackBar(
+                                                      content: Text(
+                                                        "${user.name} suspended successfully.",
+                                                      ),
+                                                    ),
+                                                  );
+                                                  _refreshData();
+                                                } catch (e) {
+                                                  if (!mounted) return;
+                                                  ScaffoldMessenger.of(
+                                                    context,
+                                                  ).showSnackBar(
+                                                    SnackBar(
+                                                      content: Text(
+                                                        "Error suspending user: $e",
+                                                      ),
+                                                    ),
+                                                  );
+                                                }
+                                              },
+                                            );
+                                          },
+                                        ),
+                                    ],
+                                    if (RbacSession().hasPermission(
+                                      Modules.userManagement,
+                                      'ban_user',
+                                    )) ...[
+                                      const SizedBox(width: 6),
                                       _buildActionButton(
-                                        Icons.lock_open_rounded,
-                                        Colors.green,
-                                        "Activate",
+                                        Icons.gavel_rounded,
+                                        Colors.red,
+                                        "Ban",
                                         () {
-                                          _showConfirmationDialog(
-                                            title: "Confirm Activation",
-                                            content:
-                                                "Are you sure you want to activate ${user.name}?",
-                                            confirmText: "Activate",
-                                            onConfirm: () async {
-                                              try {
-                                                await FirebaseFirestore.instance
-                                                    .collection("users")
-                                                    .doc(user.no)
-                                                    .update({
-                                                      "status": "Active",
-                                                    });
-                                                if (!mounted) return;
-                                                ScaffoldMessenger.of(
-                                                  context,
-                                                ).showSnackBar(
-                                                  SnackBar(
-                                                    content: Text(
-                                                      "${user.name} activated successfully.",
-                                                    ),
-                                                  ),
-                                                );
-                                                _refreshData();
-                                              } catch (e) {
-                                                if (!mounted) return;
-                                                ScaffoldMessenger.of(
-                                                  context,
-                                                ).showSnackBar(
-                                                  SnackBar(
-                                                    content: Text(
-                                                      "Error activating user: $e",
-                                                    ),
-                                                  ),
-                                                );
-                                              }
-                                            },
-                                          );
+                                          _showBanUserDialog(user);
                                         },
-                                      )
-                                    else
+                                      ),
+                                    ],
+                                    if (RbacSession().hasPermission(
+                                      Modules.userManagement,
+                                      'delete',
+                                    )) ...[
+                                      const SizedBox(width: 6),
                                       _buildActionButton(
-                                        Icons.lock_outline_rounded,
-                                        Colors.orange,
-                                        "Suspend",
+                                        Icons.delete_outline_rounded,
+                                        Colors.red,
+                                        "Delete",
                                         () {
                                           _showConfirmationDialog(
-                                            title: "Confirm Suspension",
+                                            title: "Confirm Delete",
                                             content:
-                                                "Are you sure you want to suspend ${user.name}?",
-                                            confirmText: "Suspend",
+                                                "Are you sure you want to delete ${user.name}?",
+                                            confirmText: "Delete",
                                             onConfirm: () async {
+                                              if (!RbacSession().hasPermission(
+                                                Modules.userManagement,
+                                                'delete',
+                                              )) {
+                                                ScaffoldMessenger.of(
+                                                  context,
+                                                ).showSnackBar(
+                                                  const SnackBar(
+                                                    content: Text(
+                                                      "Access Denied: You do not have permission to delete users.",
+                                                    ),
+                                                    backgroundColor: Colors.red,
+                                                  ),
+                                                );
+                                                return;
+                                              }
                                               try {
                                                 await FirebaseFirestore.instance
                                                     .collection("users")
                                                     .doc(user.no)
-                                                    .update({
-                                                      "status": "Suspended",
-                                                      "suspendedOn":
-                                                          _formatDate(
-                                                            DateTime.now(),
-                                                          ),
-                                                    });
+                                                    .delete();
                                                 if (!mounted) return;
                                                 ScaffoldMessenger.of(
                                                   context,
                                                 ).showSnackBar(
                                                   SnackBar(
                                                     content: Text(
-                                                      "${user.name} suspended successfully.",
+                                                      "${user.name} has been deleted.",
                                                     ),
                                                   ),
                                                 );
@@ -3291,7 +3511,7 @@ class _ProfileUserState extends State<ProfileUser> {
                                                 ).showSnackBar(
                                                   SnackBar(
                                                     content: Text(
-                                                      "Error suspending user: $e",
+                                                      "Error deleting user: $e",
                                                     ),
                                                   ),
                                                 );
@@ -3300,59 +3520,7 @@ class _ProfileUserState extends State<ProfileUser> {
                                           );
                                         },
                                       ),
-                                    const SizedBox(width: 6),
-                                    _buildActionButton(
-                                      Icons.gavel_rounded,
-                                      Colors.red,
-                                      "Ban",
-                                      () {
-                                        _showBanUserDialog(user);
-                                      },
-                                    ),
-                                    const SizedBox(width: 6),
-                                    _buildActionButton(
-                                      Icons.delete_outline_rounded,
-                                      Colors.red,
-                                      "Delete",
-                                      () {
-                                        _showConfirmationDialog(
-                                          title: "Confirm Delete",
-                                          content:
-                                              "Are you sure you want to delete ${user.name}?",
-                                          confirmText: "Delete",
-                                          onConfirm: () async {
-                                            try {
-                                              await FirebaseFirestore.instance
-                                                  .collection("users")
-                                                  .doc(user.no)
-                                                  .delete();
-                                              if (!mounted) return;
-                                              ScaffoldMessenger.of(
-                                                context,
-                                              ).showSnackBar(
-                                                SnackBar(
-                                                  content: Text(
-                                                    "${user.name} has been deleted.",
-                                                  ),
-                                                ),
-                                              );
-                                              _refreshData();
-                                            } catch (e) {
-                                              if (!mounted) return;
-                                              ScaffoldMessenger.of(
-                                                context,
-                                              ).showSnackBar(
-                                                SnackBar(
-                                                  content: Text(
-                                                    "Error deleting user: $e",
-                                                  ),
-                                                ),
-                                              );
-                                            }
-                                          },
-                                        );
-                                      },
-                                    ),
+                                    ],
                                   ],
                                 ),
                               ],
@@ -3474,6 +3642,26 @@ class _ProfileUserState extends State<ProfileUser> {
     String label,
     VoidCallback onTap,
   ) {
+    String permAction = 'view';
+    if (label == 'Edit')
+      permAction = 'edit';
+    else if (label == 'Activate')
+      permAction = 'activate_user';
+    else if (label == 'Deactivate')
+      permAction = 'deactivate_user';
+    else if (label == 'Reset Pass')
+      permAction = 'reset_password';
+    else if (label == 'Ban')
+      permAction = 'ban_user';
+    else if (label == 'Suspend')
+      permAction = 'suspend_user';
+    else if (label == 'Delete')
+      permAction = 'delete';
+
+    if (!RbacSession().hasPermission(Modules.userManagement, permAction)) {
+      return const SizedBox.shrink();
+    }
+
     return Tooltip(
       message: label,
       child: InkWell(

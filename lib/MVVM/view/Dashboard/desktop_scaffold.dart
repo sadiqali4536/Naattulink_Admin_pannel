@@ -20,6 +20,7 @@ import 'package:swiftclean_admin/MVVM/view/pages.dart/Healthcare/healthcare.dart
 import 'package:swiftclean_admin/MVVM/view/pages.dart/Businesses/businesses.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/Reports/reports_overview.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/Services/Categories.dart';
+import 'package:swiftclean_admin/MVVM/view/pages.dart/Services/service_reviews.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/User/Profile_user.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/AdminProfile/admin_profile.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/User/User_roles.dart';
@@ -56,14 +57,19 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
   String selectedTile = "Dashboard";
   List<NotificationItem> notifications = [];
   bool _sessionLoaded = false;
+  bool _loggedSidebar = false;
   final _session = RbacSession();
   int pendingBookingsCount = 0;
+  int ongoingBookingsCount = 0;
+  int pendingWorkersCount = 0;
 
   @override
   void initState() {
     super.initState();
+    _session.addListener(_onSessionChanged);
     _loadSession();
     _listenToPendingBookings();
+    _listenToPendingWorkers();
     notifications = [
       NotificationItem(
         message: "User Alex booked a service",
@@ -86,22 +92,152 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
     ];
   }
 
+  void _onSessionChanged() {
+    if (mounted) {
+      setState(() {
+        _loggedSidebar = false;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _session.removeListener(_onSessionChanged);
+    super.dispose();
+  }
+
   Future<void> _loadSession() async {
+    _loggedSidebar = false;
     if (!_session.isActive) {
       await _session.loadSession();
     }
-    if (mounted) setState(() => _sessionLoaded = true);
+    if (mounted) {
+      setState(() {
+        _sessionLoaded = true;
+        if (!_can(Modules.dashboard, Perms.view)) {
+          selectedTile = _getFirstPermittedTile();
+        }
+      });
+    }
   }
 
-  void _listenToPendingBookings() {
+  void _logSidebarVisibility() {
+    if (_loggedSidebar) return;
+    _loggedSidebar = true;
+
+    print(
+      '[SIDEBAR] Dashboard -> ${_can(Modules.dashboard, Perms.view) ? "Visible" : "Hidden (Missing dashboard.view)"}',
+    );
+
+    final hasUserMgmt =
+        _can(Modules.userManagement, Perms.view) ||
+        _can(Modules.roles, Perms.view) ||
+        _can(Modules.userManagement, 'assign_role') ||
+        _can(Modules.grantAccess, Perms.view);
+    print(
+      '[SIDEBAR] User Management -> ${hasUserMgmt ? "Visible" : "Hidden (Missing user_management.view)"}',
+    );
+
+    print(
+      '[SIDEBAR] Worker Management -> ${_can(Modules.workerManagement, Perms.view) ? "Visible" : "Hidden (Missing worker_management.view)"}',
+    );
+    print(
+      '[SIDEBAR] Services -> ${_can(Modules.services, Perms.view) ? "Visible" : "Hidden (Missing services.view)"}',
+    );
+    print(
+      '[SIDEBAR] Advertisements -> ${_can(Modules.advertisement, Perms.view) ? "Visible" : "Hidden (Missing advertisement.view)"}',
+    );
+    print(
+      '[SIDEBAR] Bus Routes -> ${_can(Modules.bus, Perms.view) ? "Visible" : "Hidden (Missing bus.view)"}',
+    );
+    print(
+      '[SIDEBAR] Taxi Drivers -> ${_can(Modules.taxi, Perms.view) ? "Visible" : "Hidden (Missing taxi.view)"}',
+    );
+    print(
+      '[SIDEBAR] Truck & JCB -> ${_can(Modules.truck, Perms.view) ? "Visible" : "Hidden (Missing truck.view)"}',
+    );
+    print(
+      '[SIDEBAR] Healthcare -> ${_can(Modules.healthcare, Perms.view) ? "Visible" : "Hidden (Missing healthcare.view)"}',
+    );
+    print(
+      '[SIDEBAR] Businesses -> ${_can(Modules.business, Perms.view) ? "Visible" : "Hidden (Missing business.view)"}',
+    );
+  }
+
+  String _getFirstPermittedTile() {
+    if (_can(Modules.dashboard, Perms.view)) return "Dashboard";
+    if (_can(Modules.userManagement, Perms.view)) return "User Profile";
+    if (_can(Modules.roles, Perms.view) ||
+        _can(Modules.userManagement, 'assign_role'))
+      return "User Roles";
+    if (_can(Modules.grantAccess, Perms.view)) return "Grant Access";
+    if (_can(Modules.workerManagement, Perms.view)) return "All Workers";
+    if (_can(Modules.bookings, Perms.view)) return "All Bookings";
+    if (_can(Modules.services, Perms.view)) return "All Services";
+    if (_can(Modules.advertisement, Perms.view)) return "Ads Promotion";
+    if (_can(Modules.payments, Perms.view)) return "Payments";
+    if (_can(Modules.bus, Perms.view)) return "Bus Routes";
+    if (_can(Modules.taxi, Perms.view)) return "Taxi Drivers";
+    if (_can(Modules.truck, Perms.view)) return "Truck & JCB";
+    if (_can(Modules.healthcare, Perms.view)) return "Healthcare";
+    if (_can(Modules.business, Perms.view)) return "Businesses";
+    if (_can(Modules.notifications, Perms.view)) return "Notifications";
+    if (_can(Modules.reports, Perms.view)) return "Reports";
+    if (_can(Modules.settings, Perms.view)) return "Settings";
+    return "Profile";
+  }
+
+  void _listenToPendingWorkers() {
     FirebaseFirestore.instance
-        .collection('bookings')
-        .where('status', isEqualTo: 'Pending')
+        .collection("workers")
+        .where("isVerified", isEqualTo: 0)
         .snapshots()
         .listen((snapshot) {
           if (mounted) {
             setState(() {
-              pendingBookingsCount = snapshot.docs.length;
+              pendingWorkersCount = snapshot.docs.length;
+            });
+          }
+        });
+  }
+
+  void _listenToPendingBookings() {
+    FirebaseFirestore.instance
+        .collection('service_bookings')
+        .snapshots()
+        .listen((snapshot) {
+          if (mounted) {
+            int pCount = 0;
+            int oCount = 0;
+            for (var doc in snapshot.docs) {
+              final bookingStatus =
+                  (doc.data()['booking_status'] ?? doc.data()['status'] ?? '')
+                      .toString()
+                      .trim()
+                      .toLowerCase();
+              final workStatus =
+                  (doc.data()['work_status'] ?? '')
+                      .toString()
+                      .trim()
+                      .toLowerCase();
+              final completedStatus =
+                  (doc.data()['completed_status'] ?? '')
+                      .toString()
+                      .trim()
+                      .toLowerCase();
+
+              if (bookingStatus == 'confirmed' && workStatus == 'pending') {
+                pCount++;
+              }
+              if (bookingStatus == 'confirmed' &&
+                  workStatus == 'accepted' &&
+                  completedStatus == 'ongoing') {
+                oCount++;
+              }
+            }
+            setState(() {
+              pendingBookingsCount = pCount;
+              ongoingBookingsCount = oCount;
             });
           }
         });
@@ -113,7 +249,11 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
   Widget getSelectedPage() {
     switch (selectedTile) {
       case "Dashboard":
-        return const Dashboard();
+        return PermissionGuard(
+          module: Modules.dashboard,
+          action: Perms.view,
+          child: const Dashboard(),
+        );
       case "Settings":
         return PermissionGuard(
           module: Modules.settings,
@@ -144,7 +284,7 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
       case "Pending Approvals":
         return PermissionGuard(
           module: Modules.workerManagement,
-          action: Perms.view,
+          action: 'approve_worker',
           child: AllWorkersPage(
             initialFilter: "Pending",
             onTabChanged: (tab) => setState(() => selectedTile = tab),
@@ -153,7 +293,7 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
       case "Approved Workers":
         return PermissionGuard(
           module: Modules.workerManagement,
-          action: Perms.view,
+          action: 'approve_worker',
           child: AllWorkersPage(
             initialFilter: "Approved",
             onTabChanged: (tab) => setState(() => selectedTile = tab),
@@ -162,7 +302,7 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
       case "Rejected Workers":
         return PermissionGuard(
           module: Modules.workerManagement,
-          action: Perms.view,
+          action: 'reject_worker',
           child: AllWorkersPage(
             initialFilter: "Rejected",
             onTabChanged: (tab) => setState(() => selectedTile = tab),
@@ -171,7 +311,7 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
       case "Suspended Workers":
         return PermissionGuard(
           module: Modules.workerManagement,
-          action: Perms.view,
+          action: 'suspend_worker',
           child: AllWorkersPage(
             initialFilter: "Suspended",
             onTabChanged: (tab) => setState(() => selectedTile = tab),
@@ -187,6 +327,9 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
         return PermissionGuard(
           module: Modules.roles,
           action: Perms.view,
+          hasAccessOverride:
+              _can(Modules.roles, Perms.view) ||
+              _can(Modules.userManagement, 'assign_role'),
           child: UserRolesPage(
             onTabChanged: (tab) => setState(() => selectedTile = tab),
           ),
@@ -194,13 +337,13 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
       case "Banned Users":
         return PermissionGuard(
           module: Modules.userManagement,
-          action: Perms.view,
+          action: 'ban_user',
           child: const BannedUsersPage(),
         );
       case "Suspended Users":
         return PermissionGuard(
           module: Modules.userManagement,
-          action: Perms.view,
+          action: 'suspend_user',
           child: const SuspendedUsersPage(),
         );
       case "Grant Access":
@@ -214,20 +357,21 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
       case "Services":
       case "All Services":
         return PermissionGuard(
-          module: Modules.advertisement,
+          module: Modules.services,
           action: Perms.view,
           child: const Services(),
         );
       case "Categories":
         return PermissionGuard(
-          module: Modules.advertisement,
+          module: Modules.services,
           action: Perms.view,
           child: const ServiceCategoriesPage(),
         );
       case "Service Reviews":
-        return _buildPlaceholderPage(
-          "Service Reviews",
-          Icons.rate_review_rounded,
+        return PermissionGuard(
+          module: Modules.services,
+          action: Perms.view,
+          child: const ServiceReviewsPage(),
         );
       case "Payments":
         return PermissionGuard(
@@ -259,6 +403,15 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
           action: Perms.view,
           child: Bookings(
             initialFilter: "Confirmed",
+            onTabChanged: (tab) => setState(() => selectedTile = tab),
+          ),
+        );
+      case "On Going Works":
+        return PermissionGuard(
+          module: Modules.bookings,
+          action: Perms.view,
+          child: Bookings(
+            initialFilter: "Ongoing",
             onTabChanged: (tab) => setState(() => selectedTile = tab),
           ),
         );
@@ -305,15 +458,35 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
           Icons.shopping_cart_rounded,
         );
       case "Bus Routes":
-        return const BusRoutesPage();
+        return PermissionGuard(
+          module: Modules.bus,
+          action: Perms.view,
+          child: const BusRoutesPage(),
+        );
       case "Taxi Drivers":
-        return const TaxiDriversPage();
+        return PermissionGuard(
+          module: Modules.taxi,
+          action: Perms.view,
+          child: const TaxiDriversPage(),
+        );
       case "Truck & JCB":
-        return const TruckAndJcbPage();
+        return PermissionGuard(
+          module: Modules.truck,
+          action: Perms.view,
+          child: const TruckAndJcbPage(),
+        );
       case "Healthcare":
-        return const HealthcarePage();
+        return PermissionGuard(
+          module: Modules.healthcare,
+          action: Perms.view,
+          child: const HealthcarePage(),
+        );
       case "Businesses":
-        return const BusinessesPage();
+        return PermissionGuard(
+          module: Modules.business,
+          action: Perms.view,
+          child: const BusinessesPage(),
+        );
 
       case "Coupons":
         return _buildPlaceholderPage(
@@ -371,6 +544,15 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
 
   @override
   Widget build(BuildContext context) {
+    if (!_sessionLoaded) {
+      return const Scaffold(
+        backgroundColor: Color(0xFFF8FAFC),
+        body: Center(
+          child: CircularProgressIndicator(color: Color(0xFFFFC107)),
+        ),
+      );
+    }
+    _logSidebarVisibility();
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       body: Row(
@@ -393,14 +575,16 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          SidebarTile(
-                            title: "Dashboard",
-                            icon: Icons.dashboard_rounded,
-                            isSelected: selectedTile == "Dashboard",
-                            onTap:
-                                () =>
-                                    setState(() => selectedTile = "Dashboard"),
-                          ),
+                          if (_can(Modules.dashboard, Perms.view))
+                            SidebarTile(
+                              title: "Dashboard",
+                              icon: Icons.dashboard_rounded,
+                              isSelected: selectedTile == "Dashboard",
+                              onTap:
+                                  () => setState(
+                                    () => selectedTile = "Dashboard",
+                                  ),
+                            ),
                           // ── User Management ──────────────────────────────────────
                           if (_can(Modules.userManagement, Perms.view) ||
                               _can(Modules.roles, Perms.view) ||
@@ -429,7 +613,8 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
                                           () => selectedTile = "User Profile",
                                         ),
                                   ),
-                                if (_can(Modules.roles, Perms.view))
+                                if (_can(Modules.roles, Perms.view) ||
+                                    _can(Modules.userManagement, 'assign_role'))
                                   SidebarTile(
                                     title: "User Roles",
                                     icon: Icons.shield_outlined,
@@ -439,7 +624,7 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
                                           () => selectedTile = "User Roles",
                                         ),
                                   ),
-                                if (_can(Modules.userManagement, Perms.view))
+                                if (_can(Modules.userManagement, 'ban_user'))
                                   SidebarTile(
                                     title: "Banned Users",
                                     icon: Icons.block_flipped,
@@ -449,14 +634,19 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
                                           () => selectedTile = "Banned Users",
                                         ),
                                   ),
-                                if (_can(Modules.userManagement, Perms.view))
+                                if (_can(
+                                  Modules.userManagement,
+                                  'suspend_user',
+                                ))
                                   SidebarTile(
                                     title: "Suspended Users",
                                     icon: Icons.pause_circle_outline,
-                                    isSelected: selectedTile == "Suspended Users",
+                                    isSelected:
+                                        selectedTile == "Suspended Users",
                                     onTap:
                                         () => setState(
-                                          () => selectedTile = "Suspended Users",
+                                          () =>
+                                              selectedTile = "Suspended Users",
                                         ),
                                   ),
                                 if (_can(Modules.grantAccess, Perms.view))
@@ -472,7 +662,13 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
                               ],
                             ),
                           // ── Worker Management ─────────────────────────────────────
-                          if (_can(Modules.workerManagement, Perms.view))
+                          if (_can(Modules.workerManagement, Perms.view) ||
+                              _can(
+                                Modules.workerManagement,
+                                'approve_worker',
+                              ) ||
+                              _can(Modules.workerManagement, 'reject_worker') ||
+                              _can(Modules.workerManagement, 'suspend_worker'))
                             SidebarExpansionTile(
                               title: "Worker Management",
                               icon: Icons.engineering_rounded,
@@ -482,95 +678,139 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
                                   selectedTile == "Approved Workers" ||
                                   selectedTile == "Rejected Workers" ||
                                   selectedTile == "Suspended Workers",
-                              onTap:
-                                  () => setState(
-                                    () => selectedTile = "All Workers",
-                                  ),
-                              children: [
-                                SidebarTile(
-                                  title: "All Workers",
-                                  icon: Icons.group_outlined,
-                                  isSelected: selectedTile == "All Workers",
-                                  onTap:
-                                      () => setState(
-                                        () => selectedTile = "All Workers",
-                                      ),
-                                ),
-                                SidebarTile(
-                                  title: "Pending Approvals",
-                                  icon: Icons.hourglass_empty_rounded,
-                                  isSelected:
-                                      selectedTile == "Pending Approvals",
-                                  onTap:
-                                      () => setState(
-                                        () =>
-                                            selectedTile = "Pending Approvals",
-                                      ),
-                                  trailing: StreamBuilder<QuerySnapshot>(
-                                    stream:
-                                        FirebaseFirestore.instance
-                                            .collection("workers")
-                                            .where("isVerified", isEqualTo: 0)
-                                            .snapshots(),
-                                    builder: (context, snapshot) {
-                                      int count = 0;
-                                      if (snapshot.hasData) {
-                                        count = snapshot.data!.docs.length;
-                                      }
-                                      return Container(
+                              trailing:
+                                  pendingWorkersCount > 0
+                                      ? Container(
                                         padding: const EdgeInsets.symmetric(
                                           horizontal: 6,
                                           vertical: 2,
                                         ),
                                         decoration: BoxDecoration(
-                                          color: const Color(0xFFF59E0B),
+                                          color: const Color(0xFF8B5CF6),
                                           borderRadius: BorderRadius.circular(
                                             10,
                                           ),
                                         ),
                                         child: Text(
-                                          count.toString(),
+                                          pendingWorkersCount.toString(),
                                           style: GoogleFonts.inter(
                                             fontSize: 10,
                                             fontWeight: FontWeight.bold,
                                             color: Colors.white,
                                           ),
                                         ),
-                                      );
-                                    },
+                                      )
+                                      : null,
+                              onTap:
+                                  () => setState(
+                                    () => selectedTile = "All Workers",
                                   ),
-                                ),
-                                SidebarTile(
-                                  title: "Approved Workers",
-                                  icon: Icons.check_circle_outline_rounded,
-                                  isSelected:
-                                      selectedTile == "Approved Workers",
-                                  onTap:
-                                      () => setState(
-                                        () => selectedTile = "Approved Workers",
-                                      ),
-                                ),
-                                SidebarTile(
-                                  title: "Rejected Workers",
-                                  icon: Icons.cancel_outlined,
-                                  isSelected:
-                                      selectedTile == "Rejected Workers",
-                                  onTap:
-                                      () => setState(
-                                        () => selectedTile = "Rejected Workers",
-                                      ),
-                                ),
-                                SidebarTile(
-                                  title: "Suspended Workers",
-                                  icon: Icons.pause_circle_outline_rounded,
-                                  isSelected:
-                                      selectedTile == "Suspended Workers",
-                                  onTap:
-                                      () => setState(
-                                        () =>
-                                            selectedTile = "Suspended Workers",
-                                      ),
-                                ),
+                              children: [
+                                if (_can(Modules.workerManagement, Perms.view))
+                                  SidebarTile(
+                                    title: "All Workers",
+                                    icon: Icons.group_outlined,
+                                    isSelected: selectedTile == "All Workers",
+                                    onTap:
+                                        () => setState(
+                                          () => selectedTile = "All Workers",
+                                        ),
+                                  ),
+                                if (_can(
+                                  Modules.workerManagement,
+                                  'approve_worker',
+                                ))
+                                  SidebarTile(
+                                    title: "Pending Approvals",
+                                    icon: Icons.hourglass_empty_rounded,
+                                    isSelected:
+                                        selectedTile == "Pending Approvals",
+                                    onTap:
+                                        () => setState(
+                                          () =>
+                                              selectedTile =
+                                                  "Pending Approvals",
+                                        ),
+                                    trailing: StreamBuilder<QuerySnapshot>(
+                                      stream:
+                                          FirebaseFirestore.instance
+                                              .collection("workers")
+                                              .where("isVerified", isEqualTo: 0)
+                                              .snapshots(),
+                                      builder: (context, snapshot) {
+                                        int count = 0;
+                                        if (snapshot.hasData) {
+                                          count = snapshot.data!.docs.length;
+                                        }
+                                        return Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 6,
+                                            vertical: 2,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFF8B5CF6),
+                                            borderRadius: BorderRadius.circular(
+                                              10,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            count.toString(),
+                                            style: GoogleFonts.inter(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                if (_can(
+                                  Modules.workerManagement,
+                                  'approve_worker',
+                                ))
+                                  SidebarTile(
+                                    title: "Approved Workers",
+                                    icon: Icons.check_circle_outline_rounded,
+                                    isSelected:
+                                        selectedTile == "Approved Workers",
+                                    onTap:
+                                        () => setState(
+                                          () =>
+                                              selectedTile = "Approved Workers",
+                                        ),
+                                  ),
+                                if (_can(
+                                  Modules.workerManagement,
+                                  'reject_worker',
+                                ))
+                                  SidebarTile(
+                                    title: "Rejected Workers",
+                                    icon: Icons.cancel_outlined,
+                                    isSelected:
+                                        selectedTile == "Rejected Workers",
+                                    onTap:
+                                        () => setState(
+                                          () =>
+                                              selectedTile = "Rejected Workers",
+                                        ),
+                                  ),
+                                if (_can(
+                                  Modules.workerManagement,
+                                  'suspend_worker',
+                                ))
+                                  SidebarTile(
+                                    title: "Suspended Workers",
+                                    icon: Icons.pause_circle_outline_rounded,
+                                    isSelected:
+                                        selectedTile == "Suspended Workers",
+                                    onTap:
+                                        () => setState(
+                                          () =>
+                                              selectedTile =
+                                                  "Suspended Workers",
+                                        ),
+                                  ),
                               ],
                             ),
                           // ── Bookings ───────────────────────────────────────────────
@@ -581,9 +821,32 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
                               isInitiallyExpanded:
                                   selectedTile == "All Bookings" ||
                                   selectedTile == "Pending Bookings" ||
-                                  selectedTile == "Confirmed Bookings" ||
+                                  selectedTile == "On Going Works" ||
                                   selectedTile == "Completed Bookings" ||
                                   selectedTile == "Cancelled Bookings",
+                              trailing:
+                                  pendingBookingsCount > 0
+                                      ? Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFF8B5CF6),
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          pendingBookingsCount.toString(),
+                                          style: GoogleFonts.inter(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      )
+                                      : null,
                               onTap:
                                   () => setState(
                                     () => selectedTile = "All Bookings",
@@ -613,7 +876,7 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
                                       vertical: 2,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: const Color(0xFFF59E0B),
+                                      color: const Color(0xFF8B5CF6),
                                       borderRadius: BorderRadius.circular(10),
                                     ),
                                     child: Text(
@@ -627,15 +890,35 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
                                   ),
                                 ),
                                 SidebarTile(
-                                  title: "Confirmed Bookings",
-                                  icon: Icons.check_circle_outline_rounded,
-                                  isSelected:
-                                      selectedTile == "Confirmed Bookings",
+                                  title: "On Going Works",
+                                  icon: Icons.play_circle_outline_rounded,
+                                  isSelected: selectedTile == "On Going Works",
                                   onTap:
                                       () => setState(
-                                        () =>
-                                            selectedTile = "Confirmed Bookings",
+                                        () => selectedTile = "On Going Works",
                                       ),
+                                  trailing:
+                                      ongoingBookingsCount > 0
+                                          ? Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 6,
+                                              vertical: 2,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFF8B5CF6),
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                            ),
+                                            child: Text(
+                                              ongoingBookingsCount.toString(),
+                                              style: GoogleFonts.inter(
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                          )
+                                          : null,
                                 ),
                                 SidebarTile(
                                   title: "Completed Bookings",
@@ -662,7 +945,7 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
                               ],
                             ),
                           // ── Services ───────────────────────────────────────────────
-                          if (_can(Modules.advertisement, Perms.view))
+                          if (_can(Modules.services, Perms.view))
                             SidebarExpansionTile(
                               title: "Services",
                               icon: Icons.home_repair_service_rounded,
@@ -724,50 +1007,56 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
                                   () =>
                                       setState(() => selectedTile = "Payments"),
                             ),
-                          SidebarTile(
-                            title: "Bus Routes",
-                            icon: Icons.directions_bus_rounded,
-                            isSelected: selectedTile == "Bus Routes",
-                            onTap:
-                                () =>
-                                    setState(() => selectedTile = "Bus Routes"),
-                          ),
-                          SidebarTile(
-                            title: "Taxi Drivers",
-                            icon: Icons.local_taxi_rounded,
-                            isSelected: selectedTile == "Taxi Drivers",
-                            onTap:
-                                () => setState(
-                                  () => selectedTile = "Taxi Drivers",
-                                ),
-                          ),
-                          SidebarTile(
-                            title: "Truck & JCB",
-                            icon: Icons.fire_truck_rounded,
-                            isSelected: selectedTile == "Truck & JCB",
-                            onTap:
-                                () => setState(
-                                  () => selectedTile = "Truck & JCB",
-                                ),
-                          ),
-                          SidebarTile(
-                            title: "Healthcare",
-                            icon: Icons.local_hospital_rounded,
-                            isSelected: selectedTile == "Healthcare",
-                            onTap:
-                                () => setState(
-                                  () => selectedTile = "Healthcare",
-                                ),
-                          ),
-                          SidebarTile(
-                            title: "Businesses",
-                            icon: Icons.store_rounded,
-                            isSelected: selectedTile == "Businesses",
-                            onTap:
-                                () => setState(
-                                  () => selectedTile = "Businesses",
-                                ),
-                          ),
+                          if (_can(Modules.bus, Perms.view))
+                            SidebarTile(
+                              title: "Bus Routes",
+                              icon: Icons.directions_bus_rounded,
+                              isSelected: selectedTile == "Bus Routes",
+                              onTap:
+                                  () => setState(
+                                    () => selectedTile = "Bus Routes",
+                                  ),
+                            ),
+                          if (_can(Modules.taxi, Perms.view))
+                            SidebarTile(
+                              title: "Taxi Drivers",
+                              icon: Icons.local_taxi_rounded,
+                              isSelected: selectedTile == "Taxi Drivers",
+                              onTap:
+                                  () => setState(
+                                    () => selectedTile = "Taxi Drivers",
+                                  ),
+                            ),
+                          if (_can(Modules.truck, Perms.view))
+                            SidebarTile(
+                              title: "Truck & JCB",
+                              icon: Icons.fire_truck_rounded,
+                              isSelected: selectedTile == "Truck & JCB",
+                              onTap:
+                                  () => setState(
+                                    () => selectedTile = "Truck & JCB",
+                                  ),
+                            ),
+                          if (_can(Modules.healthcare, Perms.view))
+                            SidebarTile(
+                              title: "Healthcare",
+                              icon: Icons.local_hospital_rounded,
+                              isSelected: selectedTile == "Healthcare",
+                              onTap:
+                                  () => setState(
+                                    () => selectedTile = "Healthcare",
+                                  ),
+                            ),
+                          if (_can(Modules.business, Perms.view))
+                            SidebarTile(
+                              title: "Businesses",
+                              icon: Icons.store_rounded,
+                              isSelected: selectedTile == "Businesses",
+                              onTap:
+                                  () => setState(
+                                    () => selectedTile = "Businesses",
+                                  ),
+                            ),
                           if (_can(Modules.notifications, Perms.view))
                             SidebarTile(
                               title: "Notifications",
@@ -1230,6 +1519,7 @@ class SidebarExpansionTile extends StatefulWidget {
   final List<Widget> children;
   final bool isInitiallyExpanded;
   final VoidCallback? onTap;
+  final Widget? trailing;
 
   const SidebarExpansionTile({
     super.key,
@@ -1238,6 +1528,7 @@ class SidebarExpansionTile extends StatefulWidget {
     required this.children,
     this.isInitiallyExpanded = false,
     this.onTap,
+    this.trailing,
   });
 
   @override
@@ -1293,6 +1584,8 @@ class _SidebarExpansionTileState extends State<SidebarExpansionTile> {
                       ),
                     ),
                   ),
+                  if (widget.trailing != null) widget.trailing!,
+                  if (widget.trailing != null) const SizedBox(width: 8),
                   Icon(
                     _isExpanded
                         ? Icons.keyboard_arrow_up_rounded

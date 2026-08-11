@@ -55,5 +55,28 @@ class ServiceImageService {
       imageFileId: fileId,
     );
   }
+
+  /// Replaces a service image by deleting the old one (if fileId provided) and uploading a new one.
+  Future<ImageKitUploadResult> replaceServiceImage({
+    required String? oldImageFileId,
+    required Uint8List imageBytes,
+    required String fileName,
+    void Function(double progress)? onProgress,
+  }) async {
+    if (oldImageFileId != null && oldImageFileId.isNotEmpty) {
+      try {
+        await deleteServiceImage(oldImageFileId);
+      } catch (e) {
+        // Ignore deletion errors to ensure upload still proceeds
+        print("Error deleting old service image: $e");
+      }
+    }
+    
+    return await uploadServiceImage(
+      imageBytes: imageBytes,
+      fileName: fileName,
+      onProgress: onProgress,
+    );
+  }
 }
 

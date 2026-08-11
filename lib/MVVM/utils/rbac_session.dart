@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:swiftclean_admin/MVVM/model/models/admin_model.dart';
@@ -14,7 +15,7 @@ import 'package:swiftclean_admin/MVVM/model/models/admin_model.dart';
 /// Session is cached after login and refreshed only on:
 ///   • Login / Logout
 ///   • Firestore listener detects a change in admin_users/{uid}
-class RbacSession {
+class RbacSession extends ChangeNotifier {
   // ---------------------------------------------------------------------------
   // Singleton
   // ---------------------------------------------------------------------------
@@ -136,6 +137,7 @@ class RbacSession {
       // so they are listed in the admin users list.
       _ensureFirestoreAdminDocExists(uid!, user.email!);
 
+      notifyListeners();
       return;
     }
 
@@ -178,6 +180,7 @@ class RbacSession {
       username = await _loadUsername(uid!);
       effectivePermissions = _allPermissions();
       if (!fromListener) _startSessionListener(uid!);
+      notifyListeners();
       return;
     }
 
@@ -218,6 +221,7 @@ class RbacSession {
 
     // ── Start listener for real-time session refresh ──────────────────────────
     if (!fromListener) _startSessionListener(uid!);
+    notifyListeners();
   }
 
   // ---------------------------------------------------------------------------
@@ -285,6 +289,7 @@ class RbacSession {
     roleLevel = 0;
     status = 'Inactive';
     effectivePermissions = {};
+    notifyListeners();
   }
 
   // ---------------------------------------------------------------------------

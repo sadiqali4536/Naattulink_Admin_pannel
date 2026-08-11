@@ -3,6 +3,8 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:swiftclean_admin/MVVM/model/models/admin_model.dart';
+import 'package:swiftclean_admin/MVVM/utils/rbac_session.dart';
 import 'dart:typed_data';
 import 'dart:async';
 import 'package:swiftclean_admin/modules/services/service_image_service.dart';
@@ -66,18 +68,23 @@ class Services extends StatefulWidget {
 class _ServicesState extends State<Services> {
   final ScrollController _verticalScrollController = ScrollController();
   final ScrollController _horizontalScrollController = ScrollController();
+  final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
 
   String _searchQuery = "";
   String _selectedCategory = "All Categories";
   String _selectedStatus = "All Status";
   bool _isLoading = false;
+  final Set<String> _updatingStatusIds = {};
 
   List<String> _categoryList = <String>["_"];
   StreamSubscription? _categorySubscription;
+  late Stream<QuerySnapshot> _servicesStream;
 
   @override
   void initState() {
     super.initState();
+    _servicesStream = FirebaseFirestore.instance.collection('services').snapshots();
     _fetchCategories();
   }
 
@@ -116,10 +123,23 @@ class _ServicesState extends State<Services> {
     _categorySubscription?.cancel();
     _verticalScrollController.dispose();
     _horizontalScrollController.dispose();
+    _searchController.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
   }
 
   void _openCreateServiceDialog() {
+    if (!RbacSession().hasPermission(Modules.services, Perms.create)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "Access Denied: You do not have permission to create services.",
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
     String? tempCategory;
     final TextEditingController nameController = TextEditingController();
     final TextEditingController originalPriceController =
@@ -702,15 +722,659 @@ class _ServicesState extends State<Services> {
     );
   }
 
+  void _openEditServiceDialog(ServiceModel service) {
+    if (!RbacSession().hasPermission(Modules.services, Perms.edit)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "Access Denied: You do not have permission to edit services.",
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+    String? tempCategory =
+        _categoryList.contains(service.category) ? service.category : null;
+    if (tempCategory == null &&
+        service.category.isNotEmpty &&
+        service.category != "Uncategorized") {
+      tempCategory = _categoryList.isNotEmpty ? _categoryList.first : null;
+    }
+
+    final TextEditingController nameController = TextEditingController(
+      text: service.name,
+    );
+    final TextEditingController originalPriceController = TextEditingController(
+      text: service.originalPrice.toStringAsFixed(0),
+    );
+    final TextEditingController discountController = TextEditingController(
+      text: service.discount.toStringAsFixed(0),
+    );
+    Uint8List? selectedImage;
+    bool isUploading = false;
+
+    showDialog(
+      context: context,
+      builder:
+          (context) => StatefulBuilder(
+            builder:
+                (context, setDialogState) => Dialog(
+                  backgroundColor: const Color.fromARGB(255, 255, 255, 255),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Container(
+                    width: 440,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 28,
+                      vertical: 28,
+                    ),
+                    child: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                "Edit Service",
+                                style: GoogleFonts.inter(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  color: const Color(0xFF0F172A),
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.close,
+                                  size: 22,
+                                  color: Color(0xFF64748B),
+                                ),
+                                onPressed: () => Navigator.pop(context),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            "Service Name",
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFF475569),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          TextFormField(
+                            controller: nameController,
+                            decoration: InputDecoration(
+                              isDense: true,
+                              hintText: "Enter service name",
+                              hintStyle: GoogleFonts.inter(
+                                color: const Color(0xFF94A3B8),
+                                fontSize: 14,
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: const BorderSide(
+                                  color: Color(0xFF604987),
+                                  width: 0.8,
+                                ),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: const BorderSide(
+                                  color: Color(0xFF604987),
+                                  width: 1.5,
+                                ),
+                              ),
+                            ),
+                            style: GoogleFonts.inter(fontSize: 14),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            "Category",
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFF475569),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          DropdownButtonFormField<String>(
+                            isExpanded: true,
+                            value: tempCategory,
+                            hint: Text(
+                              "Select Category",
+                              style: GoogleFonts.inter(
+                                fontSize: 14,
+                                color: const Color(0xFF94A3B8),
+                              ),
+                            ),
+                            icon: const Icon(
+                              Icons.arrow_drop_down,
+                              color: Color(0xFF604987),
+                            ),
+                            decoration: InputDecoration(
+                              isDense: true,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 12,
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: const BorderSide(
+                                  color: Color(0xFF604987),
+                                  width: 0.8,
+                                ),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: const BorderSide(
+                                  color: Color(0xFF604987),
+                                  width: 1.5,
+                                ),
+                              ),
+                            ),
+                            items:
+                                _categoryList.map((String category) {
+                                  return DropdownMenuItem<String>(
+                                    value: category,
+                                    child: Text(
+                                      category,
+                                      style: GoogleFonts.inter(
+                                        fontSize: 14,
+                                        color: const Color(0xFF334155),
+                                      ),
+                                    ),
+                                  );
+                                }).toList(),
+                            onChanged: (String? newValue) {
+                              setDialogState(() {
+                                tempCategory = newValue;
+                              });
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      "Original Price (₹)",
+                                      style: GoogleFonts.inter(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: const Color(0xFF475569),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    TextFormField(
+                                      controller: originalPriceController,
+                                      keyboardType: TextInputType.number,
+                                      decoration: InputDecoration(
+                                        isDense: true,
+                                        hintText: "0",
+                                        hintStyle: GoogleFonts.inter(
+                                          color: const Color(0xFF94A3B8),
+                                          fontSize: 14,
+                                        ),
+                                        enabledBorder: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                          borderSide: const BorderSide(
+                                            color: Color(0xFF604987),
+                                            width: 0.8,
+                                          ),
+                                        ),
+                                        focusedBorder: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                          borderSide: const BorderSide(
+                                            color: Color(0xFF604987),
+                                            width: 1.5,
+                                          ),
+                                        ),
+                                      ),
+                                      style: GoogleFonts.inter(fontSize: 14),
+                                      onChanged: (v) => setDialogState(() {}),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      "Discount (%)",
+                                      style: GoogleFonts.inter(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: const Color(0xFF475569),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    TextFormField(
+                                      controller: discountController,
+                                      keyboardType: TextInputType.number,
+                                      decoration: InputDecoration(
+                                        isDense: true,
+                                        hintText: "0",
+                                        hintStyle: GoogleFonts.inter(
+                                          color: const Color(0xFF94A3B8),
+                                          fontSize: 14,
+                                        ),
+                                        enabledBorder: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                          borderSide: const BorderSide(
+                                            color: Color(0xFF604987),
+                                            width: 0.8,
+                                          ),
+                                        ),
+                                        focusedBorder: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                          borderSide: const BorderSide(
+                                            color: Color(0xFF604987),
+                                            width: 1.5,
+                                          ),
+                                        ),
+                                      ),
+                                      style: GoogleFonts.inter(fontSize: 14),
+                                      onChanged: (v) => setDialogState(() {}),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          Builder(
+                            builder: (context) {
+                              final original =
+                                  double.tryParse(
+                                    originalPriceController.text,
+                                  ) ??
+                                  0.0;
+                              final discount =
+                                  double.tryParse(discountController.text) ??
+                                  0.0;
+                              final finalPrice =
+                                  original - (original * discount / 100.0);
+                              return Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                  horizontal: 16,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(
+                                  "Calculated Final Price: ₹${finalPrice.toStringAsFixed(0)}",
+                                  style: GoogleFonts.inter(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: const Color(0xFF0F172A),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            "Service Image",
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFF475569),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: GestureDetector(
+                                  onTap: () async {
+                                    FilePickerResult? result = await FilePicker
+                                        .platform
+                                        .pickFiles(
+                                          type: FileType.image,
+                                          withData: true,
+                                        );
+                                    if (result != null) {
+                                      setDialogState(() {
+                                        selectedImage =
+                                            result.files.first.bytes;
+                                      });
+                                    }
+                                  },
+                                  child: Container(
+                                    height: 130,
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(10),
+                                      color: Colors.white,
+                                    ),
+                                    child: Column(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(10),
+                                          decoration: const BoxDecoration(
+                                            color: Color(0xFFECFDF5),
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: const Icon(
+                                            Icons.cloud_upload_outlined,
+                                            color: Color(0xFF047857),
+                                            size: 24,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 10),
+                                        Text(
+                                          "Upload new image",
+                                          style: GoogleFonts.inter(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.bold,
+                                            color: const Color(0xFF1E293B),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Container(
+                                  height: 130,
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(10),
+                                    color: Colors.white,
+                                  ),
+                                  child:
+                                      selectedImage != null
+                                          ? Stack(
+                                            fit: StackFit.expand,
+                                            children: [
+                                              ClipRRect(
+                                                borderRadius:
+                                                    BorderRadius.circular(10),
+                                                child: Image.memory(
+                                                  selectedImage!,
+                                                  fit: BoxFit.cover,
+                                                ),
+                                              ),
+                                              Positioned(
+                                                top: 6,
+                                                right: 6,
+                                                child: GestureDetector(
+                                                  onTap:
+                                                      () => setDialogState(
+                                                        () =>
+                                                            selectedImage =
+                                                                null,
+                                                      ),
+                                                  child: Container(
+                                                    padding:
+                                                        const EdgeInsets.all(6),
+                                                    decoration:
+                                                        const BoxDecoration(
+                                                          color: Colors.white,
+                                                          shape:
+                                                              BoxShape.circle,
+                                                        ),
+                                                    child: const Icon(
+                                                      Icons.close,
+                                                      color: Colors.red,
+                                                      size: 16,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          )
+                                          : (service.imageUrl.isNotEmpty
+                                              ? Stack(
+                                                fit: StackFit.expand,
+                                                children: [
+                                                  ClipRRect(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          10,
+                                                        ),
+                                                    child: Image.network(
+                                                      service.imageUrl,
+                                                      fit: BoxFit.cover,
+                                                    ),
+                                                  ),
+                                                ],
+                                              )
+                                              : Center(
+                                                child: Text(
+                                                  "No image",
+                                                  style: GoogleFonts.inter(
+                                                    fontSize: 13,
+                                                    color: const Color(
+                                                      0xFF94A3B8,
+                                                    ),
+                                                  ),
+                                                ),
+                                              )),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 28),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context),
+                                style: TextButton.styleFrom(
+                                  backgroundColor: const Color(0xFFF4F0F7),
+                                  foregroundColor: const Color(0xFF334155),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 20,
+                                    vertical: 14,
+                                  ),
+                                ),
+                                child: Text(
+                                  "Cancel",
+                                  style: GoogleFonts.inter(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              ElevatedButton(
+                                onPressed:
+                                    isUploading
+                                        ? null
+                                        : () async {
+                                          if (nameController.text.isEmpty ||
+                                              tempCategory == null ||
+                                              originalPriceController
+                                                  .text
+                                                  .isEmpty) {
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              const SnackBar(
+                                                content: Text(
+                                                  "Please fill in all required fields.",
+                                                ),
+                                              ),
+                                            );
+                                            return;
+                                          }
+
+                                          setDialogState(() {
+                                            isUploading = true;
+                                          });
+
+                                          try {
+                                            String finalImageUrl =
+                                                service.imageUrl;
+                                            String? finalImageFileId =
+                                                service.imageFileId;
+
+                                            if (selectedImage != null) {
+                                              final String fileName =
+                                                  'service_${DateTime.now().millisecondsSinceEpoch}.jpg';
+                                              final imgService =
+                                                  ServiceImageService();
+                                              final result = await imgService
+                                                  .replaceServiceImage(
+                                                    oldImageFileId:
+                                                        finalImageFileId,
+                                                    imageBytes: selectedImage!,
+                                                    fileName: fileName,
+                                                  );
+                                              finalImageUrl = result.imageUrl;
+                                              finalImageFileId =
+                                                  result.imageFileId;
+                                            }
+
+                                            final double original =
+                                                double.tryParse(
+                                                  originalPriceController.text,
+                                                ) ??
+                                                0.0;
+                                            final double discount =
+                                                double.tryParse(
+                                                  discountController.text,
+                                                ) ??
+                                                0.0;
+                                            final double finalPrice =
+                                                original -
+                                                (original * discount / 100.0);
+
+                                            final docRef = FirebaseFirestore
+                                                .instance
+                                                .collection('services')
+                                                .doc(service.id);
+
+                                            Map<String, dynamic> updateData = {
+                                              'service_name':
+                                                  nameController.text,
+                                              'category': tempCategory,
+                                              'discount': discount
+                                                  .toStringAsFixed(0),
+                                              'price': finalPrice
+                                                  .toStringAsFixed(0),
+                                              'original_price': original
+                                                  .toStringAsFixed(0),
+                                              'updatedAt':
+                                                  FieldValue.serverTimestamp(),
+                                            };
+
+                                            if (selectedImage != null) {
+                                              updateData['image'] =
+                                                  finalImageUrl;
+                                              updateData['imageFileId'] =
+                                                  finalImageFileId;
+                                            }
+
+                                            await docRef.update(updateData);
+
+                                            if (context.mounted) {
+                                              Navigator.pop(context);
+                                              ScaffoldMessenger.of(
+                                                context,
+                                              ).showSnackBar(
+                                                const SnackBar(
+                                                  content: Text(
+                                                    "Service updated successfully!",
+                                                  ),
+                                                ),
+                                              );
+                                            }
+                                          } catch (e) {
+                                            if (context.mounted) {
+                                              setDialogState(() {
+                                                isUploading = false;
+                                              });
+                                              ScaffoldMessenger.of(
+                                                context,
+                                              ).showSnackBar(
+                                                SnackBar(
+                                                  content: Text("Error: $e"),
+                                                ),
+                                              );
+                                            }
+                                          }
+                                        },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF047857),
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 24,
+                                    vertical: 14,
+                                  ),
+                                ),
+                                child:
+                                    isUploading
+                                        ? const SizedBox(
+                                          height: 18,
+                                          width: 18,
+                                          child: CircularProgressIndicator(
+                                            color: Colors.white,
+                                            strokeWidth: 2.5,
+                                          ),
+                                        )
+                                        : Text(
+                                          "Update Service",
+                                          style: GoogleFonts.inter(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+          ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Stack(
       children: [
         StreamBuilder<QuerySnapshot>(
-          stream: FirebaseFirestore.instance.collection('services').snapshots(),
+          stream: _servicesStream,
           builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator(color: const Color(0xFFFFC107)));
+            if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+              return const Center(
+                child: CircularProgressIndicator(
+                  color: const Color(0xFFFFC107),
+                ),
+              );
             }
 
             if (snapshot.hasError) {
@@ -781,7 +1445,9 @@ class _ServicesState extends State<Services> {
         if (_isLoading)
           Container(
             color: Colors.black.withValues(alpha: 0.1),
-            child: const Center(child: CircularProgressIndicator(color: const Color(0xFFFFC107))),
+            child: const Center(
+              child: CircularProgressIndicator(color: const Color(0xFFFFC107)),
+            ),
           ),
       ],
     );
@@ -843,22 +1509,26 @@ class _ServicesState extends State<Services> {
             ),
           ],
         ),
-        ElevatedButton.icon(
-          onPressed: _openCreateServiceDialog,
-          icon: const Icon(Icons.add, size: 16),
-          label: Text(
-            "Add New Service",
-            style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13),
-          ),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF047857),
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
+        if (RbacSession().hasPermission(Modules.services, Perms.create))
+          ElevatedButton.icon(
+            onPressed: _openCreateServiceDialog,
+            icon: const Icon(Icons.add, size: 16),
+            label: Text(
+              "Add New Service",
+              style: GoogleFonts.inter(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+              ),
             ),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF047857),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            ),
           ),
-        ),
       ],
     );
   }
@@ -1008,6 +1678,8 @@ class _ServicesState extends State<Services> {
       width: isSmall ? double.infinity : 260,
       height: 38,
       child: TextFormField(
+        controller: _searchController,
+        focusNode: _searchFocusNode,
         onChanged: (val) => setState(() => _searchQuery = val),
         decoration: InputDecoration(
           isDense: true,
@@ -1197,282 +1869,311 @@ class _ServicesState extends State<Services> {
             child: SingleChildScrollView(
               controller: _horizontalScrollController,
               scrollDirection: Axis.horizontal,
-              child: SizedBox(
-                width: 1300,
-                child: Table(
-                  columnWidths: const {
-                    0: FlexColumnWidth(2.6), // Service Image & Title
-                    1: FlexColumnWidth(1.6), // Category Badge
-                    2: FlexColumnWidth(1.4), // Original Price
-                    3: FlexColumnWidth(1.2), // Discount
-                    4: FlexColumnWidth(1.4), // Final Price
-                    5: FlexColumnWidth(1.4), // Rating
-                    6: FlexColumnWidth(1.4), // Status
-                    7: FlexColumnWidth(1.8), // Actions
-                  },
-                  defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-                  children: [
-                    TableRow(
-                      decoration: const BoxDecoration(
-                        color: Color(0xFFF8FAFC),
-                        border: Border(
-                          bottom: BorderSide(
-                            color: Color(0xFFE2E8F0),
-                            width: 1,
-                          ),
-                        ),
-                      ),
-                      children: [
-                        _buildHeaderCell("Service"),
-                        _buildHeaderCell("Category"),
-                        _buildHeaderCell("Original Price"),
-                        _buildHeaderCell("Discount"),
-                        _buildHeaderCell("Final Price"),
-                        _buildHeaderCell("Rating"),
-                        _buildHeaderCell("Status"),
-                        _buildHeaderCell("Actions"),
-                      ],
-                    ),
-                    ...services.map((srv) {
-                      return TableRow(
-                        decoration: const BoxDecoration(
-                          border: Border(
-                            bottom: BorderSide(
-                              color: Color(0xFFF1F5F9),
-                              width: 1,
+              child: DataTable(
+                headingRowColor: MaterialStateProperty.all(Colors.grey.shade50),
+                headingTextStyle: GoogleFonts.plusJakartaSans(
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF1E293B),
+                  fontSize: 14,
+                ),
+                dataRowMaxHeight: 80,
+                dataRowMinHeight: 70,
+                columnSpacing: 24,
+                horizontalMargin: 24,
+                dividerThickness: 1,
+                columns: const [
+                  DataColumn(label: SizedBox(width: 36, child: Text("No."))),
+                  DataColumn(
+                    label: SizedBox(width: 200, child: Text("Service")),
+                  ),
+                  DataColumn(
+                    label: SizedBox(width: 100, child: Text("Category")),
+                  ),
+                  DataColumn(
+                    label: SizedBox(width: 110, child: Text("Original Price")),
+                  ),
+                  DataColumn(
+                    label: SizedBox(width: 80, child: Text("Discount")),
+                  ),
+                  DataColumn(
+                    label: SizedBox(width: 90, child: Text("Final Price")),
+                  ),
+                  DataColumn(label: SizedBox(width: 90, child: Text("Rating"))),
+                  DataColumn(label: SizedBox(width: 90, child: Text("Status"))),
+                  DataColumn(
+                    label: SizedBox(width: 100, child: Text("Actions")),
+                  ),
+                ],
+                rows:
+                    services.asMap().entries.map((entry) {
+                      final index = entry.key;
+                      final srv = entry.value;
+                      return DataRow(
+                        cells: [
+                          // No.
+                          DataCell(
+                            Text(
+                              "${index + 1}",
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: const Color(0xFF475569),
+                              ),
                             ),
                           ),
-                        ),
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 12.0,
-                              horizontal: 16.0,
-                            ),
-                            child: Row(
-                              children: [
-                                if (srv.imageUrl.isNotEmpty)
-                                  Padding(
-                                    padding: const EdgeInsets.only(right: 12.0),
-                                    child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(8),
-                                      child: Image.network(
-                                        srv.imageUrl,
-                                        width: 40,
-                                        height: 40,
-                                        fit: BoxFit.cover,
-                                        errorBuilder:
-                                            (context, error, stackTrace) =>
-                                                Container(
-                                                  width: 40,
-                                                  height: 40,
-                                                  color: Colors.grey[200],
-                                                  child: const Icon(
-                                                    Icons.image_not_supported,
-                                                    size: 20,
-                                                    color: Colors.grey,
-                                                  ),
-                                                ),
+                          DataCell(
+                            FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.centerLeft,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (srv.imageUrl.isNotEmpty)
+                                    Padding(
+                                      padding: const EdgeInsets.only(
+                                        right: 12.0,
                                       ),
-                                    ),
-                                  )
-                                else
-                                  Padding(
-                                    padding: const EdgeInsets.only(right: 12.0),
-                                    child: Container(
-                                      width: 40,
-                                      height: 40,
-                                      decoration: BoxDecoration(
-                                        color: Colors.grey[200],
+                                      child: ClipRRect(
                                         borderRadius: BorderRadius.circular(8),
+                                        child: Image.network(
+                                          srv.imageUrl,
+                                          width: 48,
+                                          height: 48,
+                                          fit: BoxFit.cover,
+                                          errorBuilder:
+                                              (context, error, stackTrace) =>
+                                                  Container(
+                                                    width: 48,
+                                                    height: 48,
+                                                    color: Colors.grey.shade200,
+                                                    child: const Icon(
+                                                      Icons.image_not_supported,
+                                                      size: 20,
+                                                      color: Colors.grey,
+                                                    ),
+                                                  ),
+                                        ),
                                       ),
-                                      child: const Icon(
-                                        Icons.image,
-                                        size: 20,
-                                        color: Colors.grey,
+                                    )
+                                  else
+                                    Padding(
+                                      padding: const EdgeInsets.only(
+                                        right: 12.0,
+                                      ),
+                                      child: Container(
+                                        width: 48,
+                                        height: 48,
+                                        decoration: BoxDecoration(
+                                          color: Colors.grey.shade200,
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                        ),
+                                        child: const Icon(
+                                          Icons.image,
+                                          size: 20,
+                                          color: Colors.grey,
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                Expanded(
-                                  child: Column(
+                                  Column(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
+                                    mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
                                       Text(
                                         srv.name,
-                                        style: GoogleFonts.inter(
+                                        style: GoogleFonts.plusJakartaSans(
                                           fontSize: 13,
                                           fontWeight: FontWeight.bold,
-                                          color: const Color(0xFF0F172A),
+                                          color: const Color(0xFF1E293B),
                                         ),
+                                        maxLines: 2,
                                         overflow: TextOverflow.ellipsis,
                                       ),
                                       const SizedBox(height: 2),
                                       Text(
                                         srv.id,
-                                        style: GoogleFonts.inter(
-                                          fontSize: 11,
-                                          color: const Color(0xFF64748B),
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 12,
+                                          color: Colors.grey.shade500,
                                         ),
                                       ),
                                     ],
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 12.0,
-                              horizontal: 16.0,
-                            ),
-                            child: _buildCategoryBadge(srv.category),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 12.0,
-                              horizontal: 16.0,
-                            ),
-                            child: Text(
+                          DataCell(_buildCategoryBadge(srv.category)),
+                          DataCell(
+                            Text(
                               "₹${srv.originalPrice.toStringAsFixed(0)}",
-                              style: GoogleFonts.inter(
+                              style: GoogleFonts.plusJakartaSans(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
                                 color: const Color(0xFF475569),
                               ),
                             ),
                           ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 12.0,
-                              horizontal: 16.0,
-                            ),
-                            child: Text(
+                          DataCell(
+                            Text(
                               srv.discount > 0
                                   ? "${srv.discount.toStringAsFixed(0)}%"
                                   : "0%",
-                              style: GoogleFonts.inter(
+                              style: GoogleFonts.plusJakartaSans(
                                 fontSize: 13,
                                 fontWeight: FontWeight.bold,
                                 color: const Color(0xFF10B981),
                               ),
                             ),
                           ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 12.0,
-                              horizontal: 16.0,
-                            ),
-                            child: Text(
+                          DataCell(
+                            Text(
                               "₹${srv.finalPrice.toStringAsFixed(0)}",
-                              style: GoogleFonts.inter(
+                              style: GoogleFonts.plusJakartaSans(
                                 fontSize: 13,
                                 fontWeight: FontWeight.bold,
                                 color: const Color(0xFF0F172A),
                               ),
                             ),
                           ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 12.0,
-                              horizontal: 16.0,
-                            ),
-                            child: Row(
-                              children: [
-                                Text(
-                                  srv.rating.toString(),
-                                  style: GoogleFonts.inter(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: const Color(0xFF1E293B),
-                                  ),
-                                ),
-                                const SizedBox(width: 4),
-                                const Icon(
-                                  Icons.star_rounded,
-                                  color: Color(0xFFF59E0B),
-                                  size: 16,
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  "(${srv.ratingCount})",
-                                  style: GoogleFonts.inter(
-                                    fontSize: 11,
-                                    color: const Color(0xFF94A3B8),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 12.0,
-                              horizontal: 16.0,
-                            ),
-                            child: _buildStatusBadge(srv.status),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 12.0,
-                              horizontal: 4.0,
-                            ),
-                            child: Row(
-                              children: [
-                                _buildActionButton(
-                                  Icons.edit_outlined,
-                                  Colors.blue,
-                                  () {},
-                                ),
-                                const SizedBox(width: 8),
-                                SizedBox(
-                                  width: 36,
-                                  height: 24,
-                                  child: FittedBox(
-                                    fit: BoxFit.fill,
-                                    child: CupertinoSwitch(
-                                      value: srv.status == "Active",
-                                      activeColor: const Color(0xFF10B981),
-                                      onChanged: (val) async {
-                                        final newStatus =
-                                            val ? "Active" : "Inactive";
-                                        setState(() {
-                                          srv.status = newStatus;
-                                          _isLoading = true;
-                                        });
-                                        try {
-                                          await FirebaseFirestore.instance
-                                              .collection('services')
-                                              .doc(srv.id)
-                                              .update({'status': newStatus});
-                                        } catch (e) {
-                                          // Revert on error or show message
-                                        } finally {
-                                          if (mounted) {
-                                            setState(() {
-                                              _isLoading = false;
-                                            });
-                                          }
-                                        }
-                                      },
+                          DataCell(
+                            FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.centerLeft,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    srv.rating.toString(),
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.bold,
+                                      color: const Color(0xFF1E293B),
                                     ),
                                   ),
-                                ),
-                                const SizedBox(width: 8),
-                                _buildActionButton(
-                                  Icons.delete_outline_rounded,
-                                  Colors.red,
-                                  () {
-                                    _showDeleteConfirmationDialog(srv);
-                                  },
-                                ),
-                              ],
+                                  const SizedBox(width: 4),
+                                  const Icon(
+                                    Icons.star_rounded,
+                                    color: Color(0xFFF59E0B),
+                                    size: 16,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    "(${srv.ratingCount})",
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 12,
+                                      color: Colors.grey.shade500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          DataCell(_buildStatusBadge(srv.status)),
+                          DataCell(
+                            FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.centerLeft,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  _buildActionButton(
+                                    Icons.edit_outlined,
+                                    Colors.blue,
+                                    () => _openEditServiceDialog(srv),
+                                    'edit',
+                                  ),
+                                  const SizedBox(width: 8),
+                                  SizedBox(
+                                    width: 36,
+                                    height: 24,
+                                    child:
+                                        _updatingStatusIds.contains(srv.id)
+                                            ? const Padding(
+                                              padding: EdgeInsets.all(4.0),
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                              ),
+                                            )
+                                            : FittedBox(
+                                              fit: BoxFit.fill,
+                                              child: CupertinoSwitch(
+                                                value: srv.status == "Active",
+                                                activeColor: const Color(
+                                                  0xFF10B981,
+                                                ),
+                                                onChanged: (val) async {
+                                                  final requiredPerm =
+                                                      val
+                                                          ? 'enable_service'
+                                                          : 'disable_service';
+                                                  if (!RbacSession()
+                                                      .hasPermission(
+                                                        Modules.services,
+                                                        requiredPerm,
+                                                      )) {
+                                                    ScaffoldMessenger.of(
+                                                      context,
+                                                    ).showSnackBar(
+                                                      SnackBar(
+                                                        content: Text(
+                                                          "You don't have permission to ${val ? 'enable' : 'disable'} services.",
+                                                        ),
+                                                        backgroundColor:
+                                                            Colors.red,
+                                                      ),
+                                                    );
+                                                    return;
+                                                  }
+                                                  final newStatus =
+                                                      val
+                                                          ? "Active"
+                                                          : "Inactive";
+                                                  setState(() {
+                                                    _updatingStatusIds.add(
+                                                      srv.id,
+                                                    );
+                                                  });
+                                                  try {
+                                                    await FirebaseFirestore
+                                                        .instance
+                                                        .collection('services')
+                                                        .doc(srv.id)
+                                                        .update({
+                                                          'status': newStatus,
+                                                        });
+                                                  } catch (e) {
+                                                    // Revert on error or show message
+                                                  } finally {
+                                                    if (mounted) {
+                                                      setState(() {
+                                                        _updatingStatusIds
+                                                            .remove(srv.id);
+                                                      });
+                                                    }
+                                                  }
+                                                },
+                                              ),
+                                            ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  _buildActionButton(
+                                    Icons.delete_outline_rounded,
+                                    Colors.red,
+                                    () {
+                                      _showDeleteConfirmationDialog(srv);
+                                    },
+                                    'delete',
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ],
                       );
-                    }),
-                  ],
-                ),
+                    }).toList(),
               ),
             ),
           ),
@@ -1588,7 +2289,16 @@ class _ServicesState extends State<Services> {
     );
   }
 
-  Widget _buildActionButton(IconData icon, Color color, VoidCallback onTap) {
+  Widget _buildActionButton(
+    IconData icon,
+    Color color,
+    VoidCallback onTap, [
+    String? permissionAction,
+  ]) {
+    if (permissionAction != null &&
+        !RbacSession().hasPermission(Modules.services, permissionAction)) {
+      return const SizedBox.shrink();
+    }
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(6),
@@ -1719,6 +2429,17 @@ class _ServicesState extends State<Services> {
   }
 
   void _showDeleteConfirmationDialog(ServiceModel srv) {
+    if (!RbacSession().hasPermission(Modules.services, Perms.delete)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "Access Denied: You do not have permission to delete services.",
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
     showDialog(
       context: context,
       builder:
@@ -1741,6 +2462,18 @@ class _ServicesState extends State<Services> {
               TextButton(
                 onPressed: () async {
                   try {
+                    // Delete image from ImageKit if exists
+                    if (srv.imageFileId != null &&
+                        srv.imageFileId!.isNotEmpty) {
+                      try {
+                        final imgService = ServiceImageService();
+                        await imgService.deleteServiceImage(srv.imageFileId!);
+                      } catch (e) {
+                        // Ignore image deletion errors to still allow firestore deletion
+                        print("Error deleting image from ImageKit: $e");
+                      }
+                    }
+
                     // Delete from Firestore
                     await FirebaseFirestore.instance
                         .collection('services')

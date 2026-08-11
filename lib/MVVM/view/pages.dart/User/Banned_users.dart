@@ -2,7 +2,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:swiftclean_admin/MVVM/model/models/admin_model.dart';
 import 'package:swiftclean_admin/MVVM/utils/printer_helper.dart';
+import 'package:swiftclean_admin/MVVM/utils/rbac_session.dart';
 
 class BannedUserModel {
   final String name;
@@ -1341,23 +1343,39 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
                                           user,
                                         );
                                       },
+                                      'view',
                                     ),
-                                    const SizedBox(width: 8),
-                                    _buildActionButton(
-                                      Icons.restore_page_rounded,
-                                      Colors.grey,
-                                      () {
-                                        _showUnbanConfirmation(context, user);
-                                      },
-                                    ),
-                                    const SizedBox(width: 8),
-                                    _buildActionButton(
-                                      Icons.delete_outline_rounded,
-                                      Colors.red,
-                                      () {
-                                        _showDeleteConfirmation(context, user);
-                                      },
-                                    ),
+                                    if (RbacSession().hasPermission(
+                                      Modules.userManagement,
+                                      'ban_user',
+                                    )) ...[
+                                      const SizedBox(width: 8),
+                                      _buildActionButton(
+                                        Icons.gavel_rounded,
+                                        Colors.red,
+                                        () {
+                                          _showUnbanConfirmation(context, user);
+                                        },
+                                        'ban_user',
+                                      ),
+                                    ],
+                                    if (RbacSession().hasPermission(
+                                      Modules.userManagement,
+                                      'delete',
+                                    )) ...[
+                                      const SizedBox(width: 8),
+                                      _buildActionButton(
+                                        Icons.delete_outline_rounded,
+                                        Colors.red,
+                                        () {
+                                          _showDeleteConfirmation(
+                                            context,
+                                            user,
+                                          );
+                                        },
+                                        'delete',
+                                      ),
+                                    ],
                                   ],
                                 ),
                               ],
@@ -1435,7 +1453,19 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
     );
   }
 
-  Widget _buildActionButton(IconData icon, Color color, VoidCallback onTap) {
+  Widget _buildActionButton(
+    IconData icon,
+    Color color,
+    VoidCallback onTap, [
+    String? permissionAction,
+  ]) {
+    if (permissionAction != null &&
+        !RbacSession().hasPermission(
+          Modules.userManagement,
+          permissionAction,
+        )) {
+      return const SizedBox.shrink();
+    }
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(6),
@@ -1542,6 +1572,17 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
   }
 
   void _showUnbanConfirmation(BuildContext context, BannedUserModel user) {
+    if (!RbacSession().hasPermission(Modules.userManagement, 'ban_user')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "Access Denied: You do not have permission to unban users.",
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
     showDialog(
       context: context,
       builder:

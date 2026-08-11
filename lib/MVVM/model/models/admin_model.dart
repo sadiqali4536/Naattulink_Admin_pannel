@@ -19,6 +19,11 @@ class Modules {
   static const String grantAccess = 'grant_access';
   static const String roles = 'roles';
   static const String auditLogs = 'audit_logs';
+  static const String dashboard = 'dashboard';
+  static const String services = 'services';
+  static const String truck = 'truck';
+  static const String healthcare = 'healthcare';
+  static const String business = 'business';
 }
 
 /// Permission action constants.
@@ -208,6 +213,32 @@ class AppModules {
       displayName: 'Audit Logs',
       actions: [Perms.view, Perms.export],
       isSystem: true,
+    ),
+    ModuleDefinition(
+      id: Modules.dashboard,
+      displayName: 'Dashboard',
+      actions: [Perms.view],
+      isSystem: true,
+    ),
+    ModuleDefinition(
+      id: Modules.services,
+      displayName: 'Services',
+      actions: [Perms.view, Perms.create, Perms.edit, Perms.delete],
+    ),
+    ModuleDefinition(
+      id: Modules.truck,
+      displayName: 'Truck & JCB',
+      actions: [Perms.view, Perms.create, Perms.edit],
+    ),
+    ModuleDefinition(
+      id: Modules.healthcare,
+      displayName: 'Healthcare',
+      actions: [Perms.view, Perms.create, Perms.edit],
+    ),
+    ModuleDefinition(
+      id: Modules.business,
+      displayName: 'Businesses',
+      actions: [Perms.view, Perms.create, Perms.edit],
     ),
   ];
 }

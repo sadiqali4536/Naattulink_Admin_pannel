@@ -1,3 +1,4 @@
+import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -15,7 +16,22 @@ class _BusinessesPageState extends State<BusinessesPage> {
   String _selectedStatus = 'All Status';
   String _selectedType = 'All Types';
   String _searchQuery = '';
+  Set<String> _selectedBusinessIds = {};
   final ScrollController _verticalScrollController = ScrollController();
+  late Stream<QuerySnapshot> _businessesStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _businessesStream =
+        FirebaseFirestore.instance.collection('businesses').snapshots();
+  }
+
+  @override
+  void dispose() {
+    _verticalScrollController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -25,14 +41,17 @@ class _BusinessesPageState extends State<BusinessesPage> {
         controller: _verticalScrollController,
         padding: const EdgeInsets.all(24.0),
         child: StreamBuilder<QuerySnapshot>(
-          stream:
-              FirebaseFirestore.instance.collection('businesses').snapshots(),
+          stream: _businessesStream,
           builder: (context, snapshot) {
             if (snapshot.hasError) {
               return const Center(child: Text('Something went wrong'));
             }
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator(color: const Color(0xFFFFC107)));
+              return const Center(
+                child: CircularProgressIndicator(
+                  color: const Color(0xFFFFC107),
+                ),
+              );
             }
 
             final docs = snapshot.data?.docs ?? [];
@@ -91,10 +110,17 @@ class _BusinessesPageState extends State<BusinessesPage> {
                           data['business_name']?.toString().toLowerCase() ?? '';
                       final phone =
                           data['phone']?.toString().toLowerCase() ?? '';
+                      final address =
+                          data['address']?.toString().toLowerCase() ?? '';
+                      final category =
+                          data['business_category']?.toString().toLowerCase() ??
+                          '';
                       searchMatches =
                           name.contains(searchLower) ||
                           business.contains(searchLower) ||
-                          phone.contains(searchLower);
+                          phone.contains(searchLower) ||
+                          address.contains(searchLower) ||
+                          category.contains(searchLower);
                     }
 
                     return statusMatches && typeMatches && searchMatches;
@@ -111,7 +137,57 @@ class _BusinessesPageState extends State<BusinessesPage> {
                   docs.length,
                 ),
                 const SizedBox(height: 24),
-                _buildFilters(),
+                if (_selectedBusinessIds.isNotEmpty)
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 24),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.blue.shade200),
+                    ),
+                    child: Row(
+                      children: [
+                        Text(
+                          '${_selectedBusinessIds.length} businesses selected',
+                          style: TextStyle(
+                            color: Colors.blue.shade700,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const Spacer(),
+                        TextButton.icon(
+                          onPressed: () {
+                            for (var id in _selectedBusinessIds) {
+                              _deleteBusiness(id);
+                            }
+                            setState(() {
+                              _selectedBusinessIds.clear();
+                            });
+                          },
+                          icon: const Icon(Icons.delete, color: Colors.red),
+                          label: const Text(
+                            'Delete Selected',
+                            style: TextStyle(color: Colors.red),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          onPressed: () {
+                            setState(() {
+                              _selectedBusinessIds.clear();
+                            });
+                          },
+                          icon: const Icon(Icons.close),
+                          tooltip: 'Clear Selection',
+                        ),
+                      ],
+                    ),
+                  ),
+                _buildFilters(docs),
                 const SizedBox(height: 24),
                 Container(
                   decoration: BoxDecoration(
@@ -128,21 +204,7 @@ class _BusinessesPageState extends State<BusinessesPage> {
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.all(20.0),
-                        child: Text(
-                          'Businesses Directory (${filteredDocs.length})',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF1E293B),
-                          ),
-                        ),
-                      ),
-                      const Divider(height: 1, color: Colors.black12),
-                      _buildDataTable(filteredDocs),
-                    ],
+                    children: [_buildDataTable(filteredDocs)],
                   ),
                 ),
               ],
@@ -337,7 +399,16 @@ class _BusinessesPageState extends State<BusinessesPage> {
     );
   }
 
-  Widget _buildFilters() {
+  Widget _buildFilters(List<QueryDocumentSnapshot> docs) {
+    final Set<String> uniqueCategories = {};
+    for (var doc in docs) {
+      final data = doc.data() as Map<String, dynamic>;
+      final cat = data['business_category']?.toString();
+      if (cat != null && cat.trim().isNotEmpty) {
+        uniqueCategories.add(cat.trim());
+      }
+    }
+    final List<String> categoryList = uniqueCategories.toList()..sort();
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -420,18 +491,7 @@ class _BusinessesPageState extends State<BusinessesPage> {
                 ),
               ),
               items:
-                  [
-                    'All Types',
-                    'Restaurant',
-                    'Grocery',
-                    'Electronics',
-                    'Clothing',
-                    'Pharmacy',
-                    'Hardware',
-                    'Beauty & Salon',
-                    'Bakery',
-                    'Other',
-                  ].map((String value) {
+                  ['All Types', ...categoryList].map((String value) {
                     return DropdownMenuItem<String>(
                       value: value,
                       child: Text(value),
@@ -450,40 +510,56 @@ class _BusinessesPageState extends State<BusinessesPage> {
   Widget _buildDataTable(List<QueryDocumentSnapshot> docs) {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
-      child: SizedBox(
-        width: 1600,
-        child: Table(
-          columnWidths: const {
-            0: FlexColumnWidth(2.5),
-            1: FlexColumnWidth(1.5),
-            2: FlexColumnWidth(2.0),
-            3: FlexColumnWidth(1.5),
-            4: FlexColumnWidth(2.0),
-            5: FlexColumnWidth(1.5),
-            6: FlexColumnWidth(1.0),
-            7: FlexColumnWidth(1.5),
-          },
-          defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-          children: [
-            TableRow(
-              decoration: BoxDecoration(
-                color: Colors.grey.shade50,
-                border: const Border(
-                  bottom: BorderSide(color: Colors.black12, width: 1),
-                ),
-              ),
+      child: DataTable(
+        headingRowColor: MaterialStateProperty.all(Colors.white),
+        headingRowHeight: 54,
+        headingTextStyle: GoogleFonts.inter(
+          fontWeight: FontWeight.w600,
+          color: const Color(0xFF64748B),
+          fontSize: 15,
+        ),
+        dataRowMinHeight: 70,
+        dataRowMaxHeight: 75,
+        columnSpacing: 24,
+        horizontalMargin: 24,
+        dividerThickness: 1,
+        columns: [
+          DataColumn(
+            label: Row(
               children: [
-                _buildHeaderCellWithCheckbox('Owner Details'),
-                _buildHeaderCell('Phone'),
-                _buildHeaderCell('Business Name'),
-                _buildHeaderCell('Category'),
-                _buildHeaderCell('Address'),
-                _buildHeaderCell('Joined On'),
-                _buildHeaderCell('Status'),
-                _buildHeaderCell('Actions'),
+                Checkbox(
+                  value:
+                      docs.isNotEmpty &&
+                      _selectedBusinessIds.length == docs.length,
+                  onChanged: (val) {
+                    setState(() {
+                      if (val == true) {
+                        _selectedBusinessIds = docs.map((d) => d.id).toSet();
+                      } else {
+                        _selectedBusinessIds.clear();
+                      }
+                    });
+                  },
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  side: const BorderSide(color: Colors.black26),
+                ),
+                const SizedBox(width: 8),
+                const Text('Owner Details'),
               ],
             ),
-            ...docs.map((doc) {
+          ),
+          const DataColumn(label: Text('Phone')),
+          const DataColumn(label: Text('Business Name')),
+          const DataColumn(label: Text('Category')),
+          const DataColumn(label: Text('Address')),
+          const DataColumn(label: Text('Joined On')),
+          const DataColumn(label: Text('Status')),
+          const DataColumn(label: Text('Actions')),
+        ],
+        rows:
+            docs.map((doc) {
               final data = doc.data() as Map<String, dynamic>;
               String name =
                   data['username']?.toString() ??
@@ -504,23 +580,23 @@ class _BusinessesPageState extends State<BusinessesPage> {
                 } catch (_) {}
               }
 
-              return TableRow(
-                decoration: const BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(color: Colors.black12, width: 1),
-                  ),
-                ),
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 12.0,
-                      horizontal: 16.0,
-                    ),
-                    child: Row(
+              return DataRow(
+                cells: [
+                  DataCell(
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Checkbox(
-                          value: false,
-                          onChanged: (val) {},
+                          value: _selectedBusinessIds.contains(doc.id),
+                          onChanged: (val) {
+                            setState(() {
+                              if (val == true) {
+                                _selectedBusinessIds.add(doc.id);
+                              } else {
+                                _selectedBusinessIds.remove(doc.id);
+                              }
+                            });
+                          },
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(4),
                           ),
@@ -539,7 +615,8 @@ class _BusinessesPageState extends State<BusinessesPage> {
                           ),
                         ),
                         const SizedBox(width: 12),
-                        Expanded(
+                        SizedBox(
+                          width: 150,
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             mainAxisAlignment: MainAxisAlignment.center,
@@ -550,6 +627,7 @@ class _BusinessesPageState extends State<BusinessesPage> {
                                   fontWeight: FontWeight.w600,
                                   fontSize: 13,
                                 ),
+                                maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
                               const SizedBox(height: 2),
@@ -559,6 +637,8 @@ class _BusinessesPageState extends State<BusinessesPage> {
                                   color: Colors.grey,
                                   fontSize: 11,
                                 ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
                               const SizedBox(height: 2),
                               Text(
@@ -567,6 +647,8 @@ class _BusinessesPageState extends State<BusinessesPage> {
                                   color: Colors.grey,
                                   fontSize: 11,
                                 ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ],
                           ),
@@ -574,69 +656,101 @@ class _BusinessesPageState extends State<BusinessesPage> {
                       ],
                     ),
                   ),
-                  _buildDataCell(data['phone']?.toString() ?? 'N/A'),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 12.0,
-                      horizontal: 16.0,
+                  DataCell(
+                    SizedBox(
+                      width: 100,
+                      child: Text(
+                        data['phone']?.toString() ?? 'N/A',
+                        style: const TextStyle(fontSize: 13),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          data['business_name']?.toString() ?? 'N/A',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w500,
-                            fontSize: 13,
+                  ),
+                  DataCell(
+                    SizedBox(
+                      width: 150,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            data['business_name']?.toString() ?? 'N/A',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w500,
+                              fontSize: 13,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Contact: ${data['contact_number']?.toString() ?? 'N/A'}',
-                          style: const TextStyle(
-                            color: Colors.grey,
-                            fontSize: 12,
+                          const SizedBox(height: 2),
+                          Text(
+                            'Contact: ${data['contact_number']?.toString() ?? 'N/A'}',
+                            style: const TextStyle(
+                              color: Colors.grey,
+                              fontSize: 12,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
-                  _buildDataCell(
-                    data['business_category']?.toString() ?? 'N/A',
-                  ),
-                  _buildDataCell(data['address']?.toString() ?? 'N/A'),
-                  _buildDataCell(dateString),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 12.0,
-                      horizontal: 16.0,
-                    ),
-                    child: _buildStatusBadge(
-                      data['status']?.toString() ?? 'Pending',
+                  DataCell(
+                    SizedBox(
+                      width: 120,
+                      child: Text(
+                        data['business_category']?.toString() ?? 'N/A',
+                        style: const TextStyle(fontSize: 13),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                   ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 12.0,
-                      horizontal: 16.0,
+                  DataCell(
+                    SizedBox(
+                      width: 150,
+                      child: Text(
+                        data['address']?.toString() ?? 'N/A',
+                        style: const TextStyle(fontSize: 13),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                    child: Row(
+                  ),
+                  DataCell(
+                    SizedBox(
+                      width: 100,
+                      child: Text(
+                        dateString,
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                    ),
+                  ),
+                  DataCell(
+                    _buildStatusBadge(data['status']?.toString() ?? 'Pending'),
+                  ),
+                  DataCell(
+                    Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Switch(
-                          value:
-                              data['status']?.toString().toLowerCase() ==
-                              'active',
-                          onChanged: (val) {
-                            FirebaseFirestore.instance
-                                .collection('businesses')
-                                .doc(doc.id)
-                                .update({
-                                  'status': val ? 'active' : 'inactive',
-                                });
-                          },
-                          activeColor: Colors.green,
+                        Transform.scale(
+                          scale: 0.8,
+                          child: Switch(
+                            value:
+                                data['status']?.toString().toLowerCase() ==
+                                'active',
+                            onChanged: (val) {
+                              FirebaseFirestore.instance
+                                  .collection('businesses')
+                                  .doc(doc.id)
+                                  .update({
+                                    'status': val ? 'active' : 'inactive',
+                                  });
+                            },
+                            activeColor: Colors.green,
+                          ),
                         ),
                         const SizedBox(width: 4),
                         IconButton(
@@ -665,60 +779,6 @@ class _BusinessesPageState extends State<BusinessesPage> {
                 ],
               );
             }).toList(),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeaderCellWithCheckbox(String title) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
-      child: Row(
-        children: [
-          Checkbox(
-            value: false,
-            onChanged: (val) {},
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(4),
-            ),
-            side: const BorderSide(color: Colors.black26),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            title,
-            style: const TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: 12,
-              color: Colors.black87,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHeaderCell(String title) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
-      child: Text(
-        title,
-        style: const TextStyle(
-          fontWeight: FontWeight.w600,
-          fontSize: 12,
-          color: Colors.black87,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDataCell(String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
-      child: Text(
-        value,
-        style: const TextStyle(fontSize: 13),
-        overflow: TextOverflow.ellipsis,
       ),
     );
   }

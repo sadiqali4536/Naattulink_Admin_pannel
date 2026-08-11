@@ -76,3 +76,8 @@ void printBusinessesList(List<Map<String, dynamic>> businessesList) {
   // Fallback for non-web environments
   print("Print businesses list stub called with ${businessesList.length} records.");
 }
+
+void printServiceReviewsList(List<Map<String, dynamic>> reviews) {
+  // Fallback for non-web environments
+  print("Print service reviews list stub called with ${reviews.length} reviews.");
+}

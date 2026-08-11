@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:swiftclean_admin/MVVM/utils/printer_helper.dart';
 
@@ -14,124 +15,319 @@ class TruckAndJcbPage extends StatefulWidget {
 class _TruckAndJcbPageState extends State<TruckAndJcbPage> {
   String _selectedStatus = 'All Status';
   String _selectedType = 'All Vehicle Types';
-  String _selectedCity = 'All Cities';
+  String _selectedCity = 'All Main Stands';
   String _searchQuery = '';
+  Set<String> _selectedTruckJcbIds = {};
   final ScrollController _verticalScrollController = ScrollController();
+  final ScrollController _horizontalScrollController = ScrollController();
+  late Stream<QuerySnapshot> _truckJcbStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _truckJcbStream =
+        FirebaseFirestore.instance
+            .collection('transports')
+            .where('transport_category', isEqualTo: 'Truck / JCB')
+            .snapshots();
+  }
+
+  @override
+  void dispose() {
+    _verticalScrollController.dispose();
+    _horizontalScrollController.dispose();
+    super.dispose();
+  }
+
+  void _showBulkConfirmDialog(
+    String action,
+    List<QueryDocumentSnapshot> filteredDocs,
+  ) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.transparent,
+          title: Text('Confirm Bulk $action'),
+          content: Text(
+            'Are you sure you want to $action ${_selectedTruckJcbIds.length} selected vehicle(s)?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(color: Colors.black54),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _executeBulkAction(action, filteredDocs);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor:
+                    action == 'Delete'
+                        ? Colors.redAccent
+                        : (action == 'Mark Active'
+                            ? Colors.green
+                            : Colors.orange),
+                foregroundColor:
+                    action == 'Delete' ||
+                            action == 'Mark Active' ||
+                            action == 'Mark Inactive'
+                        ? Colors.white
+                        : Colors.black87,
+              ),
+              child: const Text('Confirm'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _executeBulkAction(
+    String action,
+    List<QueryDocumentSnapshot> filteredDocs,
+  ) async {
+    final ids = _selectedTruckJcbIds.toList();
+    int successCount = 0;
+
+    for (String id in ids) {
+      try {
+        final docIndex = filteredDocs.indexWhere((d) => d.id == id);
+        if (docIndex != -1) {
+          final doc = filteredDocs[docIndex];
+          if (action == 'Delete') {
+            await doc.reference.delete();
+          } else if (action == 'Mark Active') {
+            await doc.reference.update({'status': 'active'});
+          } else if (action == 'Mark Inactive') {
+            await doc.reference.update({'status': 'inactive'});
+          }
+          successCount++;
+        }
+      } catch (e) {
+        // Log or handle error for specific document
+      }
+    }
+
+    setState(() {
+      _selectedTruckJcbIds.clear();
+    });
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Successfully processed $successCount vehicle(s)'),
+        ),
+      );
+    }
+  }
+
+  Widget _buildBulkActionToolbar(List<QueryDocumentSnapshot> filteredDocs) {
+    if (_selectedTruckJcbIds.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 24),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.blue.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.blue.shade200),
+      ),
+      child: Row(
+        children: [
+          Text(
+            '${_selectedTruckJcbIds.length} selected',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Colors.blue.shade900,
+              fontSize: 16,
+            ),
+          ),
+          const Spacer(),
+          ElevatedButton.icon(
+            onPressed:
+                () => _showBulkConfirmDialog('Mark Active', filteredDocs),
+            icon: const Icon(Icons.check_circle_outline, size: 18),
+            label: const Text('Mark Active'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+              elevation: 0,
+            ),
+          ),
+          const SizedBox(width: 12),
+          ElevatedButton.icon(
+            onPressed:
+                () => _showBulkConfirmDialog('Mark Inactive', filteredDocs),
+            icon: const Icon(Icons.pause_circle_outline, size: 18),
+            label: const Text('Mark Inactive'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.white,
+              elevation: 0,
+            ),
+          ),
+          const SizedBox(width: 12),
+          ElevatedButton.icon(
+            onPressed: () => _showBulkConfirmDialog('Delete', filteredDocs),
+            icon: const Icon(Icons.delete_outline, size: 18),
+            label: const Text('Delete'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              foregroundColor: Colors.white,
+              elevation: 0,
+            ),
+          ),
+          const SizedBox(width: 24),
+          IconButton(
+            onPressed: () {
+              setState(() {
+                _selectedTruckJcbIds.clear();
+              });
+            },
+            icon: const Icon(Icons.close),
+            tooltip: 'Clear Selection',
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
-      body: SingleChildScrollView(
+      body: Scrollbar(
         controller: _verticalScrollController,
-        padding: const EdgeInsets.all(24.0),
-        child: StreamBuilder<QuerySnapshot>(
-          stream:
-              FirebaseFirestore.instance
-                  .collection('transports')
-                  .where('transport_category', isEqualTo: 'Truck / JCB')
-                  .snapshots(),
-          builder: (context, snapshot) {
-            if (snapshot.hasError) {
-              return const Center(child: Text('Something went wrong'));
-            }
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator(color: const Color(0xFFFFC107)));
-            }
+        thumbVisibility: true,
+        child: SingleChildScrollView(
+          controller: _verticalScrollController,
+          padding: const EdgeInsets.all(24.0),
+          child: StreamBuilder<QuerySnapshot>(
+            stream: _truckJcbStream,
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return const Center(child: Text('Something went wrong'));
+              }
+              if (snapshot.connectionState == ConnectionState.waiting &&
+                  !snapshot.hasData) {
+                return const Center(
+                  child: CircularProgressIndicator(
+                    color: const Color(0xFFFFC107),
+                  ),
+                );
+              }
 
-            final docs = snapshot.data?.docs ?? [];
-            final activeCount =
-                docs.where((d) {
-                  final status =
-                      (d.data() as Map<String, dynamic>)['status']
-                          ?.toString()
-                          .toLowerCase();
-                  return status == 'active' || status == 'approved';
-                }).length;
-            final inactiveCount =
-                docs.where((d) {
-                  final status =
-                      (d.data() as Map<String, dynamic>)['status']
-                          ?.toString()
-                          .toLowerCase();
-                  return status == 'inactive' ||
-                      status == 'pending' ||
-                      status == 'suspended';
-                }).length;
-
-            var filteredDocs = docs;
-            if (_selectedStatus != 'All Status' ||
-                _selectedType != 'All Vehicle Types' ||
-                _selectedCity != 'All Cities' ||
-                _searchQuery.isNotEmpty) {
-              filteredDocs =
+              final docs = snapshot.data?.docs ?? [];
+              final activeCount =
                   docs.where((d) {
-                    final data = d.data() as Map<String, dynamic>;
                     final status =
-                        data['status']?.toString().toLowerCase() ?? '';
-                    final type = data['vehicle_category']?.toString() ?? '';
-                    final city = data['main_stand']?.toString() ?? '';
+                        (d.data() as Map<String, dynamic>)['status']
+                            ?.toString()
+                            .toLowerCase();
+                    return status == 'active' || status == 'approved';
+                  }).length;
+              final inactiveCount =
+                  docs.where((d) {
+                    final status =
+                        (d.data() as Map<String, dynamic>)['status']
+                            ?.toString()
+                            .toLowerCase();
+                    return status == 'inactive' ||
+                        status == 'pending' ||
+                        status == 'suspended';
+                  }).length;
 
-                    bool statusMatches = true;
-                    if (_selectedStatus == 'Active')
-                      statusMatches =
-                          (status == 'active' || status == 'approved');
-                    else if (_selectedStatus == 'Inactive')
-                      statusMatches =
-                          (status == 'inactive' ||
-                              status == 'pending' ||
-                              status == 'suspended');
+              var filteredDocs = docs;
+              if (_selectedStatus != 'All Status' ||
+                  _selectedType != 'All Vehicle Types' ||
+                  _selectedCity != 'All Main Stands' ||
+                  _searchQuery.isNotEmpty) {
+                filteredDocs =
+                    docs.where((d) {
+                      final data = d.data() as Map<String, dynamic>;
+                      final status =
+                          data['status']?.toString().toLowerCase() ?? '';
+                      final type = data['vehicle_type']?.toString() ?? '';
+                      final city = data['main_stand']?.toString() ?? '';
 
-                    bool typeMatches = true;
-                    if (_selectedType != 'All Vehicle Types')
-                      typeMatches =
-                          (type.toLowerCase() == _selectedType.toLowerCase());
+                      bool statusMatches = true;
+                      if (_selectedStatus == 'Active')
+                        statusMatches =
+                            (status == 'active' || status == 'approved');
+                      else if (_selectedStatus == 'Inactive')
+                        statusMatches =
+                            (status == 'inactive' ||
+                                status == 'pending' ||
+                                status == 'suspended');
 
-                    bool cityMatches = true;
-                    if (_selectedCity != 'All Cities')
-                      cityMatches =
-                          (city.toLowerCase() == _selectedCity.toLowerCase());
+                      bool typeMatches = true;
+                      if (_selectedType != 'All Vehicle Types')
+                        typeMatches =
+                            (type.toLowerCase() == _selectedType.toLowerCase());
 
-                    bool searchMatches = true;
-                    if (_searchQuery.isNotEmpty) {
-                      final searchLower = _searchQuery.toLowerCase();
-                      final name =
-                          data['username']?.toString().toLowerCase() ??
-                          data['name']?.toString().toLowerCase() ??
-                          '';
-                      final phone =
-                          data['phone']?.toString().toLowerCase() ?? '';
-                      final reg =
-                          data['reg_number']?.toString().toLowerCase() ?? '';
-                      if (!name.contains(searchLower) &&
-                          !phone.contains(searchLower) &&
-                          !reg.contains(searchLower)) {
-                        searchMatches = false;
+                      bool cityMatches = true;
+                      if (_selectedCity != 'All Main Stands')
+                        cityMatches =
+                            (city.toLowerCase() == _selectedCity.toLowerCase());
+
+                      bool searchMatches = true;
+                      if (_searchQuery.isNotEmpty) {
+                        final searchLower = _searchQuery.toLowerCase();
+                        final searchNoSpaces = searchLower.replaceAll(' ', '');
+                        final name =
+                            data['username']?.toString().toLowerCase() ??
+                            data['name']?.toString().toLowerCase() ??
+                            '';
+                        final phone =
+                            data['phone']?.toString().toLowerCase().replaceAll(
+                              ' ',
+                              '',
+                            ) ??
+                            '';
+                        final reg =
+                            data['reg_number']
+                                ?.toString()
+                                .toLowerCase()
+                                .replaceAll(' ', '') ??
+                            '';
+
+                        if (!name.contains(searchLower) &&
+                            !phone.contains(searchNoSpaces) &&
+                            !reg.contains(searchNoSpaces)) {
+                          searchMatches = false;
+                        }
                       }
-                    }
 
-                    return statusMatches &&
-                        typeMatches &&
-                        cityMatches &&
-                        searchMatches;
-                  }).toList();
-            }
+                      return statusMatches &&
+                          typeMatches &&
+                          cityMatches &&
+                          searchMatches;
+                    }).toList();
+              }
 
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildHeader(filteredDocs),
-                const SizedBox(height: 24),
-                _buildStatsCards(
-                  total: docs.length,
-                  active: activeCount,
-                  inactive: inactiveCount,
-                ),
-                const SizedBox(height: 24),
-                _buildTableSection(filteredDocs),
-              ],
-            );
-          },
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildHeader(filteredDocs),
+                  const SizedBox(height: 24),
+                  _buildStatsCards(
+                    total: docs.length,
+                    active: activeCount,
+                    inactive: inactiveCount,
+                  ),
+                  const SizedBox(height: 24),
+                  _buildBulkActionToolbar(filteredDocs),
+                  _buildTableSection(filteredDocs),
+                ],
+              );
+            },
+          ),
         ),
       ),
     );
@@ -366,6 +562,8 @@ class _TruckAndJcbPageState extends State<TruckAndJcbPage> {
                 });
               },
               decoration: InputDecoration(
+                filled: true,
+                fillColor: Colors.white,
                 hintText: 'Search by name, phone or license number...',
                 hintStyle: const TextStyle(color: Colors.black38, fontSize: 14),
                 prefixIcon: const Icon(Icons.search, color: Colors.black38),
@@ -381,6 +579,13 @@ class _TruckAndJcbPageState extends State<TruckAndJcbPage> {
                   borderRadius: BorderRadius.circular(8),
                   borderSide: const BorderSide(color: Colors.black12),
                 ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(
+                    color: Color(0xFFFFC107),
+                    width: 2,
+                  ),
+                ),
               ),
             ),
           ),
@@ -388,6 +593,7 @@ class _TruckAndJcbPageState extends State<TruckAndJcbPage> {
           Expanded(
             flex: 1,
             child: DropdownButtonFormField<String>(
+              dropdownColor: Colors.white,
               value: _selectedStatus,
               decoration: InputDecoration(
                 contentPadding: const EdgeInsets.symmetric(
@@ -419,6 +625,7 @@ class _TruckAndJcbPageState extends State<TruckAndJcbPage> {
           Expanded(
             flex: 1,
             child: DropdownButtonFormField<String>(
+              dropdownColor: Colors.white,
               value: _selectedType,
               decoration: InputDecoration(
                 contentPadding: const EdgeInsets.symmetric(
@@ -450,6 +657,7 @@ class _TruckAndJcbPageState extends State<TruckAndJcbPage> {
           Expanded(
             flex: 1,
             child: DropdownButtonFormField<String>(
+              dropdownColor: Colors.white,
               value: _selectedCity,
               decoration: InputDecoration(
                 contentPadding: const EdgeInsets.symmetric(
@@ -466,7 +674,7 @@ class _TruckAndJcbPageState extends State<TruckAndJcbPage> {
                 ),
               ),
               items:
-                  ['All Cities', ...cityList].map((String value) {
+                  ['All Main Stands', ...cityList].map((String value) {
                     return DropdownMenuItem<String>(
                       value: value,
                       child: Text(value),
@@ -483,253 +691,296 @@ class _TruckAndJcbPageState extends State<TruckAndJcbPage> {
   }
 
   Widget _buildDataTable(List<QueryDocumentSnapshot> docs) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: SizedBox(
-        width: 1800, // Increased width to fit all data
-        child: Table(
-          columnWidths: const {
-            0: FlexColumnWidth(2.5), // Driver Details
-            1: FlexColumnWidth(1.5), // Phone
-            2: FlexColumnWidth(1.5), // License No.
-            3: FlexColumnWidth(2.0), // Vehicle Details
-            4: FlexColumnWidth(2.0), // Capacity & Features
-            5: FlexColumnWidth(1.5), // Main Stand
-            6: FlexColumnWidth(2.0), // Charge & Ratings
-            7: FlexColumnWidth(1.5), // Joined On
-            8: FlexColumnWidth(1.0), // Status
-            9: FlexColumnWidth(1.2), // Actions
-          },
-          defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-          children: [
-            // Header Row
-            TableRow(
-              decoration: BoxDecoration(
-                color: Colors.grey.shade50,
-                border: const Border(
-                  bottom: BorderSide(color: Colors.black12, width: 1),
-                ),
-              ),
-              children: [
-                _buildHeaderCellWithCheckbox('Driver Details'),
-                _buildHeaderCell('Phone'),
-                _buildHeaderCell('License No.'),
-                _buildHeaderCell('Vehicle Details'),
-                _buildHeaderCell('Capacity & Features'),
-                _buildHeaderCell('Main Stand'),
-                _buildHeaderCell('Charge & Ratings'),
-                _buildHeaderCell('Joined On'),
-                _buildHeaderCell('Status'),
-                _buildHeaderCell('Actions'),
-              ],
-            ),
-            // Data Rows
-            ...docs.map((doc) {
-              final data = doc.data() as Map<String, dynamic>;
-
-              String driverName = [
-                    data['username'] ??
-                        data['full_name'] ??
-                        data['fullName'] ??
-                        data['name'],
-                    "${data['role'] ?? ''} ${data['role_with_vehicle'] ?? ''}"
-                        .trim()
-                        .replaceAll(RegExp(r'\s+'), ' '),
-                  ]
-                  .where((e) => e != null && e.toString().trim().isNotEmpty)
-                  .join(' - ');
-              if (driverName.isEmpty) driverName = 'Unknown';
-
-              String dateString = 'N/A';
-              if (data['created_at'] != null) {
-                try {
-                  if (data['created_at'] is Timestamp) {
-                    dateString = DateFormat(
-                      'dd MMM yyyy',
-                    ).format((data['created_at'] as Timestamp).toDate());
-                  } else if (data['created_at'] is String) {
-                    dateString = DateFormat(
-                      'dd MMM yyyy',
-                    ).format(DateTime.parse(data['created_at']));
-                  }
-                } catch (_) {}
-              }
-
-              return TableRow(
-                decoration: const BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(color: Colors.black12, width: 1),
-                  ),
-                ),
+    return Scrollbar(
+      controller: _horizontalScrollController,
+      thumbVisibility: true,
+      child: SingleChildScrollView(
+        controller: _horizontalScrollController,
+        scrollDirection: Axis.horizontal,
+        child: DataTable(
+          headingRowColor: MaterialStateProperty.all(Colors.white),
+          headingRowHeight: 54,
+          headingTextStyle: GoogleFonts.inter(
+            fontWeight: FontWeight.w600,
+            color: const Color(0xFF64748B),
+            fontSize: 15,
+          ),
+          dataRowMinHeight: 70,
+          dataRowMaxHeight: 75,
+          columnSpacing: 24,
+          horizontalMargin: 24,
+          dividerThickness: 1,
+          columns: [
+            DataColumn(
+              label: Row(
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 12.0,
-                      horizontal: 16.0,
+                  Checkbox(
+                    value:
+                        docs.isNotEmpty &&
+                        _selectedTruckJcbIds.length == docs.length,
+                    onChanged: (val) {
+                      setState(() {
+                        if (val == true) {
+                          _selectedTruckJcbIds.addAll(docs.map((d) => d.id));
+                        } else {
+                          _selectedTruckJcbIds.clear();
+                        }
+                      });
+                    },
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(4),
                     ),
-                    child: Row(
-                      children: [
-                        Checkbox(
-                          value: false,
-                          onChanged: (val) {},
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(4),
+                    side: const BorderSide(color: Colors.black26),
+                  ),
+                  const SizedBox(width: 8),
+                  const Text('Driver Details'),
+                ],
+              ),
+            ),
+            const DataColumn(label: Text('Phone')),
+            const DataColumn(label: Text('License No.')),
+            const DataColumn(label: Text('Vehicle Details')),
+            const DataColumn(label: Text('Capacity & Features')),
+            const DataColumn(label: Text('Main Stand')),
+            const DataColumn(label: Text('Charge & Ratings')),
+            const DataColumn(label: Text('Joined On')),
+            const DataColumn(label: Text('Status')),
+            const DataColumn(label: Text('Actions')),
+          ],
+          rows:
+              docs.map((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+
+                String driverName = [
+                      data['username'] ??
+                          data['full_name'] ??
+                          data['fullName'] ??
+                          data['name'],
+                      "${data['role'] ?? ''} ${data['role_with_vehicle'] ?? ''}"
+                          .trim()
+                          .replaceAll(RegExp(r'\s+'), ' '),
+                    ]
+                    .where((e) => e != null && e.toString().trim().isNotEmpty)
+                    .join(' - ');
+                if (driverName.isEmpty) driverName = 'Unknown';
+
+                String dateString = 'N/A';
+                if (data['created_at'] != null) {
+                  try {
+                    if (data['created_at'] is Timestamp) {
+                      dateString = DateFormat(
+                        'dd MMM yyyy',
+                      ).format((data['created_at'] as Timestamp).toDate());
+                    } else if (data['created_at'] is String) {
+                      dateString = DateFormat(
+                        'dd MMM yyyy',
+                      ).format(DateTime.parse(data['created_at']));
+                    }
+                  } catch (_) {}
+                }
+
+                return DataRow(
+                  cells: [
+                    DataCell(
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Checkbox(
+                            value: _selectedTruckJcbIds.contains(doc.id),
+                            onChanged: (val) {
+                              setState(() {
+                                if (val == true) {
+                                  _selectedTruckJcbIds.add(doc.id);
+                                } else {
+                                  _selectedTruckJcbIds.remove(doc.id);
+                                }
+                              });
+                            },
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            side: const BorderSide(color: Colors.black26),
                           ),
-                          side: const BorderSide(color: Colors.black26),
-                        ),
-                        const SizedBox(width: 8),
-                        CircleAvatar(
-                          radius: 16,
-                          backgroundColor: Colors.blue.shade100,
-                          child: Text(
-                            driverName.isNotEmpty
-                                ? driverName[0].toUpperCase()
-                                : '?',
-                            style: const TextStyle(
-                              color: Colors.blue,
-                              fontSize: 14,
+                          const SizedBox(width: 8),
+                          CircleAvatar(
+                            radius: 16,
+                            backgroundColor: Colors.blue.shade100,
+                            child: Text(
+                              driverName.isNotEmpty
+                                  ? driverName[0].toUpperCase()
+                                  : '?',
+                              style: const TextStyle(
+                                color: Colors.blue,
+                                fontSize: 14,
+                              ),
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                driverName,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 13,
+                          const SizedBox(width: 12),
+                          SizedBox(
+                            width: 150,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  driverName,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Email: ${data['email']?.toString() ?? 'N/A'}',
+                                  style: const TextStyle(
+                                    color: Colors.grey,
+                                    fontSize: 11,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'ID: ${doc.id.length > 6 ? doc.id.substring(0, 6) : doc.id} | ${data['isVerified'] == 1 ? "Verified" : "Unverified"}',
+                                  style: const TextStyle(
+                                    color: Colors.grey,
+                                    fontSize: 11,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    DataCell(
+                      SizedBox(
+                        width: 100,
+                        child: Text(
+                          data['phone']?.toString() ?? 'N/A',
+                          style: const TextStyle(fontSize: 13),
+                        ),
+                      ),
+                    ),
+                    DataCell(
+                      SizedBox(
+                        width: 100,
+                        child: Text(
+                          data['reg_number']?.toString() ?? 'N/A',
+                          style: const TextStyle(fontSize: 13),
+                        ),
+                      ),
+                    ),
+                    DataCell(
+                      SizedBox(
+                        width: 140,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              data['vehicle_model']?.toString() ?? 'N/A',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w500,
+                                fontSize: 13,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              data['vehicle_type']?.toString() ?? 'N/A',
+                              style: const TextStyle(
+                                color: Colors.grey,
+                                fontSize: 12,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    DataCell(
+                      SizedBox(
+                        width: 100,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            if (data['load_capacity'] != null &&
+                                data['load_capacity'].toString().isNotEmpty)
+                              Text(
+                                'Load: ${data['load_capacity']} Tons',
+                                style: const TextStyle(fontSize: 12),
+                                maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                'Email: ${data['email']?.toString() ?? 'N/A'}',
-                                style: const TextStyle(
+                              )
+                            else
+                              const Text(
+                                'N/A',
+                                style: TextStyle(
+                                  fontSize: 12,
                                   color: Colors.grey,
-                                  fontSize: 11,
                                 ),
                               ),
-                              const SizedBox(height: 2),
-                              Text(
-                                'ID: ${doc.id.length > 6 ? doc.id.substring(0, 6) : doc.id} | ${data['isVerified'] == 1 ? "Verified" : "Unverified"}',
-                                style: const TextStyle(
-                                  color: Colors.grey,
-                                  fontSize: 11,
-                                ),
-                              ),
-                            ],
-                          ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
-                  ),
-                  _buildDataCell(data['phone']?.toString() ?? 'N/A'),
-                  _buildDataCell(data['reg_number']?.toString() ?? 'N/A'),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 12.0,
-                      horizontal: 16.0,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          data['vehicle_model']?.toString() ?? 'N/A',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w500,
-                            fontSize: 13,
-                          ),
+                    DataCell(
+                      SizedBox(
+                        width: 100,
+                        child: Text(
+                          data['main_stand']?.toString() ?? 'N/A',
+                          style: const TextStyle(fontSize: 13),
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          data['vehicle_type']?.toString() ?? 'N/A',
-                          style: const TextStyle(
-                            color: Colors.grey,
-                            fontSize: 12,
-                          ),
+                      ),
+                    ),
+                    DataCell(
+                      SizedBox(
+                        width: 120,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              'Min Charge: ₹${data['min_charge']?.toString() ?? 'N/A'}',
+                              style: const TextStyle(fontSize: 12),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Rating: ${data['ratings']?.toString() ?? '0'} (${data['total_reviews']?.toString() ?? '0'} revs)',
+                              style: const TextStyle(fontSize: 12),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Type: ${data['transport_category']?.toString() ?? 'N/A'}',
-                          style: const TextStyle(
-                            color: Colors.grey,
-                            fontSize: 11,
-                          ),
+                      ),
+                    ),
+                    DataCell(
+                      SizedBox(
+                        width: 100,
+                        child: Text(
+                          dateString,
+                          style: const TextStyle(fontSize: 13),
                         ),
-                      ],
+                      ),
                     ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 12.0,
-                      horizontal: 16.0,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        if (data['load_capacity'] != null &&
-                            data['load_capacity'].toString().isNotEmpty)
-                          Text(
-                            'Load: ${data['load_capacity']} Tons',
-                            style: const TextStyle(fontSize: 12),
-                          )
-                        else
-                          const Text(
-                            'N/A',
-                            style: TextStyle(fontSize: 12, color: Colors.grey),
-                          ),
-                      ],
-                    ),
-                  ),
-                  _buildDataCell(data['main_stand']?.toString() ?? 'N/A'),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 12.0,
-                      horizontal: 16.0,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          'Min Charge: ₹${data['min_charge']?.toString() ?? 'N/A'}',
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Rating: ${data['ratings']?.toString() ?? '0'} (${data['total_reviews']?.toString() ?? '0'} reviews)',
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                      ],
-                    ),
-                  ),
-                  _buildDataCell(dateString),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 12.0,
-                      horizontal: 16.0,
-                    ),
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: _buildStatusBadge(
+                    DataCell(
+                      _buildStatusBadge(
                         data['status']?.toString() ?? 'unknown',
                       ),
                     ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 12.0,
-                      horizontal: 16.0,
-                    ),
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Row(
+                    DataCell(
+                      Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Transform.scale(
@@ -746,7 +997,7 @@ class _TruckAndJcbPageState extends State<TruckAndJcbPage> {
                               activeColor: Colors.green,
                             ),
                           ),
-                          const SizedBox(width: 12),
+                          const SizedBox(width: 8),
                           IconButton(
                             icon: const Icon(
                               Icons.edit_outlined,
@@ -757,7 +1008,7 @@ class _TruckAndJcbPageState extends State<TruckAndJcbPage> {
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(),
                           ),
-                          const SizedBox(width: 12),
+                          const SizedBox(width: 8),
                           IconButton(
                             icon: const Icon(
                               Icons.delete_outline,
@@ -771,61 +1022,11 @@ class _TruckAndJcbPageState extends State<TruckAndJcbPage> {
                         ],
                       ),
                     ),
-                  ),
-                ],
-              );
-            }).toList(),
-          ],
+                  ],
+                );
+              }).toList(),
         ),
       ),
-    );
-  }
-
-  Widget _buildHeaderCellWithCheckbox(String title) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
-      child: Row(
-        children: [
-          Checkbox(
-            value: false,
-            onChanged: (val) {},
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(4),
-            ),
-            side: const BorderSide(color: Colors.black26),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: Colors.black54,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHeaderCell(String title) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
-      child: Text(
-        title,
-        style: const TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w600,
-          color: Colors.black54,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDataCell(String text) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
-      child: Text(text, style: const TextStyle(fontSize: 13)),
     );
   }
 
@@ -833,27 +1034,28 @@ class _TruckAndJcbPageState extends State<TruckAndJcbPage> {
     Color bgColor;
     Color textColor;
 
-    switch (status) {
-      case 'Active':
+    switch (status.toLowerCase()) {
+      case 'active':
+      case 'approved':
         bgColor = Colors.green.shade50;
         textColor = Colors.green.shade700;
         break;
-      case 'Pending':
-        bgColor = Colors.orange.shade50;
-        textColor = Colors.orange.shade700;
-        break;
-      case 'Suspended':
+      case 'inactive':
+      case 'pending':
+      case 'suspended':
         bgColor = Colors.red.shade50;
         textColor = Colors.red.shade700;
-        break;
-      case 'Inactive':
-        bgColor = Colors.grey.shade200;
-        textColor = Colors.black54;
         break;
       default:
         bgColor = Colors.grey.shade200;
         textColor = Colors.black54;
     }
+
+    // Capitalize first letter for display
+    String displayStatus =
+        status.isNotEmpty
+            ? "${status[0].toUpperCase()}${status.substring(1).toLowerCase()}"
+            : status;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -862,7 +1064,7 @@ class _TruckAndJcbPageState extends State<TruckAndJcbPage> {
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
-        status,
+        displayStatus,
         style: TextStyle(
           color: textColor,
           fontSize: 12,

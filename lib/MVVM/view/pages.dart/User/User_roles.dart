@@ -18,6 +18,7 @@ class RoleModel {
   final String initials;
   final Color badgeColor;
   final Map<String, dynamic> permissions;
+  final bool showInUserRoles;
 
   RoleModel({
     required this.id,
@@ -29,6 +30,7 @@ class RoleModel {
     required this.initials,
     required this.badgeColor,
     required this.permissions,
+    this.showInUserRoles = true,
   });
 
   factory RoleModel.fromFirestore(DocumentSnapshot doc) {
@@ -70,6 +72,7 @@ class RoleModel {
       initials: data['initials'] ?? '',
       badgeColor: Color(data['badgeColor'] ?? 0xFF8B5CF6),
       permissions: data['permissions'] as Map<String, dynamic>? ?? {},
+      showInUserRoles: data['showInUserRoles'] as bool? ?? true,
     );
   }
 
@@ -83,13 +86,260 @@ class RoleModel {
       'initials': initials,
       'badgeColor': badgeColor.toARGB32(),
       'permissions': permissions,
+      'showInUserRoles': showInUserRoles,
     };
   }
 }
 
+class ActionPermission {
+  final String apiKey;
+  final String displayName;
+
+  const ActionPermission({required this.apiKey, required this.displayName});
+}
+
+class ModulePermission {
+  final String moduleId;
+  final String moduleName;
+  final List<ActionPermission> actions;
+
+  const ModulePermission({
+    required this.moduleId,
+    required this.moduleName,
+    required this.actions,
+  });
+}
+
+final List<ModulePermission> modulePermissionsList = [
+  // ── Dashboard ────────────────────────────────────────────────────────────
+  ModulePermission(
+    moduleId: 'dashboard',
+    moduleName: 'Dashboard',
+    actions: [
+      ActionPermission(apiKey: 'view', displayName: 'View Dashboard'),
+      ActionPermission(
+        apiKey: 'view_analytics_cards',
+        displayName: 'View Analytics Cards',
+      ),
+      ActionPermission(
+        apiKey: 'view_recent_activity',
+        displayName: 'View Recent Activity',
+      ),
+      ActionPermission(
+        apiKey: 'view_statistics',
+        displayName: 'View Statistics',
+      ),
+    ],
+  ),
+  // ── User Management ──────────────────────────────────────────────────────
+  ModulePermission(
+    moduleId: 'user_management',
+    moduleName: 'User Management',
+    actions: [
+      ActionPermission(apiKey: 'view', displayName: 'View Users'),
+      ActionPermission(apiKey: 'create', displayName: 'Create User'),
+      ActionPermission(apiKey: 'edit', displayName: 'Edit User'),
+      ActionPermission(apiKey: 'delete', displayName: 'Delete User'),
+      ActionPermission(apiKey: 'assign_role', displayName: 'Assign Role'),
+      ActionPermission(apiKey: 'export', displayName: 'Export Users'),
+      ActionPermission(apiKey: 'suspend_user', displayName: 'Suspend User'),
+      ActionPermission(apiKey: 'ban_user', displayName: 'Ban User'),
+    ],
+  ),
+  // ── Worker Management ────────────────────────────────────────────────────
+  ModulePermission(
+    moduleId: 'worker_management',
+    moduleName: 'Worker Management',
+    actions: [
+      ActionPermission(apiKey: 'view', displayName: 'View Workers'),
+      ActionPermission(apiKey: 'approve_worker', displayName: 'Approve Worker'),
+      ActionPermission(apiKey: 'reject_worker', displayName: 'Reject Worker'),
+      ActionPermission(apiKey: 'edit', displayName: 'Edit Worker'),
+      ActionPermission(apiKey: 'suspend_worker', displayName: 'Suspend Worker'),
+      ActionPermission(apiKey: 'delete', displayName: 'Delete Worker'),
+      ActionPermission(apiKey: 'export_worker', displayName: 'Export Worker'),
+    ],
+  ),
+  // ── Services ─────────────────────────────────────────────────────────────
+  ModulePermission(
+    moduleId: 'services',
+    moduleName: 'Services',
+    actions: [
+      ActionPermission(apiKey: 'view', displayName: 'View Services'),
+      ActionPermission(apiKey: 'create', displayName: 'Create Service'),
+      ActionPermission(apiKey: 'edit', displayName: 'Edit Service'),
+      ActionPermission(apiKey: 'delete', displayName: 'Delete Service'),
+      ActionPermission(apiKey: 'enable_service', displayName: 'Enable Service'),
+      ActionPermission(
+        apiKey: 'disable_service',
+        displayName: 'Disable Service',
+      ),
+      ActionPermission(
+        apiKey: 'manage_categories',
+        displayName: 'Manage Categories',
+      ),
+    ],
+  ),
+  // ── Advertisements ───────────────────────────────────────────────────────
+  ModulePermission(
+    moduleId: 'advertisement',
+    moduleName: 'Advertisements',
+    actions: [
+      ActionPermission(apiKey: 'view', displayName: 'View Advertisements'),
+      ActionPermission(apiKey: 'create', displayName: 'Create Advertisement'),
+      ActionPermission(apiKey: 'edit', displayName: 'Edit Advertisement'),
+      ActionPermission(apiKey: 'delete', displayName: 'Delete Advertisement'),
+      ActionPermission(
+        apiKey: 'approve_ad',
+        displayName: 'Approve Advertisement',
+      ),
+      ActionPermission(
+        apiKey: 'publish_ad',
+        displayName: 'Publish Advertisement',
+      ),
+      ActionPermission(
+        apiKey: 'unpublish_ad',
+        displayName: 'Unpublish Advertisement',
+      ),
+    ],
+  ),
+  // ── Bus Routes ───────────────────────────────────────────────────────────
+  ModulePermission(
+    moduleId: 'bus',
+    moduleName: 'Bus Routes',
+    actions: [
+      ActionPermission(apiKey: 'view', displayName: 'View Bus Routes'),
+      ActionPermission(apiKey: 'create', displayName: 'Create Route'),
+      ActionPermission(apiKey: 'edit', displayName: 'Edit Route'),
+      ActionPermission(apiKey: 'delete', displayName: 'Delete Route'),
+      ActionPermission(apiKey: 'approve_route', displayName: 'Approve Route'),
+    ],
+  ),
+  // ── Taxi Drivers ─────────────────────────────────────────────────────────
+  ModulePermission(
+    moduleId: 'taxi',
+    moduleName: 'Taxi Drivers',
+    actions: [
+      ActionPermission(apiKey: 'view', displayName: 'View Drivers'),
+      ActionPermission(apiKey: 'approve_driver', displayName: 'Approve Driver'),
+      ActionPermission(apiKey: 'reject_driver', displayName: 'Reject Driver'),
+      ActionPermission(apiKey: 'suspend_driver', displayName: 'Suspend Driver'),
+      ActionPermission(apiKey: 'delete', displayName: 'Delete Driver'),
+    ],
+  ),
+  // ── Truck & JCB ──────────────────────────────────────────────────────────
+  ModulePermission(
+    moduleId: 'truck',
+    moduleName: 'Truck & JCB',
+    actions: [
+      ActionPermission(apiKey: 'view', displayName: 'View Vehicles'),
+      ActionPermission(apiKey: 'create', displayName: 'Add Vehicle'),
+      ActionPermission(apiKey: 'edit', displayName: 'Edit Vehicle'),
+      ActionPermission(apiKey: 'delete', displayName: 'Delete Vehicle'),
+      ActionPermission(
+        apiKey: 'approve_listing',
+        displayName: 'Approve Listing',
+      ),
+    ],
+  ),
+  // ── Healthcare ───────────────────────────────────────────────────────────
+  ModulePermission(
+    moduleId: 'healthcare',
+    moduleName: 'Healthcare',
+    actions: [
+      ActionPermission(apiKey: 'view', displayName: 'View Healthcare'),
+      ActionPermission(apiKey: 'create', displayName: 'Add Hospital'),
+      ActionPermission(apiKey: 'edit', displayName: 'Edit Hospital'),
+      ActionPermission(apiKey: 'delete', displayName: 'Delete Hospital'),
+      ActionPermission(apiKey: 'verify_listing', displayName: 'Verify Listing'),
+    ],
+  ),
+  // ── Businesses ───────────────────────────────────────────────────────────
+  ModulePermission(
+    moduleId: 'business',
+    moduleName: 'Businesses',
+    actions: [
+      ActionPermission(apiKey: 'view', displayName: 'View Businesses'),
+      ActionPermission(
+        apiKey: 'approve_business',
+        displayName: 'Approve Business',
+      ),
+      ActionPermission(
+        apiKey: 'reject_business',
+        displayName: 'Reject Business',
+      ),
+      ActionPermission(apiKey: 'edit', displayName: 'Edit Business'),
+      ActionPermission(apiKey: 'delete', displayName: 'Delete Business'),
+    ],
+  ),
+  // ── Payments ─────────────────────────────────────────────────────────────
+  ModulePermission(
+    moduleId: 'payments',
+    moduleName: 'Payments',
+    actions: [
+      ActionPermission(apiKey: 'view', displayName: 'View Payments'),
+      ActionPermission(apiKey: 'refund', displayName: 'Process Refund'),
+      ActionPermission(apiKey: 'export_payouts', displayName: 'Export Payouts'),
+    ],
+  ),
+  // ── Bookings ─────────────────────────────────────────────────────────────
+  ModulePermission(
+    moduleId: 'bookings',
+    moduleName: 'Bookings',
+    actions: [
+      ActionPermission(apiKey: 'view', displayName: 'View Bookings'),
+      ActionPermission(apiKey: 'create', displayName: 'Create Booking'),
+      ActionPermission(apiKey: 'edit', displayName: 'Edit Booking'),
+      ActionPermission(apiKey: 'delete', displayName: 'Delete Booking'),
+      ActionPermission(apiKey: 'assign_worker', displayName: 'Assign Worker'),
+      ActionPermission(apiKey: 'cancel_booking', displayName: 'Cancel Booking'),
+    ],
+  ),
+  // ── Notifications ────────────────────────────────────────────────────────
+  ModulePermission(
+    moduleId: 'notifications',
+    moduleName: 'Notifications',
+    actions: [
+      ActionPermission(apiKey: 'view', displayName: 'View Notifications'),
+      ActionPermission(apiKey: 'send', displayName: 'Send Push Notification'),
+    ],
+  ),
+  // ── Reports & Analytics ──────────────────────────────────────────────────
+  ModulePermission(
+    moduleId: 'reports',
+    moduleName: 'Reports & Analytics',
+    actions: [
+      ActionPermission(apiKey: 'view', displayName: 'View Reports'),
+      ActionPermission(apiKey: 'export_reports', displayName: 'Export Reports'),
+      ActionPermission(
+        apiKey: 'download_analytics',
+        displayName: 'Download Analytics',
+      ),
+    ],
+  ),
+  // ── Settings ─────────────────────────────────────────────────────────────
+  ModulePermission(
+    moduleId: 'settings',
+    moduleName: 'Settings',
+    actions: [
+      ActionPermission(apiKey: 'view', displayName: 'View Settings'),
+      ActionPermission(apiKey: 'edit', displayName: 'Edit General Settings'),
+      ActionPermission(apiKey: 'manage_roles', displayName: 'Manage Roles'),
+      ActionPermission(
+        apiKey: 'manage_permissions',
+        displayName: 'Manage Permissions',
+      ),
+      ActionPermission(apiKey: 'backup_system', displayName: 'Backup System'),
+    ],
+  ),
+];
+
 class UserRolesPage extends StatefulWidget {
   final ValueChanged<String>? onTabChanged;
-  const UserRolesPage({super.key, this.onTabChanged});
+  final bool isSuperAdmin;
+  UserRolesPage({Key? key, this.onTabChanged, bool? isSuperAdmin})
+    : isSuperAdmin = isSuperAdmin ?? RbacSession().isSuperAdmin,
+      super(key: key);
 
   @override
   State<UserRolesPage> createState() => _UserRolesPageState();
@@ -132,15 +382,20 @@ class _UserRolesPageState extends State<UserRolesPage> {
   String _selectedStatus = "All Status";
 
   final List<String> _modules = [
+    "Dashboard",
+    "User Management",
+    "Worker Management",
+    "Services",
     "Advertisement",
     "Bus",
     "Taxi",
-    "User Management",
-    "Worker Management",
-    "Bookings",
+    "Truck",
+    "Healthcare",
+    "Business",
     "Payments",
-    "Reports",
+    "Bookings",
     "Notifications",
+    "Reports",
     "Settings",
   ];
 
@@ -2201,8 +2456,8 @@ class _UserRolesPageState extends State<UserRolesPage> {
 
     // permissions structure: Map<String, List<String>>
     final Map<String, List<String>> selectedPermissions = {};
-    for (var module in _modules) {
-      selectedPermissions[module] = [];
+    for (var module in modulePermissionsList) {
+      selectedPermissions[module.moduleId] = [];
     }
 
     // Helper: input decoration
@@ -2316,15 +2571,14 @@ class _UserRolesPageState extends State<UserRolesPage> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                isSelected
-                    ? Icons.check_circle_rounded
-                    : Icons.radio_button_unchecked_rounded,
-                size: 14,
-                color:
-                    isSelected
-                        ? const Color(0xFF10B981)
-                        : const Color(0xFF94A3B8),
+              SizedBox(
+                width: 18,
+                height: 18,
+                child: Checkbox(
+                  value: isSelected,
+                  onChanged: (_) => onTap(),
+                  activeColor: const Color(0xFF10B981),
+                ),
               ),
               const SizedBox(width: 6),
               Text(
@@ -2373,13 +2627,13 @@ class _UserRolesPageState extends State<UserRolesPage> {
 
     // Helper: Module Card
     Widget buildModuleCard({
-      required String module,
+      required ModulePermission module,
       required Map<String, List<String>> selectedPermissions,
       required VoidCallback onToggleAll,
       required StateSetter setDialogState,
     }) {
-      final hasAll = _actions.every(
-        (a) => selectedPermissions[module]!.contains(a),
+      final hasAll = module.actions.every(
+        (a) => selectedPermissions[module.moduleId]!.contains(a.apiKey),
       );
       return Container(
         margin: const EdgeInsets.only(bottom: 16),
@@ -2411,7 +2665,7 @@ class _UserRolesPageState extends State<UserRolesPage> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    module,
+                    module.moduleName,
                     style: GoogleFonts.inter(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
@@ -2429,7 +2683,7 @@ class _UserRolesPageState extends State<UserRolesPage> {
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
                     child: Text(
-                      hasAll ? "Deselect All" : "Select All",
+                      hasAll ? "Clear All" : "Select All",
                       style: GoogleFonts.inter(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
@@ -2446,19 +2700,22 @@ class _UserRolesPageState extends State<UserRolesPage> {
                 spacing: 8,
                 runSpacing: 8,
                 children:
-                    _actions.map((action) {
-                      final isChecked = selectedPermissions[module]!.contains(
-                        action,
-                      );
+                    module.actions.map((action) {
+                      final isChecked = selectedPermissions[module.moduleId]!
+                          .contains(action.apiKey);
                       return buildPermissionChip(
-                        label: action,
+                        label: action.displayName,
                         isSelected: isChecked,
                         onTap: () {
                           setDialogState(() {
                             if (isChecked) {
-                              selectedPermissions[module]!.remove(action);
+                              selectedPermissions[module.moduleId]!.remove(
+                                action.apiKey,
+                              );
                             } else {
-                              selectedPermissions[module]!.add(action);
+                              selectedPermissions[module.moduleId]!.add(
+                                action.apiKey,
+                              );
                             }
                           });
                         },
@@ -2896,10 +3153,13 @@ class _UserRolesPageState extends State<UserRolesPage> {
                                     Expanded(
                                       child: Column(
                                         children:
-                                            _modules
+                                            modulePermissionsList
                                                 .sublist(
                                                   0,
-                                                  (_modules.length / 2).round(),
+                                                  (modulePermissionsList
+                                                              .length /
+                                                          2)
+                                                      .round(),
                                                 )
                                                 .map(
                                                   (module) => buildModuleCard(
@@ -2910,24 +3170,35 @@ class _UserRolesPageState extends State<UserRolesPage> {
                                                         isSaving
                                                             ? () {}
                                                             : () {
-                                                              final hasAll =
-                                                                  _actions.every(
+                                                              final hasAll = module
+                                                                  .actions
+                                                                  .every(
                                                                     (
                                                                       a,
-                                                                    ) => selectedPermissions[module]!
+                                                                    ) => selectedPermissions[module
+                                                                            .moduleId]!
                                                                         .contains(
-                                                                          a,
+                                                                          a.apiKey,
                                                                         ),
                                                                   );
                                                               setDialogState(() {
                                                                 if (hasAll) {
-                                                                  selectedPermissions[module]!
+                                                                  selectedPermissions[module
+                                                                          .moduleId]!
                                                                       .clear();
                                                                 } else {
-                                                                  selectedPermissions[module]!
+                                                                  selectedPermissions[module
+                                                                        .moduleId]!
                                                                     ..clear()
                                                                     ..addAll(
-                                                                      _actions,
+                                                                      module
+                                                                          .actions
+                                                                          .map(
+                                                                            (
+                                                                              a,
+                                                                            ) =>
+                                                                                a.apiKey,
+                                                                          ),
                                                                     );
                                                                 }
                                                               });
@@ -2943,9 +3214,12 @@ class _UserRolesPageState extends State<UserRolesPage> {
                                     Expanded(
                                       child: Column(
                                         children:
-                                            _modules
+                                            modulePermissionsList
                                                 .sublist(
-                                                  (_modules.length / 2).round(),
+                                                  (modulePermissionsList
+                                                              .length /
+                                                          2)
+                                                      .round(),
                                                 )
                                                 .map(
                                                   (module) => buildModuleCard(
@@ -2956,24 +3230,35 @@ class _UserRolesPageState extends State<UserRolesPage> {
                                                         isSaving
                                                             ? () {}
                                                             : () {
-                                                              final hasAll =
-                                                                  _actions.every(
+                                                              final hasAll = module
+                                                                  .actions
+                                                                  .every(
                                                                     (
                                                                       a,
-                                                                    ) => selectedPermissions[module]!
+                                                                    ) => selectedPermissions[module
+                                                                            .moduleId]!
                                                                         .contains(
-                                                                          a,
+                                                                          a.apiKey,
                                                                         ),
                                                                   );
                                                               setDialogState(() {
                                                                 if (hasAll) {
-                                                                  selectedPermissions[module]!
+                                                                  selectedPermissions[module
+                                                                          .moduleId]!
                                                                       .clear();
                                                                 } else {
-                                                                  selectedPermissions[module]!
+                                                                  selectedPermissions[module
+                                                                        .moduleId]!
                                                                     ..clear()
                                                                     ..addAll(
-                                                                      _actions,
+                                                                      module
+                                                                          .actions
+                                                                          .map(
+                                                                            (
+                                                                              a,
+                                                                            ) =>
+                                                                                a.apiKey,
+                                                                          ),
                                                                     );
                                                                 }
                                                               });
@@ -3485,87 +3770,245 @@ class _UserRolesPageState extends State<UserRolesPage> {
       );
     }
 
+    Widget buildPermissionChip({
+      required String label,
+      required bool isSelected,
+      required VoidCallback onTap,
+    }) {
+      return InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color:
+                isSelected ? const Color(0xFFECFDF5) : const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color:
+                  isSelected
+                      ? const Color(0xFF10B981).withValues(alpha: 0.5)
+                      : const Color(0xFFE2E8F0),
+              width: 1,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                isSelected
+                    ? Icons.check_box_rounded
+                    : Icons.check_box_outline_blank_rounded,
+                size: 14,
+                color:
+                    isSelected
+                        ? const Color(0xFF10B981)
+                        : const Color(0xFF94A3B8),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                  color:
+                      isSelected
+                          ? const Color(0xFF047857)
+                          : const Color(0xFF64748B),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    Widget buildModuleCard({
+      required ModulePermission module,
+      required Map<String, List<String>> selectedPermissions,
+      required VoidCallback onToggleAll,
+      required StateSetter setDialogState,
+    }) {
+      final hasAll = module.actions.every(
+        (a) => selectedPermissions[module.moduleId]!.contains(a.apiKey),
+      );
+      return Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: const BoxDecoration(
+                color: Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(16),
+                  topRight: Radius.circular(16),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    module.moduleName,
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF1E293B),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: onToggleAll,
+                    style: TextButton.styleFrom(
+                      minimumSize: Size.zero,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: Text(
+                      hasAll ? "Clear All" : "Select All",
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF10B981),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children:
+                    module.actions.map((action) {
+                      final isChecked = selectedPermissions[module.moduleId]!
+                          .contains(action.apiKey);
+                      return buildPermissionChip(
+                        label: action.displayName,
+                        isSelected: isChecked,
+                        onTap: () {
+                          setDialogState(() {
+                            if (isChecked) {
+                              selectedPermissions[module.moduleId]!.remove(
+                                action.apiKey,
+                              );
+                            } else {
+                              selectedPermissions[module.moduleId]!.add(
+                                action.apiKey,
+                              );
+                            }
+                          });
+                        },
+                      );
+                    }).toList(),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     showDialog(
       context: context,
       builder: (context) {
-        return Dialog(
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Container(
-            width: 750,
-            height: MediaQuery.of(context).size.height * 0.85,
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Header (with title, subtitle, close button)
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        bool localShowInUserRoles = role.showInUserRoles;
+        final Map<String, List<String>> selectedPermissions = {};
+        for (var module in modulePermissionsList) {
+          final rawVals =
+              role.permissions[module.moduleId] ??
+              role.permissions[module.moduleName] ??
+              [];
+          final validKeys = module.actions.map((a) => a.apiKey).toSet();
+          selectedPermissions[module.moduleId] = List<String>.from(
+            rawVals.where((v) => validKeys.contains(v)),
+          );
+        }
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return Dialog(
+              backgroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Container(
+                width: 750,
+                height: MediaQuery.of(context).size.height * 0.85,
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    // Header (with title, subtitle, close button)
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Row(
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text("✏️ ", style: TextStyle(fontSize: 22)),
+                            Row(
+                              children: [
+                                const Text(
+                                  "✏️ ",
+                                  style: TextStyle(fontSize: 22),
+                                ),
+                                Text(
+                                  "Edit Role",
+                                  style: GoogleFonts.inter(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.bold,
+                                    color: const Color(0xFF0F172A),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
                             Text(
-                              "Edit Role",
+                              "Manage users assigned to this role",
                               style: GoogleFonts.inter(
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold,
-                                color: const Color(0xFF0F172A),
+                                fontSize: 13,
+                                color: const Color(0xFF64748B),
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          "Manage users assigned to this role",
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            color: const Color(0xFF64748B),
-                          ),
+                        IconButton(
+                          onPressed: () => Navigator.pop(context),
+                          icon: const Icon(Icons.close_rounded),
+                          color: const Color(0xFF64748B),
+                          splashRadius: 20,
                         ),
                       ],
                     ),
-                    IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.close_rounded),
-                      color: const Color(0xFF64748B),
-                      splashRadius: 20,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                const Divider(height: 1, color: Color(0xFFE2E8F0)),
-                const SizedBox(height: 16),
+                    const SizedBox(height: 16),
+                    const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                    const SizedBox(height: 16),
 
-                // Content Section
-                Expanded(
-                  child: StreamBuilder<QuerySnapshot>(
-                    stream:
-                        FirebaseFirestore.instance
-                            .collection("admin_users")
-                            .snapshots(),
-                    builder: (context, adminSnapshot) {
-                      if (adminSnapshot.connectionState ==
-                          ConnectionState.waiting) {
-                        return const Center(
-                          child: CircularProgressIndicator(
-                            color: Color(0xFF10B981),
-                          ),
-                        );
-                      }
-
-                      return StreamBuilder<QuerySnapshot>(
+                    // Content Section
+                    Expanded(
+                      child: StreamBuilder<QuerySnapshot>(
                         stream:
                             FirebaseFirestore.instance
-                                .collection("users")
+                                .collection("admin_users")
                                 .snapshots(),
-                        builder: (context, usersSnapshot) {
-                          if (usersSnapshot.connectionState ==
+                        builder: (context, adminSnapshot) {
+                          if (adminSnapshot.connectionState ==
                               ConnectionState.waiting) {
                             return const Center(
                               child: CircularProgressIndicator(
@@ -3574,141 +4017,334 @@ class _UserRolesPageState extends State<UserRolesPage> {
                             );
                           }
 
-                          // Get mapping of uid -> user doc data
-                          final Map<String, Map<String, dynamic>> userDocs = {};
-                          if (usersSnapshot.hasData) {
-                            for (var doc in usersSnapshot.data!.docs) {
-                              userDocs[doc.id] =
-                                  doc.data() as Map<String, dynamic>;
-                            }
-                          }
-
-                          // Filter active assigned admin users
-                          final canonicalRoleId = role.name
-                              .toLowerCase()
-                              .replaceAll(' ', '_');
-                          final List<QueryDocumentSnapshot> assignedAdminDocs =
-                              [];
-                          if (adminSnapshot.hasData) {
-                            for (var doc in adminSnapshot.data!.docs) {
-                              final d =
-                                  doc.data() as Map<String, dynamic>? ?? {};
-                              final status = d['status'] as String? ?? 'Active';
-                              if (status != 'Active') continue;
-
-                              final rId = (d['roleId'] ?? '').toString();
-                              final rIds =
-                                  (d['roleIds'] as List<dynamic>?)
-                                      ?.map((e) => e.toString())
-                                      .toList() ??
-                                  [rId];
-
-                              // Filter out deleted users whose document in users collection no longer exists
-                              if (!userDocs.containsKey(doc.id)) continue;
-
-                              final uDoc = userDocs[doc.id]!;
-                              final email =
-                                  (uDoc['email'] ?? '')
-                                      .toString()
-                                      .toLowerCase();
-
-                              if (email == 'superadmin@naattulink.com' ||
-                                  rId == 'super_admin' ||
-                                  rIds.contains('super_admin')) {
-                                continue;
-                              }
-                              if (rIds.contains(canonicalRoleId)) {
-                                assignedAdminDocs.add(doc);
-                              }
-                            }
-                          }
-
-                          final totalPermissions = role.permissions.values
-                              .fold<int>(
-                                0,
-                                (acc, list) => acc + (list as List).length,
-                              );
-
-                          return SingleChildScrollView(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                // Stats Row
-                                Row(
-                                  children: [
-                                    buildStatBox(
-                                      "Assigned Users",
-                                      assignedAdminDocs.length.toString(),
-                                      Icons.people_outline_rounded,
-                                      const Color(0xFF3B82F6),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    buildStatBox(
-                                      "Permissions",
-                                      totalPermissions.toString(),
-                                      Icons.lock_outline_rounded,
-                                      const Color(0xFF10B981),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    buildStatBox(
-                                      "Active Users",
-                                      assignedAdminDocs.length.toString(),
-                                      Icons.circle_notifications_outlined,
-                                      const Color(0xFFF59E0B),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 16),
-
-                                // Role Summary Card
-                                Container(
-                                  padding: const EdgeInsets.all(16),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFF8FAFC),
-                                    borderRadius: BorderRadius.circular(16),
-                                    border: Border.all(
-                                      color: const Color(0xFFE2E8F0),
-                                    ),
+                          return StreamBuilder<QuerySnapshot>(
+                            stream:
+                                FirebaseFirestore.instance
+                                    .collection("users")
+                                    .snapshots(),
+                            builder: (context, usersSnapshot) {
+                              if (usersSnapshot.connectionState ==
+                                  ConnectionState.waiting) {
+                                return const Center(
+                                  child: CircularProgressIndicator(
+                                    color: Color(0xFF10B981),
                                   ),
-                                  child: Row(
-                                    children: [
-                                      CircleAvatar(
-                                        radius: 22,
-                                        backgroundColor: role.badgeColor,
-                                        child: Text(
-                                          role.initials.isNotEmpty
-                                              ? role.initials
-                                              : (role.name.length >= 2
-                                                  ? role.name
-                                                      .substring(0, 2)
-                                                      .toUpperCase()
-                                                  : role.name.toUpperCase()),
-                                          style: GoogleFonts.inter(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.white,
-                                          ),
+                                );
+                              }
+
+                              // Get mapping of uid -> user doc data
+                              final Map<String, Map<String, dynamic>> userDocs =
+                                  {};
+                              if (usersSnapshot.hasData) {
+                                for (var doc in usersSnapshot.data!.docs) {
+                                  userDocs[doc.id] =
+                                      doc.data() as Map<String, dynamic>;
+                                }
+                              }
+
+                              // Filter active assigned admin users
+                              final canonicalRoleId = role.name
+                                  .toLowerCase()
+                                  .replaceAll(' ', '_');
+                              final List<QueryDocumentSnapshot>
+                              assignedAdminDocs = [];
+                              if (adminSnapshot.hasData) {
+                                for (var doc in adminSnapshot.data!.docs) {
+                                  final d =
+                                      doc.data() as Map<String, dynamic>? ?? {};
+                                  final status =
+                                      d['status'] as String? ?? 'Active';
+                                  if (status != 'Active') continue;
+
+                                  final rId = (d['roleId'] ?? '').toString();
+                                  final rIds =
+                                      (d['roleIds'] as List<dynamic>?)
+                                          ?.map((e) => e.toString())
+                                          .toList() ??
+                                      [rId];
+
+                                  // Filter out deleted users whose document in users collection no longer exists
+                                  if (!userDocs.containsKey(doc.id)) continue;
+
+                                  final uDoc = userDocs[doc.id]!;
+                                  final email =
+                                      (uDoc['email'] ?? '')
+                                          .toString()
+                                          .toLowerCase();
+
+                                  if (email == 'superadmin@naattulink.com' ||
+                                      rId == 'super_admin' ||
+                                      rIds.contains('super_admin')) {
+                                    continue;
+                                  }
+                                  if (rIds.contains(canonicalRoleId)) {
+                                    assignedAdminDocs.add(doc);
+                                  }
+                                }
+                              }
+
+                              final totalPermissions = role.permissions.values
+                                  .fold<int>(
+                                    0,
+                                    (acc, list) => acc + (list as List).length,
+                                  );
+
+                              return SingleChildScrollView(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    // Stats Row
+                                    Row(
+                                      children: [
+                                        buildStatBox(
+                                          "Assigned Users",
+                                          assignedAdminDocs.length.toString(),
+                                          Icons.people_outline_rounded,
+                                          const Color(0xFF3B82F6),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        buildStatBox(
+                                          "Permissions",
+                                          totalPermissions.toString(),
+                                          Icons.lock_outline_rounded,
+                                          const Color(0xFF10B981),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        buildStatBox(
+                                          "Active Users",
+                                          assignedAdminDocs.length.toString(),
+                                          Icons.circle_notifications_outlined,
+                                          const Color(0xFFF59E0B),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 16),
+
+                                    // Role Summary Card
+                                    Container(
+                                      padding: const EdgeInsets.all(16),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFF8FAFC),
+                                        borderRadius: BorderRadius.circular(16),
+                                        border: Border.all(
+                                          color: const Color(0xFFE2E8F0),
                                         ),
                                       ),
-                                      const SizedBox(width: 14),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              role.name,
+                                      child: Row(
+                                        children: [
+                                          CircleAvatar(
+                                            radius: 22,
+                                            backgroundColor: role.badgeColor,
+                                            child: Text(
+                                              role.initials.isNotEmpty
+                                                  ? role.initials
+                                                  : (role.name.length >= 2
+                                                      ? role.name
+                                                          .substring(0, 2)
+                                                          .toUpperCase()
+                                                      : role.name
+                                                          .toUpperCase()),
                                               style: GoogleFonts.inter(
-                                                fontSize: 15,
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 14),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  role.name,
+                                                  style: GoogleFonts.inter(
+                                                    fontSize: 15,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: const Color(
+                                                      0xFF0F172A,
+                                                    ),
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 2),
+                                                Text(
+                                                  role.description.isNotEmpty
+                                                      ? role.description
+                                                      : "No description provided for this role.",
+                                                  style: GoogleFonts.inter(
+                                                    fontSize: 12,
+                                                    color: const Color(
+                                                      0xFF64748B,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          const SizedBox(width: 16),
+                                          Row(
+                                            children: [
+                                              buildRoleStatItem(
+                                                Icons.people_outline_rounded,
+                                                "${assignedAdminDocs.length} Users",
+                                              ),
+                                              const SizedBox(width: 12),
+                                              buildRoleStatItem(
+                                                Icons.lock_open_rounded,
+                                                "$totalPermissions Permissions",
+                                              ),
+                                              const SizedBox(width: 12),
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 8,
+                                                      vertical: 4,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color: const Color(
+                                                    0xFFECFDF5,
+                                                  ),
+                                                  borderRadius:
+                                                      BorderRadius.circular(20),
+                                                  border: Border.all(
+                                                    color: const Color(
+                                                      0xFFA7F3D0,
+                                                    ),
+                                                  ),
+                                                ),
+                                                child: Row(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    const Icon(
+                                                      Icons.circle,
+                                                      size: 6,
+                                                      color: Color(0xFF10B981),
+                                                    ),
+                                                    const SizedBox(width: 4),
+                                                    Text(
+                                                      role.status,
+                                                      style: GoogleFonts.inter(
+                                                        fontSize: 10,
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                        color: const Color(
+                                                          0xFF065F46,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(height: 24),
+
+                                    // Assigned Users Header
+                                    Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Text(
+                                          "Assigned Users (${assignedAdminDocs.length})",
+                                          style: GoogleFonts.inter(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.bold,
+                                            color: const Color(0xFF0F172A),
+                                          ),
+                                        ),
+                                        TextButton.icon(
+                                          onPressed: () {
+                                            Navigator.pop(
+                                              context,
+                                            ); // Close dialog
+                                            // Navigate to Grant Access Tab or Page
+                                            if (widget.onTabChanged != null) {
+                                              widget.onTabChanged!(
+                                                "Grant Access",
+                                              );
+                                            } else {
+                                              Navigator.push(
+                                                context,
+                                                MaterialPageRoute(
+                                                  builder:
+                                                      (context) =>
+                                                          const GrantAccessPage(),
+                                                ),
+                                              );
+                                            }
+                                          },
+                                          icon: const Icon(
+                                            Icons.person_add_alt_1_rounded,
+                                            size: 14,
+                                          ),
+                                          label: Text(
+                                            "Assign User",
+                                            style: GoogleFonts.inter(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                          style: TextButton.styleFrom(
+                                            foregroundColor: const Color(
+                                              0xFF10B981,
+                                            ),
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 12,
+                                              vertical: 8,
+                                            ),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                              side: const BorderSide(
+                                                color: Color(0xFF10B981),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 12),
+
+                                    // List of assigned users
+                                    if (assignedAdminDocs.isEmpty)
+                                      Container(
+                                        width: double.infinity,
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 36,
+                                        ),
+                                        child: Column(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            Container(
+                                              padding: const EdgeInsets.all(16),
+                                              decoration: const BoxDecoration(
+                                                color: Color(0xFFF8FAFC),
+                                                shape: BoxShape.circle,
+                                              ),
+                                              child: const Icon(
+                                                Icons.people_outline_rounded,
+                                                size: 40,
+                                                color: Color(0xFF94A3B8),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 12),
+                                            Text(
+                                              "No users assigned",
+                                              style: GoogleFonts.inter(
+                                                fontSize: 14,
                                                 fontWeight: FontWeight.bold,
                                                 color: const Color(0xFF0F172A),
                                               ),
                                             ),
-                                            const SizedBox(height: 2),
+                                            const SizedBox(height: 4),
                                             Text(
-                                              role.description.isNotEmpty
-                                                  ? role.description
-                                                  : "No description provided for this role.",
+                                              "Click 'Assign User' to add users to this role.",
                                               style: GoogleFonts.inter(
                                                 fontSize: 12,
                                                 color: const Color(0xFF64748B),
@@ -3716,301 +4352,151 @@ class _UserRolesPageState extends State<UserRolesPage> {
                                             ),
                                           ],
                                         ),
-                                      ),
-                                      const SizedBox(width: 16),
-                                      Row(
-                                        children: [
-                                          buildRoleStatItem(
-                                            Icons.people_outline_rounded,
-                                            "${assignedAdminDocs.length} Users",
-                                          ),
-                                          const SizedBox(width: 12),
-                                          buildRoleStatItem(
-                                            Icons.lock_open_rounded,
-                                            "$totalPermissions Permissions",
-                                          ),
-                                          const SizedBox(width: 12),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 8,
-                                              vertical: 4,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: const Color(0xFFECFDF5),
-                                              borderRadius:
-                                                  BorderRadius.circular(20),
-                                              border: Border.all(
-                                                color: const Color(0xFFA7F3D0),
+                                      )
+                                    else
+                                      StreamBuilder<QuerySnapshot>(
+                                        stream:
+                                            FirebaseFirestore.instance
+                                                .collection("roles")
+                                                .snapshots(),
+                                        builder: (context, rolesSnap) {
+                                          if (rolesSnap.connectionState ==
+                                              ConnectionState.waiting) {
+                                            return const Center(
+                                              child: CircularProgressIndicator(
+                                                color: const Color(0xFFFFC107),
                                               ),
-                                            ),
-                                            child: Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                const Icon(
-                                                  Icons.circle,
-                                                  size: 6,
-                                                  color: Color(0xFF10B981),
-                                                ),
-                                                const SizedBox(width: 4),
-                                                Text(
-                                                  role.status,
-                                                  style: GoogleFonts.inter(
-                                                    fontSize: 10,
-                                                    fontWeight: FontWeight.w600,
-                                                    color: const Color(
-                                                      0xFF065F46,
+                                            );
+                                          }
+
+                                          final List<RoleModel> allRoles =
+                                              (rolesSnap.data?.docs ?? [])
+                                                  .map(
+                                                    (d) =>
+                                                        RoleModel.fromFirestore(
+                                                          d,
+                                                        ),
+                                                  )
+                                                  .toList();
+
+                                          return ListView.separated(
+                                            shrinkWrap: true,
+                                            physics:
+                                                const NeverScrollableScrollPhysics(),
+                                            itemCount: assignedAdminDocs.length,
+                                            separatorBuilder:
+                                                (context, index) =>
+                                                    const SizedBox(height: 12),
+                                            itemBuilder: (context, index) {
+                                              final adminDoc =
+                                                  assignedAdminDocs[index];
+                                              final adminModel =
+                                                  AdminUserModel.fromFirestore(
+                                                    adminDoc,
+                                                  );
+                                              final userData =
+                                                  userDocs[adminDoc.id] ??
+                                                  {
+                                                    'fullName':
+                                                        adminModel
+                                                            .roleDisplayName,
+                                                    'username': adminDoc.id,
+                                                    'email': 'No Email',
+                                                  };
+
+                                              return _AssignedUserCard(
+                                                userData: userData,
+                                                adminData: adminModel,
+                                                allRoles: allRoles,
+                                                allModules: _modules,
+                                                allActions: _actions,
+                                                isSuperAdmin:
+                                                    RbacSession().isSuperAdmin,
+                                                onUpdateRoles:
+                                                    (
+                                                      newIds,
+                                                    ) => _updateUserRoles(
+                                                      adminDoc.id,
+                                                      userData['fullName'] ??
+                                                          userData['username'] ??
+                                                          'Unknown',
+                                                      newIds,
                                                     ),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(height: 24),
-
-                                // Assigned Users Header
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      "Assigned Users (${assignedAdminDocs.length})",
-                                      style: GoogleFonts.inter(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.bold,
-                                        color: const Color(0xFF0F172A),
-                                      ),
-                                    ),
-                                    TextButton.icon(
-                                      onPressed: () {
-                                        Navigator.pop(context); // Close dialog
-                                        // Navigate to Grant Access Tab or Page
-                                        if (widget.onTabChanged != null) {
-                                          widget.onTabChanged!("Grant Access");
-                                        } else {
-                                          Navigator.push(
-                                            context,
-                                            MaterialPageRoute(
-                                              builder:
-                                                  (context) =>
-                                                      const GrantAccessPage(),
-                                            ),
-                                          );
-                                        }
-                                      },
-                                      icon: const Icon(
-                                        Icons.person_add_alt_1_rounded,
-                                        size: 14,
-                                      ),
-                                      label: Text(
-                                        "Assign User",
-                                        style: GoogleFonts.inter(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                      style: TextButton.styleFrom(
-                                        foregroundColor: const Color(
-                                          0xFF10B981,
-                                        ),
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 12,
-                                          vertical: 8,
-                                        ),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
-                                          side: const BorderSide(
-                                            color: Color(0xFF10B981),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 12),
-
-                                // List of assigned users
-                                if (assignedAdminDocs.isEmpty)
-                                  Container(
-                                    width: double.infinity,
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 36,
-                                    ),
-                                    child: Column(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.all(16),
-                                          decoration: const BoxDecoration(
-                                            color: Color(0xFFF8FAFC),
-                                            shape: BoxShape.circle,
-                                          ),
-                                          child: const Icon(
-                                            Icons.people_outline_rounded,
-                                            size: 40,
-                                            color: Color(0xFF94A3B8),
-                                          ),
-                                        ),
-                                        const SizedBox(height: 12),
-                                        Text(
-                                          "No users assigned",
-                                          style: GoogleFonts.inter(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.bold,
-                                            color: const Color(0xFF0F172A),
-                                          ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          "Click 'Assign User' to add users to this role.",
-                                          style: GoogleFonts.inter(
-                                            fontSize: 12,
-                                            color: const Color(0xFF64748B),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  )
-                                else
-                                  StreamBuilder<QuerySnapshot>(
-                                    stream:
-                                        FirebaseFirestore.instance
-                                            .collection("roles")
-                                            .snapshots(),
-                                    builder: (context, rolesSnap) {
-                                      if (rolesSnap.connectionState ==
-                                          ConnectionState.waiting) {
-                                        return const Center(
-                                          child: CircularProgressIndicator(
-                                            color: const Color(0xFFFFC107),
-                                          ),
-                                        );
-                                      }
-
-                                      final List<RoleModel> allRoles =
-                                          (rolesSnap.data?.docs ?? [])
-                                              .map(
-                                                (d) =>
-                                                    RoleModel.fromFirestore(d),
-                                              )
-                                              .toList();
-
-                                      return ListView.separated(
-                                        shrinkWrap: true,
-                                        physics:
-                                            const NeverScrollableScrollPhysics(),
-                                        itemCount: assignedAdminDocs.length,
-                                        separatorBuilder:
-                                            (context, index) =>
-                                                const SizedBox(height: 12),
-                                        itemBuilder: (context, index) {
-                                          final adminDoc =
-                                              assignedAdminDocs[index];
-                                          final adminModel =
-                                              AdminUserModel.fromFirestore(
-                                                adminDoc,
                                               );
-                                          final userData =
-                                              userDocs[adminDoc.id] ??
-                                              {
-                                                'fullName':
-                                                    adminModel.roleDisplayName,
-                                                'username': adminDoc.id,
-                                                'email': 'No Email',
-                                              };
-
-                                          return _AssignedUserCard(
-                                            userData: userData,
-                                            adminData: adminModel,
-                                            allRoles: allRoles,
-                                            allModules: _modules,
-                                            allActions: _actions,
-                                            isSuperAdmin:
-                                                RbacSession().isSuperAdmin,
-                                            onUpdateRoles:
-                                                (newIds) => _updateUserRoles(
-                                                  adminDoc.id,
-                                                  userData['fullName'] ??
-                                                      userData['username'] ??
-                                                      'Unknown',
-                                                  newIds,
-                                                ),
+                                            },
                                           );
                                         },
-                                      );
-                                    },
-                                  ),
-                              ],
-                            ),
+                                      ),
+                                  ],
+                                ),
+                              );
+                            },
                           );
                         },
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(height: 16),
-                const Divider(height: 1, color: Color(0xFFE2E8F0)),
-                const SizedBox(height: 16),
-
-                // Footer Actions
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    OutlinedButton(
-                      onPressed: () => Navigator.pop(context),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: const Color(0xFF64748B),
-                        side: const BorderSide(color: Color(0xFFCBD5E1)),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 14,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                      child: Text(
-                        "Cancel",
-                        style: GoogleFonts.inter(fontWeight: FontWeight.w600),
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    ElevatedButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF10B981),
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 14,
+                    const SizedBox(height: 16),
+                    const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                    const SizedBox(height: 16),
+
+                    // Footer Actions
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        OutlinedButton(
+                          onPressed: () => Navigator.pop(context),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFF64748B),
+                            side: const BorderSide(color: Color(0xFFCBD5E1)),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 14,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          child: Text(
+                            "Cancel",
+                            style: GoogleFonts.inter(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
+                        const SizedBox(width: 12),
+                        ElevatedButton(
+                          onPressed: () {
+                            Navigator.pop(context);
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF10B981),
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: 14,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          child: Text(
+                            "Save Changes",
+                            style: GoogleFonts.inter(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ),
-                      ),
-                      child: Text(
-                        "Save Changes",
-                        style: GoogleFonts.inter(fontWeight: FontWeight.bold),
-                      ),
+                      ],
                     ),
                   ],
                 ),
-              ],
-            ),
-          ),
-        );
+              ),
+            );
+          },
+        ); // closes StatefulBuilder
       },
-    );
+    ); // closes showDialog
   }
 
   void _showViewRoleDialog(BuildContext context, RoleModel role) {
@@ -4624,7 +5110,72 @@ class _AssignedUserCardState extends State<_AssignedUserCard> {
       _localPermissionOverridesRemoved[k.toLowerCase().replaceAll(' ', '_')] =
           List<String>.from(v).map((e) => e.toLowerCase()).toList();
     });
+    _cleanUpLocalOverrides();
     _isDirty = false;
+  }
+
+  void _cleanUpLocalOverrides() {
+    _localPermissionOverridesAdded.keys.toList().forEach((moduleId) {
+      final canonicalModule = moduleId.toLowerCase().replaceAll(' ', '_');
+      final modPerm = modulePermissionsList.firstWhere(
+        (m) =>
+            m.moduleId == canonicalModule ||
+            m.moduleName.toLowerCase().replaceAll(' ', '_') == canonicalModule,
+        orElse:
+            () => ModulePermission(
+              moduleId: moduleId,
+              moduleName: moduleId,
+              actions: const [],
+            ),
+      );
+      if (modPerm.actions.isEmpty) {
+        _localPermissionOverridesAdded.remove(moduleId);
+        return;
+      }
+      final validActions =
+          modPerm.actions.map((a) => a.apiKey.toLowerCase()).toSet();
+      final currentList = _localPermissionOverridesAdded[moduleId]!;
+      final filteredList =
+          currentList
+              .where((a) => validActions.contains(a.toLowerCase()))
+              .toList();
+      if (filteredList.isEmpty) {
+        _localPermissionOverridesAdded.remove(moduleId);
+      } else {
+        _localPermissionOverridesAdded[moduleId] = filteredList;
+      }
+    });
+
+    _localPermissionOverridesRemoved.keys.toList().forEach((moduleId) {
+      final canonicalModule = moduleId.toLowerCase().replaceAll(' ', '_');
+      final modPerm = modulePermissionsList.firstWhere(
+        (m) =>
+            m.moduleId == canonicalModule ||
+            m.moduleName.toLowerCase().replaceAll(' ', '_') == canonicalModule,
+        orElse:
+            () => ModulePermission(
+              moduleId: moduleId,
+              moduleName: moduleId,
+              actions: const [],
+            ),
+      );
+      if (modPerm.actions.isEmpty) {
+        _localPermissionOverridesRemoved.remove(moduleId);
+        return;
+      }
+      final validActions =
+          modPerm.actions.map((a) => a.apiKey.toLowerCase()).toSet();
+      final currentList = _localPermissionOverridesRemoved[moduleId]!;
+      final filteredList =
+          currentList
+              .where((a) => validActions.contains(a.toLowerCase()))
+              .toList();
+      if (filteredList.isEmpty) {
+        _localPermissionOverridesRemoved.remove(moduleId);
+      } else {
+        _localPermissionOverridesRemoved[moduleId] = filteredList;
+      }
+    });
   }
 
   @override
@@ -4636,6 +5187,7 @@ class _AssignedUserCardState extends State<_AssignedUserCard> {
   }
 
   void _checkIfDirty() {
+    _cleanUpLocalOverrides();
     final bool rolesChanged =
         !_listsAreEqual(_localRoleIds, widget.adminData.roleIds);
     final bool addedChanged =
@@ -4729,8 +5281,63 @@ class _AssignedUserCardState extends State<_AssignedUserCard> {
     _checkIfDirty();
   }
 
+  void _toggleAllModulePermissions(
+    ModulePermission modPerm,
+    bool enable,
+    Map<String, Set<String>> basePermissions,
+  ) {
+    setState(() {
+      for (final actionPerm in modPerm.actions) {
+        final canonicalModule = modPerm.moduleId;
+        final canonicalAction = actionPerm.apiKey;
+        final hasBase =
+            basePermissions[canonicalModule]?.contains(canonicalAction) ??
+            false;
+
+        if (hasBase) {
+          if (enable) {
+            if (_localPermissionOverridesRemoved.containsKey(canonicalModule)) {
+              _localPermissionOverridesRemoved[canonicalModule]!.remove(
+                canonicalAction,
+              );
+              if (_localPermissionOverridesRemoved[canonicalModule]!.isEmpty) {
+                _localPermissionOverridesRemoved.remove(canonicalModule);
+              }
+            }
+          } else {
+            final list =
+                _localPermissionOverridesRemoved[canonicalModule] ?? [];
+            if (!list.contains(canonicalAction)) {
+              list.add(canonicalAction);
+              _localPermissionOverridesRemoved[canonicalModule] = list;
+            }
+          }
+        } else {
+          if (enable) {
+            final list = _localPermissionOverridesAdded[canonicalModule] ?? [];
+            if (!list.contains(canonicalAction)) {
+              list.add(canonicalAction);
+              _localPermissionOverridesAdded[canonicalModule] = list;
+            }
+          } else {
+            if (_localPermissionOverridesAdded.containsKey(canonicalModule)) {
+              _localPermissionOverridesAdded[canonicalModule]!.remove(
+                canonicalAction,
+              );
+              if (_localPermissionOverridesAdded[canonicalModule]!.isEmpty) {
+                _localPermissionOverridesAdded.remove(canonicalModule);
+              }
+            }
+          }
+        }
+      }
+    });
+    _checkIfDirty();
+  }
+
   Future<void> _applyChanges() async {
     try {
+      _cleanUpLocalOverrides();
       final bool rolesChanged =
           !_listsAreEqual(_localRoleIds, widget.adminData.roleIds);
       if (rolesChanged) {
@@ -4755,6 +5362,10 @@ class _AssignedUserCardState extends State<_AssignedUserCard> {
               'permissionOverrides.added': _localPermissionOverridesAdded,
               'permissionOverrides.removed': _localPermissionOverridesRemoved,
             });
+
+        if (widget.adminData.uid == RbacSession().uid) {
+          await RbacSession().loadSession();
+        }
       }
 
       if (!mounted) return;
@@ -4977,12 +5588,19 @@ class _AssignedUserCardState extends State<_AssignedUserCard> {
         widget.allModules ??
         const [
           "Dashboard",
-          "Workers",
-          "Users",
-          "Bookings",
+          "User Management",
+          "Worker Management",
+          "Services",
+          "Advertisement",
+          "Bus",
+          "Taxi",
+          "Truck",
+          "Healthcare",
+          "Business",
           "Payments",
-          "Reports",
+          "Bookings",
           "Notifications",
+          "Reports",
           "Settings",
         ];
     final actionsList =
@@ -5045,6 +5663,35 @@ class _AssignedUserCardState extends State<_AssignedUserCard> {
         userPermissions.remove(canonicalKey);
       } else {
         userPermissions[canonicalKey] = currentSet;
+      }
+    }
+
+    // Filter userPermissions to only include valid actions defined in modulePermissionsList
+    for (final moduleId in userPermissions.keys.toList()) {
+      final canonicalModule = moduleId.toLowerCase().replaceAll(' ', '_');
+      final modPerm = modulePermissionsList.firstWhere(
+        (m) =>
+            m.moduleId == canonicalModule ||
+            m.moduleName.toLowerCase().replaceAll(' ', '_') == canonicalModule,
+        orElse:
+            () => ModulePermission(
+              moduleId: moduleId,
+              moduleName: moduleId,
+              actions: const [],
+            ),
+      );
+      if (modPerm.actions.isEmpty) {
+        userPermissions.remove(moduleId);
+        continue;
+      }
+      final validActions =
+          modPerm.actions.map((a) => a.apiKey.toLowerCase()).toSet();
+      final currentSet = userPermissions[moduleId]!;
+      final filteredSet = currentSet.intersection(validActions);
+      if (filteredSet.isEmpty) {
+        userPermissions.remove(moduleId);
+      } else {
+        userPermissions[moduleId] = filteredSet;
       }
     }
 
@@ -5429,12 +6076,18 @@ class _AssignedUserCardState extends State<_AssignedUserCard> {
                           return Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              SizedBox(
-                                width: 20,
-                                height: 20,
+                              Transform.scale(
+                                scale: 0.9,
                                 child: Checkbox(
                                   value: isSelected,
                                   activeColor: const Color(0xFF10B981),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  side: const BorderSide(
+                                    color: Color(0xFFCBD5E1),
+                                    width: 1.5,
+                                  ),
                                   onChanged:
                                       widget.isSuperAdmin
                                           ? (val) {
@@ -5490,40 +6143,144 @@ class _AssignedUserCardState extends State<_AssignedUserCard> {
                   ),
                   const SizedBox(height: 12),
                   ...modulesList.map((module) {
+                    final canonicalModule = module.toLowerCase().replaceAll(
+                      ' ',
+                      '_',
+                    );
+                    final modPerm = modulePermissionsList.firstWhere(
+                      (m) =>
+                          m.moduleId == canonicalModule ||
+                          m.moduleId == module.toLowerCase() ||
+                          m.moduleName.toLowerCase() == module.toLowerCase(),
+                      orElse:
+                          () => ModulePermission(
+                            moduleId: canonicalModule,
+                            moduleName: module,
+                            actions: const [
+                              ActionPermission(
+                                apiKey: 'view',
+                                displayName: 'View',
+                              ),
+                              ActionPermission(
+                                apiKey: 'create',
+                                displayName: 'Create',
+                              ),
+                              ActionPermission(
+                                apiKey: 'edit',
+                                displayName: 'Edit',
+                              ),
+                              ActionPermission(
+                                apiKey: 'delete',
+                                displayName: 'Delete',
+                              ),
+                            ],
+                          ),
+                    );
+
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 12.0),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            module,
-                            style: GoogleFonts.inter(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: const Color(0xFF64748B),
-                            ),
+                          Row(
+                            children: [
+                              Text(
+                                modPerm.moduleName,
+                                style: GoogleFonts.inter(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: const Color(0xFF64748B),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Transform.scale(
+                                scale: 0.75,
+                                child: SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: Checkbox(
+                                    value:
+                                        (() {
+                                          return modPerm.actions.every((
+                                            actionPerm,
+                                          ) {
+                                            final canonicalAction =
+                                                actionPerm.apiKey;
+                                            final hasBase =
+                                                basePermissions[modPerm
+                                                        .moduleId]
+                                                    ?.contains(
+                                                      canonicalAction,
+                                                    ) ??
+                                                false;
+                                            final isAdded =
+                                                _localPermissionOverridesAdded[modPerm
+                                                        .moduleId]
+                                                    ?.contains(
+                                                      canonicalAction,
+                                                    ) ??
+                                                false;
+                                            final isRemoved =
+                                                _localPermissionOverridesRemoved[modPerm
+                                                        .moduleId]
+                                                    ?.contains(
+                                                      canonicalAction,
+                                                    ) ??
+                                                false;
+                                            return (hasBase || isAdded) &&
+                                                !isRemoved;
+                                          });
+                                        })(),
+                                    activeColor: const Color(0xFF10B981),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    side: const BorderSide(
+                                      color: Color(0xFFCBD5E1),
+                                      width: 1.5,
+                                    ),
+                                    onChanged:
+                                        widget.isSuperAdmin
+                                            ? (val) {
+                                              _toggleAllModulePermissions(
+                                                modPerm,
+                                                val == true,
+                                                basePermissions,
+                                              );
+                                            }
+                                            : null,
+                                  ),
+                                ),
+                              ),
+                              Text(
+                                "Select All",
+                                style: GoogleFonts.inter(
+                                  fontSize: 10,
+                                  color: const Color(0xFF94A3B8),
+                                ),
+                              ),
+                            ],
                           ),
                           const SizedBox(height: 6),
                           Wrap(
                             spacing: 12,
                             runSpacing: 8,
                             children:
-                                actionsList.map((action) {
-                                  final canonicalModule = module
-                                      .toLowerCase()
-                                      .replaceAll(' ', '_');
-                                  final canonicalAction = action.toLowerCase();
+                                modPerm.actions.map((actionPerm) {
+                                  final canonicalAction = actionPerm.apiKey;
 
                                   final hasBase =
-                                      basePermissions[canonicalModule]
+                                      basePermissions[modPerm.moduleId]
                                           ?.contains(canonicalAction) ??
                                       false;
                                   final isAdded =
-                                      _localPermissionOverridesAdded[canonicalModule]
+                                      _localPermissionOverridesAdded[modPerm
+                                              .moduleId]
                                           ?.contains(canonicalAction) ??
                                       false;
                                   final isRemoved =
-                                      _localPermissionOverridesRemoved[canonicalModule]
+                                      _localPermissionOverridesRemoved[modPerm
+                                              .moduleId]
                                           ?.contains(canonicalAction) ??
                                       false;
                                   final isActive =
@@ -5532,18 +6289,26 @@ class _AssignedUserCardState extends State<_AssignedUserCard> {
                                   return Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      SizedBox(
-                                        width: 20,
-                                        height: 20,
+                                      Transform.scale(
+                                        scale: 0.9,
                                         child: Checkbox(
                                           value: isActive,
                                           activeColor: const Color(0xFF10B981),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              4,
+                                            ),
+                                          ),
+                                          side: const BorderSide(
+                                            color: Color(0xFFCBD5E1),
+                                            width: 1.5,
+                                          ),
                                           onChanged:
                                               widget.isSuperAdmin
                                                   ? (val) {
                                                     _toggleLocalPermissionOverride(
-                                                      module,
-                                                      action,
+                                                      modPerm.moduleId,
+                                                      actionPerm.apiKey,
                                                       val == true,
                                                       hasBase,
                                                     );
@@ -5553,7 +6318,7 @@ class _AssignedUserCardState extends State<_AssignedUserCard> {
                                       ),
                                       const SizedBox(width: 6),
                                       Text(
-                                        action,
+                                        actionPerm.displayName,
                                         style: GoogleFonts.inter(
                                           fontSize: 11,
                                           color:

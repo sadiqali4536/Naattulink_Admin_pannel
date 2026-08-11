@@ -486,57 +486,67 @@ class _AdspromotionState extends State<Adspromotion> {
                             ),
                             Row(
                               children: [
-                                ElevatedButton.icon(
-                                  onPressed: () => _openAdsContactDialog(),
-                                  icon: const Icon(
-                                    Icons.contact_phone_rounded,
-                                    color: Colors.white,
-                                  ),
-                                  label: Text(
-                                    "Ads Contact",
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontWeight: FontWeight.bold,
+                                if (RbacSession().hasPermission(
+                                  Modules.advertisement,
+                                  Perms.edit,
+                                )) ...[
+                                  ElevatedButton.icon(
+                                    onPressed: () => _openAdsContactDialog(),
+                                    icon: const Icon(
+                                      Icons.contact_phone_rounded,
                                       color: Colors.white,
                                     ),
-                                  ),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.green[800],
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 20,
-                                      vertical: 16,
+                                    label: Text(
+                                      "Ads Contact",
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                      ),
                                     ),
-                                    elevation: 0,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.green[800],
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 20,
+                                        vertical: 16,
+                                      ),
+                                      elevation: 0,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
                                     ),
                                   ),
-                                ),
-                                const SizedBox(width: 12),
-                                ElevatedButton.icon(
-                                  onPressed: () => _openBannerFormDialog(null),
-                                  icon: const Icon(
-                                    Icons.add_photo_alternate_rounded,
-                                    color: Colors.white,
-                                  ),
-                                  label: Text(
-                                    "Create Advertisement",
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontWeight: FontWeight.bold,
+                                  const SizedBox(width: 12),
+                                ],
+                                if (RbacSession().hasPermission(
+                                  Modules.advertisement,
+                                  Perms.create,
+                                ))
+                                  ElevatedButton.icon(
+                                    onPressed:
+                                        () => _openBannerFormDialog(null),
+                                    icon: const Icon(
+                                      Icons.add_photo_alternate_rounded,
                                       color: Colors.white,
                                     ),
-                                  ),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: primaryNavy,
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 20,
-                                      vertical: 16,
+                                    label: Text(
+                                      "Create Advertisement",
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                      ),
                                     ),
-                                    elevation: 0,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: primaryNavy,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 20,
+                                        vertical: 16,
+                                      ),
+                                      elevation: 0,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
                                     ),
                                   ),
-                                ),
                               ],
                             ),
                           ],
@@ -1359,20 +1369,24 @@ class _AdspromotionState extends State<Adspromotion> {
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Transform.scale(
-                            scale: 0.7,
-                            child: Switch(
-                              value: banner.isActive,
-                              activeThumbColor: Colors.green,
-                              inactiveTrackColor: Colors.grey[200],
-                              onChanged: (bool newVal) {
-                                _firestore
-                                    .collection('advertisements')
-                                    .doc(banner.id)
-                                    .update({'isActive': newVal});
-                              },
+                          if (RbacSession().hasPermission(
+                            Modules.advertisement,
+                            Perms.edit,
+                          ))
+                            Transform.scale(
+                              scale: 0.7,
+                              child: Switch(
+                                value: banner.isActive,
+                                activeThumbColor: Colors.green,
+                                inactiveTrackColor: Colors.grey[200],
+                                onChanged: (bool newVal) {
+                                  _firestore
+                                      .collection('advertisements')
+                                      .doc(banner.id)
+                                      .update({'isActive': newVal});
+                                },
+                              ),
                             ),
-                          ),
                           IconButton(
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(),
@@ -1383,28 +1397,38 @@ class _AdspromotionState extends State<Adspromotion> {
                             ),
                             onPressed: () => _showBannerDetails(banner),
                           ),
-                          const SizedBox(width: 8),
-                          IconButton(
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                            icon: const Icon(
-                              Icons.edit_outlined,
-                              size: 18,
-                              color: textGrey,
+                          if (RbacSession().hasPermission(
+                            Modules.advertisement,
+                            Perms.edit,
+                          )) ...[
+                            const SizedBox(width: 8),
+                            IconButton(
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              icon: const Icon(
+                                Icons.edit_outlined,
+                                size: 18,
+                                color: textGrey,
+                              ),
+                              onPressed: () => _openBannerFormDialog(banner),
                             ),
-                            onPressed: () => _openBannerFormDialog(banner),
-                          ),
-                          const SizedBox(width: 8),
-                          IconButton(
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                            icon: const Icon(
-                              Icons.delete_outline_rounded,
-                              size: 18,
-                              color: Colors.redAccent,
+                          ],
+                          if (RbacSession().hasPermission(
+                            Modules.advertisement,
+                            Perms.delete,
+                          )) ...[
+                            const SizedBox(width: 8),
+                            IconButton(
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              icon: const Icon(
+                                Icons.delete_outline_rounded,
+                                size: 18,
+                                color: Colors.redAccent,
+                              ),
+                              onPressed: () => _confirmDeleteBanner(banner),
                             ),
-                            onPressed: () => _confirmDeleteBanner(banner),
-                          ),
+                          ],
                         ],
                       ),
                     ],
@@ -1743,6 +1767,17 @@ class _AdspromotionState extends State<Adspromotion> {
   }
 
   void _confirmDeleteBanner(AdBanner banner) {
+    if (!RbacSession().hasPermission(Modules.advertisement, Perms.delete)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "Access Denied: You do not have permission to delete advertisements.",
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
     bool isDeleting = false;
     showDialog(
       context: context,
@@ -1845,6 +1880,17 @@ class _AdspromotionState extends State<Adspromotion> {
   }
 
   Future<void> _openAdsContactDialog() async {
+    if (!RbacSession().hasPermission(Modules.advertisement, Perms.edit)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "Access Denied: You do not have permission to edit ads contact.",
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
     // Show loading indicator
     showDialog(
       context: context,
@@ -1975,7 +2021,8 @@ class _AdspromotionState extends State<Adspromotion> {
 
                     // Upload to ImageKit
                     final service = AdvertisementImageService();
-                    final uploadResult = await service.uploadBanner(
+                    final uploadResult = await service.replaceBanner(
+                      oldImageFileId: bannerImagePath,
                       imageBytes: optimizedBytes,
                       fileName: file.name,
                       onProgress: (progress) {
@@ -2504,6 +2551,18 @@ class _AdspromotionState extends State<Adspromotion> {
   }
 
   void _openBannerFormDialog(AdBanner? existingBanner) {
+    final requiredPerm = existingBanner == null ? Perms.create : Perms.edit;
+    if (!RbacSession().hasPermission(Modules.advertisement, requiredPerm)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            "Access Denied: You do not have permission to ${existingBanner == null ? 'create' : 'edit'} advertisements.",
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -3151,7 +3210,8 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
       if (_imageBytes != null) {
         debugPrint('DEBUG: Starting main banner ImageKit upload...');
         final service = AdvertisementImageService();
-        final result = await service.uploadBanner(
+        final result = await service.replaceBanner(
+          oldImageFileId: widget.existingBanner?.imageFileId,
           imageBytes: _imageBytes!,
           fileName: _imageName ?? 'banner.png',
           onProgress: (progress) {
@@ -3173,7 +3233,9 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
           _localProductBytes != null) {
         debugPrint('DEBUG: Starting local product ImageKit upload...');
         final service = AdvertisementImageService();
-        final result = await service.uploadLocalProduct(
+        final result = await service.replaceLocalProduct(
+          oldImageFileId:
+              widget.existingBanner?.localAdsConfig?['productImageFileId'],
           imageBytes: _localProductBytes!,
           fileName: _localProductName ?? 'product.png',
           onProgress: (progress) {
@@ -5655,7 +5717,8 @@ class _AdsContactDialogState extends State<AdsContactDialog> {
 
         // Upload to ImageKit
         final service = AdvertisementImageService();
-        final uploadResult = await service.uploadBanner(
+        final uploadResult = await service.replaceBanner(
+          oldImageFileId: _bannerImagePath,
           imageBytes: optimizedBytes,
           fileName: file.name,
           onProgress: (progress) {
@@ -5907,12 +5970,15 @@ class _AdsContactDialogState extends State<AdsContactDialog> {
                             // TextButton.icon(
                             //   onPressed:
                             //       _isUploadingBanner ? null : _pickBannerImage,
-                            //   icon: const Icon(Icons.refresh, size: 18),
-                            //   label: const Text('Replace'),
-                            //   style: TextButton.styleFrom(
-                            //     foregroundColor: Colors.blue,
-                            //   ),
-                            // ),
+                            TextButton.icon(
+                              onPressed:
+                                  _isUploadingBanner ? null : _pickBannerImage,
+                              icon: const Icon(Icons.refresh, size: 18),
+                              label: const Text('Replace'),
+                              style: TextButton.styleFrom(
+                                foregroundColor: Colors.blue,
+                              ),
+                            ),
                             TextButton.icon(
                               onPressed:
                                   _isUploadingBanner ? null : _removeBanner,

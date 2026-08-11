@@ -20,6 +20,7 @@ class PermissionGuard extends StatelessWidget {
   final String action;
   final Widget child;
   final Widget? customDeniedWidget;
+  final bool? hasAccessOverride;
 
   const PermissionGuard({
     super.key,
@@ -27,11 +28,12 @@ class PermissionGuard extends StatelessWidget {
     required this.action,
     required this.child,
     this.customDeniedWidget,
+    this.hasAccessOverride,
   });
 
   @override
   Widget build(BuildContext context) {
-    if (RbacSession().hasPermission(module, action)) {
+    if (hasAccessOverride ?? RbacSession().hasPermission(module, action)) {
       return child;
     }
     return customDeniedWidget ?? _AccessDeniedScreen(module: module, action: action);

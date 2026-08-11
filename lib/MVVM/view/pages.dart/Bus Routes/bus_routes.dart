@@ -1,3 +1,4 @@
+import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -17,6 +18,7 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
   String _selectedStatus = 'All Status';
   String _selectedType = 'All Types';
   String _selectedDistrict = 'All Districts';
+  String _searchQuery = '';
   Set<String> _selectedBusIds = {};
 
   Future<void> _exportToPdf(List<BusItem> docs) async {
@@ -124,7 +126,7 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
     if (_selectedBusIds.isEmpty) return const SizedBox.shrink();
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 24),
+      margin: const EdgeInsets.only(left: 20, right: 20, bottom: 20),
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.blue.shade50,
@@ -286,7 +288,8 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
               var filteredDocs = docs;
               if (_selectedStatus != 'All Status' ||
                   _selectedType != 'All Types' ||
-                  _selectedDistrict != 'All Districts') {
+                  _selectedDistrict != 'All Districts' ||
+                  _searchQuery.isNotEmpty) {
                 filteredDocs =
                     docs.where((d) {
                       final data = d.data;
@@ -296,24 +299,60 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
                       final district = data['district']?.toString() ?? '';
 
                       bool statusMatches = true;
-                      if (_selectedStatus == 'Active')
+                      if (_selectedStatus == 'Active') {
                         statusMatches =
                             (statusStr == 'active' || status == true);
-                      else if (_selectedStatus == 'Inactive')
+                      } else if (_selectedStatus == 'Inactive') {
                         statusMatches =
                             (statusStr == 'inactive' ||
                                 statusStr == 'pending' ||
                                 status == false);
+                      }
 
                       bool typeMatches = true;
-                      if (_selectedType != 'All Types')
+                      if (_selectedType != 'All Types') {
                         typeMatches = (busType == _selectedType);
+                      }
 
                       bool districtMatches = true;
-                      if (_selectedDistrict != 'All Districts')
+                      if (_selectedDistrict != 'All Districts') {
                         districtMatches = (district == _selectedDistrict);
+                      }
 
-                      return statusMatches && typeMatches && districtMatches;
+                      bool searchMatches = true;
+                      if (_searchQuery.isNotEmpty) {
+                        final query = _searchQuery.toLowerCase();
+                        final queryNoSpaces = query.replaceAll(' ', '');
+                        final busName =
+                            (data['bus_name'] ?? data['name'])
+                                ?.toString()
+                                .toLowerCase() ??
+                            '';
+                        final regNum =
+                            (data['registration_number'] ?? data['bus_no'])
+                                ?.toString()
+                                .toLowerCase()
+                                .replaceAll(' ', '') ??
+                            '';
+                        final fromPlace =
+                            (data['first_stop'] ?? data['start_place'])
+                                ?.toString()
+                                .toLowerCase() ??
+                            '';
+                        final toPlace =
+                            data['destination']?.toString().toLowerCase() ?? '';
+
+                        searchMatches =
+                            busName.contains(query) ||
+                            regNum.contains(queryNoSpaces) ||
+                            fromPlace.contains(query) ||
+                            toPlace.contains(query);
+                      }
+
+                      return statusMatches &&
+                          typeMatches &&
+                          districtMatches &&
+                          searchMatches;
                     }).toList();
               }
 
@@ -579,6 +618,7 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
           ),
           if (dropdownItems != null && dropdownItems.isNotEmpty)
             PopupMenuButton<String>(
+              color: Colors.white,
               icon: const Icon(Icons.arrow_drop_down, color: Colors.grey),
               tooltip: 'Active Districts',
               itemBuilder: (context) {
@@ -627,10 +667,15 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
           Expanded(
             flex: 2,
             child: TextField(
+              onChanged: (val) {
+                setState(() {
+                  _searchQuery = val.trim();
+                });
+              },
               decoration: InputDecoration(
                 filled: true,
                 fillColor: Colors.white,
-                hintText: 'Search by route name or number...',
+                hintText: 'Search by bus name, reg no, or places...',
                 hintStyle: const TextStyle(color: Colors.black38, fontSize: 14),
                 prefixIcon: const Icon(Icons.search, color: Colors.black38),
                 contentPadding: const EdgeInsets.symmetric(
@@ -731,107 +776,72 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
       child: SingleChildScrollView(
         controller: _horizontalScrollController,
         scrollDirection: Axis.horizontal,
-        child: SizedBox(
-          width: 1800, // Fixed width to enable horizontal scrolling
-          child: Table(
-            columnWidths: const {
-              0: FlexColumnWidth(0.6), // No.
-              1: FlexColumnWidth(1.8), // Reg Number
-              2: FlexColumnWidth(1.5), // Bus Name
-              3: FlexColumnWidth(1.5), // Main Stand
-              4: FlexColumnWidth(1.2), // District
-              5: FlexColumnWidth(1.2), // Type
-              6: FlexColumnWidth(1.0), // From
-              7: FlexColumnWidth(1.0), // To
-              8: FlexColumnWidth(1.0), // Departure
-              9: FlexColumnWidth(1.0), // Arrival
-              10: FlexColumnWidth(1.2), // Phone
-              11: FlexColumnWidth(1.2), // Role/Vehicle
-              12: FlexColumnWidth(1.0), // Status
-              13: FlexColumnWidth(1.2), // Actions
-            },
-            defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-            children: [
-              // Header Row
-              TableRow(
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
-                  border: const Border(
-                    bottom: BorderSide(color: Colors.black12, width: 1),
-                  ),
-                ),
+        child: DataTable(
+          headingRowColor: MaterialStateProperty.all(Colors.white),
+          headingRowHeight: 54,
+          headingTextStyle: GoogleFonts.inter(
+            fontWeight: FontWeight.w600,
+            color: const Color(0xFF64748B),
+            fontSize: 15,
+          ),
+          dataRowMinHeight: 70,
+          dataRowMaxHeight: 75,
+          columnSpacing: 24,
+          horizontalMargin: 24,
+          dividerThickness: 1,
+          columns: [
+            const DataColumn(label: Text('No.')),
+            DataColumn(
+              label: Row(
                 children: [
-                  _buildHeaderCell('No.'),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 12.0,
-                      horizontal: 16.0,
+                  Checkbox(
+                    value:
+                        docs.isNotEmpty &&
+                        _selectedBusIds.length == docs.length,
+                    onChanged: (val) {
+                      setState(() {
+                        if (val == true) {
+                          _selectedBusIds.addAll(docs.map((d) => d.id));
+                        } else {
+                          _selectedBusIds.clear();
+                        }
+                      });
+                    },
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(4),
                     ),
-                    child: Row(
-                      children: [
-                        Checkbox(
-                          value:
-                              docs.isNotEmpty &&
-                              _selectedBusIds.length == docs.length,
-                          onChanged: (val) {
-                            setState(() {
-                              if (val == true) {
-                                _selectedBusIds.addAll(docs.map((d) => d.id));
-                              } else {
-                                _selectedBusIds.clear();
-                              }
-                            });
-                          },
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          side: const BorderSide(color: Colors.black26),
-                        ),
-                        const SizedBox(width: 8),
-                        const Text(
-                          'Reg Number',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.black54,
-                          ),
-                        ),
-                      ],
-                    ),
+                    side: const BorderSide(color: Colors.black26),
                   ),
-                  _buildHeaderCell('Bus Name'),
-                  _buildHeaderCell('Main Stand'),
-                  _buildHeaderCell('District'),
-                  _buildHeaderCell('Type'),
-                  _buildHeaderCell('From'),
-                  _buildHeaderCell('To'),
-                  _buildHeaderCell('Departure'),
-                  _buildHeaderCell('Arrival'),
-                  _buildHeaderCell('Phone'),
-                  _buildHeaderCell('Added By'),
-                  _buildHeaderCell('Status'),
-                  _buildHeaderCell('Actions'),
+                  const SizedBox(width: 8),
+                  const Text('Reg Number'),
                 ],
               ),
-              // Data Rows
-              ...docs.asMap().entries.map((entry) {
+            ),
+            const DataColumn(label: Text('Bus Name')),
+            const DataColumn(label: Text('Main Stand')),
+            const DataColumn(label: Text('District')),
+            const DataColumn(label: Text('Type')),
+            const DataColumn(label: Text('From')),
+            const DataColumn(label: Text('To')),
+            const DataColumn(label: Text('Departure')),
+            const DataColumn(label: Text('Arrival')),
+            const DataColumn(label: Text('Phone')),
+            const DataColumn(label: Text('Added By')),
+            const DataColumn(label: Text('Status')),
+            const DataColumn(label: Text('Actions')),
+          ],
+          rows:
+              docs.asMap().entries.map((entry) {
                 final index = entry.key;
                 final doc = entry.value;
                 final data = doc.data;
-                return TableRow(
-                  decoration: const BoxDecoration(
-                    border: Border(
-                      bottom: BorderSide(color: Colors.black12, width: 1),
-                    ),
-                  ),
-                  children: [
-                    _buildDataCell('${index + 1}'),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 12.0,
-                        horizontal: 16.0,
-                      ),
-                      child: Row(
+
+                return DataRow(
+                  cells: [
+                    DataCell(Text('${index + 1}')),
+                    DataCell(
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Checkbox(
                             value: _selectedBusIds.contains(doc.id),
@@ -849,8 +859,9 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
                             ),
                             side: const BorderSide(color: Colors.black26),
                           ),
-                          const SizedBox(width: 16),
-                          Expanded(
+                          const SizedBox(width: 8),
+                          SizedBox(
+                            width: 100,
                             child: Text(
                               (data['reg_number'] ??
                                           data['registration_number'])
@@ -860,150 +871,194 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
                                 fontWeight: FontWeight.w500,
                                 fontSize: 13,
                               ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                         ],
                       ),
                     ),
-                    _buildDataCell(data['bus_name']?.toString() ?? 'N/A'),
-                    _buildDataCell(data['main_stand']?.toString() ?? 'N/A'),
-                    _buildDataCell(data['district']?.toString() ?? 'N/A'),
-                    _buildDataCell(data['bus_type']?.toString() ?? 'N/A'),
-                    _buildDataCell(
-                      (data['first_stop'] ?? data['start_place'])?.toString() ??
-                          'N/A',
-                    ),
-                    _buildDataCell(data['destination']?.toString() ?? 'N/A'),
-                    _buildDataCell(
-                      _formatTime(data['departure_time']?.toString()),
-                    ),
-                    _buildDataCell(
-                      _formatTime(data['arrival_time']?.toString()),
-                    ),
-                    _buildDataCell(data['phone']?.toString() ?? 'N/A'),
-                    _buildDataCell(
-                      (data['role'] != null ||
-                              data['role_with_vehicle'] != null ||
-                              data['vehicle'] != null ||
-                              data['username'] != null ||
-                              data['full_name'] != null ||
-                              data['fullName'] != null ||
-                              data['name'] != null)
-                          ? [
-                                data['username'] ??
-                                    data['full_name'] ??
-                                    data['fullName'] ??
-                                    data['name'],
-                                "${data['role'] ?? ''} ${data['role_with_vehicle'] ?? ''} ${data['vehicle'] != null ? '(${data['vehicle']})' : ''}"
-                                    .trim()
-                                    .replaceAll(RegExp(r'\s+'), ' '),
-                              ]
-                              .where(
-                                (e) =>
-                                    e != null && e.toString().trim().isNotEmpty,
-                              )
-                              .join(' - ')
-                          : 'Admin',
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 12.0,
-                        horizontal: 16.0,
-                      ),
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: _buildStatusBadge(
-                          (data['status'] is bool)
-                              ? (data['status'] ? 'active' : 'inactive')
-                              : (data['status']?.toString() ?? 'unknown'),
+                    DataCell(
+                      SizedBox(
+                        width: 100,
+                        child: Text(
+                          data['bus_name']?.toString() ?? 'N/A',
+                          style: const TextStyle(fontSize: 13),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 12.0,
-                        horizontal: 16.0,
-                      ),
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Transform.scale(
-                              scale: 0.8,
-                              child: Switch(
-                                value:
-                                    data['status'] == 'active' ||
-                                    data['status'] == true,
-                                onChanged: (bool value) async {
-                                  final isBoolStatus = data['status'] is bool;
-                                  final dynamic newStatus =
-                                      isBoolStatus
-                                          ? value
-                                          : (value ? 'active' : 'inactive');
-                                  await doc.reference.update({
-                                    'status': newStatus,
-                                  });
-                                },
-                                activeColor: Colors.green,
-                                inactiveThumbColor: Colors.red,
-                                inactiveTrackColor: Colors.red.shade200,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            IconButton(
-                              icon: const Icon(
-                                Icons.edit_outlined,
-                                size: 20,
-                                color: Colors.black54,
-                              ),
-                              onPressed: () => _showBusDialog(document: doc),
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(),
-                            ),
-                            const SizedBox(width: 12),
-                            IconButton(
-                              icon: const Icon(
-                                Icons.delete_outline,
-                                size: 20,
-                                color: Colors.redAccent,
-                              ),
-                              onPressed: () => _showDeleteDialog(doc),
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(),
-                            ),
-                          ],
+                    DataCell(
+                      SizedBox(
+                        width: 100,
+                        child: Text(
+                          data['main_stand']?.toString() ?? 'N/A',
+                          style: const TextStyle(fontSize: 13),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
+                      ),
+                    ),
+                    DataCell(
+                      SizedBox(
+                        width: 100,
+                        child: Text(
+                          data['district']?.toString() ?? 'N/A',
+                          style: const TextStyle(fontSize: 13),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+                    DataCell(
+                      SizedBox(
+                        width: 100,
+                        child: Text(
+                          data['bus_type']?.toString() ?? 'N/A',
+                          style: const TextStyle(fontSize: 13),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+                    DataCell(
+                      SizedBox(
+                        width: 100,
+                        child: Text(
+                          (data['first_stop'] ?? data['start_place'])
+                                  ?.toString() ??
+                              'N/A',
+                          style: const TextStyle(fontSize: 13),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+                    DataCell(
+                      SizedBox(
+                        width: 100,
+                        child: Text(
+                          data['destination']?.toString() ?? 'N/A',
+                          style: const TextStyle(fontSize: 13),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+                    DataCell(
+                      Text(
+                        _formatTime(data['departure_time']?.toString()),
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                    ),
+                    DataCell(
+                      Text(
+                        _formatTime(data['arrival_time']?.toString()),
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                    ),
+                    DataCell(
+                      Text(
+                        data['phone']?.toString() ?? 'N/A',
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                    ),
+                    DataCell(
+                      SizedBox(
+                        width: 120,
+                        child: Text(
+                          (data['role'] != null ||
+                                  data['role_with_vehicle'] != null ||
+                                  data['vehicle'] != null ||
+                                  data['username'] != null ||
+                                  data['full_name'] != null ||
+                                  data['fullName'] != null ||
+                                  data['name'] != null)
+                              ? [
+                                    data['username'] ??
+                                        data['full_name'] ??
+                                        data['fullName'] ??
+                                        data['name'],
+                                    "${data['role'] ?? ''} ${data['role_with_vehicle'] ?? ''} ${data['vehicle'] != null ? '(${data['vehicle']})' : ''}"
+                                        .trim()
+                                        .replaceAll(RegExp(r'\s+'), ' '),
+                                  ]
+                                  .where(
+                                    (e) =>
+                                        e != null &&
+                                        e.toString().trim().isNotEmpty,
+                                  )
+                                  .join(' - ')
+                              : 'Admin',
+                          style: const TextStyle(fontSize: 13),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+                    DataCell(
+                      _buildStatusBadge(
+                        (data['status'] is bool)
+                            ? (data['status'] ? 'active' : 'inactive')
+                            : (data['status']?.toString() ?? 'unknown'),
+                      ),
+                    ),
+                    DataCell(
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Transform.scale(
+                            scale: 0.8,
+                            child: Switch(
+                              value:
+                                  data['status'] == 'active' ||
+                                  data['status'] == true,
+                              onChanged: (bool value) async {
+                                final isBoolStatus = data['status'] is bool;
+                                final dynamic newStatus =
+                                    isBoolStatus
+                                        ? value
+                                        : (value ? 'active' : 'inactive');
+                                await doc.reference.update({
+                                  'status': newStatus,
+                                });
+                              },
+                              activeColor: Colors.green,
+                              inactiveThumbColor: Colors.red,
+                              inactiveTrackColor: Colors.red.shade200,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            icon: const Icon(
+                              Icons.edit_outlined,
+                              size: 20,
+                              color: Colors.black54,
+                            ),
+                            onPressed: () => _showBusDialog(document: doc),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                          ),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            icon: const Icon(
+                              Icons.delete_outline,
+                              size: 20,
+                              color: Colors.redAccent,
+                            ),
+                            onPressed: () => _showDeleteDialog(doc),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 );
               }).toList(),
-            ],
-          ),
         ),
       ),
-    );
-  }
-
-  Widget _buildHeaderCell(String title) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
-      child: Text(
-        title,
-        style: const TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w600,
-          color: Colors.black54,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDataCell(String text) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
-      child: Text(text, style: const TextStyle(fontSize: 13)),
     );
   }
 

@@ -1,3 +1,4 @@
+import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
@@ -13,45 +14,84 @@ class _NotificationsState extends State<Notifications> {
   String _searchQuery = '';
   String? _filterStatus;
   String? _filterChannel;
+  Set<String> _selectedNotificationIds = {};
+  late Stream<QuerySnapshot> _notificationsStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _notificationsStream =
+        FirebaseFirestore.instance
+            .collection('notifications')
+            .orderBy('created_at', descending: true)
+            .snapshots();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
       body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('notifications')
-            .orderBy('created_at', descending: true)
-            .snapshots(),
+        stream: _notificationsStream,
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return const Center(child: Text('Something went wrong'));
           }
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator(color: const Color(0xFFFFC107)));
+            return const Center(
+              child: CircularProgressIndicator(color: const Color(0xFFFFC107)),
+            );
           }
 
           final allDocs = snapshot.data?.docs ?? [];
 
-          var docs = allDocs.where((d) {
-            final data = d.data() as Map<String, dynamic>;
-            final title = data['title']?.toString().toLowerCase() ?? '';
-            final message = data['message']?.toString().toLowerCase() ?? '';
-            final status = data['status']?.toString().toLowerCase() ?? '';
-            final channel = data['notification_channel']?.toString().toLowerCase() ?? '';
+          var docs =
+              allDocs.where((d) {
+                final data = d.data() as Map<String, dynamic>;
+                final title = data['title']?.toString().toLowerCase() ?? '';
+                final message = data['message']?.toString().toLowerCase() ?? '';
+                final status = data['status']?.toString().toLowerCase() ?? '';
+                final channel =
+                    data['notification_channel']?.toString().toLowerCase() ??
+                    '';
 
-            if (_searchQuery.isNotEmpty) {
-              final q = _searchQuery.toLowerCase();
-              if (!title.contains(q) && !message.contains(q)) return false;
-            }
-            if (_filterStatus != null && status != _filterStatus!.toLowerCase()) return false;
-            if (_filterChannel != null && channel != _filterChannel!.toLowerCase()) return false;
-            return true;
-          }).toList();
+                if (_searchQuery.isNotEmpty) {
+                  final q = _searchQuery.toLowerCase();
+                  if (!title.contains(q) && !message.contains(q)) return false;
+                }
+                if (_filterStatus != null &&
+                    status != _filterStatus!.toLowerCase())
+                  return false;
+                if (_filterChannel != null &&
+                    channel != _filterChannel!.toLowerCase())
+                  return false;
+                return true;
+              }).toList();
 
-          final sentCount = allDocs.where((d) => (d.data() as Map)['status']?.toString().toLowerCase() == 'sent').length;
-          final scheduledCount = allDocs.where((d) => (d.data() as Map)['status']?.toString().toLowerCase() == 'scheduled').length;
-          final failedCount = allDocs.where((d) => (d.data() as Map)['status']?.toString().toLowerCase() == 'failed').length;
+          final sentCount =
+              allDocs
+                  .where(
+                    (d) =>
+                        (d.data() as Map)['status']?.toString().toLowerCase() ==
+                        'sent',
+                  )
+                  .length;
+          final scheduledCount =
+              allDocs
+                  .where(
+                    (d) =>
+                        (d.data() as Map)['status']?.toString().toLowerCase() ==
+                        'scheduled',
+                  )
+                  .length;
+          final failedCount =
+              allDocs
+                  .where(
+                    (d) =>
+                        (d.data() as Map)['status']?.toString().toLowerCase() ==
+                        'failed',
+                  )
+                  .length;
 
           return SingleChildScrollView(
             padding: const EdgeInsets.all(24.0),
@@ -60,7 +100,12 @@ class _NotificationsState extends State<Notifications> {
               children: [
                 _buildHeader(),
                 const SizedBox(height: 24),
-                _buildStatsCards(allDocs.length, sentCount, scheduledCount, failedCount),
+                _buildStatsCards(
+                  allDocs.length,
+                  sentCount,
+                  scheduledCount,
+                  failedCount,
+                ),
                 const SizedBox(height: 24),
                 _buildTableSection(docs),
               ],
@@ -147,10 +192,15 @@ class _NotificationsState extends State<Notifications> {
     );
   }
 
-  void _showNotificationDialog({int initialTab = 0}) {
+  void _showNotificationDialog({
+    int initialTab = 0,
+    DocumentSnapshot? document,
+  }) {
     showDialog(
       context: context,
-      builder: (context) => _NotificationDialog(initialTab: initialTab),
+      builder:
+          (context) =>
+              _NotificationDialog(initialTab: initialTab, document: document),
     );
   }
 
@@ -290,6 +340,7 @@ class _NotificationsState extends State<Notifications> {
         children: [
           _buildFilters(),
           const Divider(height: 1),
+          if (_selectedNotificationIds.isNotEmpty) _buildBulkActions(),
           docs.isEmpty ? _buildEmptyState() : _buildDataTable(docs),
         ],
       ),
@@ -302,11 +353,25 @@ class _NotificationsState extends State<Notifications> {
       child: Center(
         child: Column(
           children: [
-            Icon(Icons.notifications_none_rounded, size: 56, color: Colors.grey.shade300),
+            Icon(
+              Icons.notifications_none_rounded,
+              size: 56,
+              color: Colors.grey.shade300,
+            ),
             const SizedBox(height: 16),
-            const Text('No notifications yet', style: TextStyle(fontSize: 16, color: Colors.grey, fontWeight: FontWeight.w500)),
+            const Text(
+              'No notifications yet',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
             const SizedBox(height: 6),
-            const Text('Click \'Create Notification\' to send your first one.', style: TextStyle(fontSize: 13, color: Colors.black38)),
+            const Text(
+              'Click \'Create Notification\' to send your first one.',
+              style: TextStyle(fontSize: 13, color: Colors.black38),
+            ),
           ],
         ),
       ),
@@ -361,12 +426,13 @@ class _NotificationsState extends State<Notifications> {
                 ),
               ),
               hint: const Text('All Channels'),
-              items: ['push', 'in_app'].map((String value) {
-                return DropdownMenuItem<String>(
-                  value: value,
-                  child: Text(value == 'push' ? 'Push' : 'In-App'),
-                );
-              }).toList(),
+              items:
+                  ['push', 'in_app'].map((String value) {
+                    return DropdownMenuItem<String>(
+                      value: value,
+                      child: Text(value == 'push' ? 'Push' : 'In-App'),
+                    );
+                  }).toList(),
               onChanged: (val) => setState(() => _filterChannel = val),
             ),
           ),
@@ -390,22 +456,24 @@ class _NotificationsState extends State<Notifications> {
                 ),
               ),
               hint: const Text('All Status'),
-              items: ['sent', 'scheduled', 'failed'].map((String value) {
-                return DropdownMenuItem<String>(
-                  value: value,
-                  child: Text(value[0].toUpperCase() + value.substring(1)),
-                );
-              }).toList(),
+              items:
+                  ['sent', 'scheduled', 'failed'].map((String value) {
+                    return DropdownMenuItem<String>(
+                      value: value,
+                      child: Text(value[0].toUpperCase() + value.substring(1)),
+                    );
+                  }).toList(),
               onChanged: (val) => setState(() => _filterStatus = val),
             ),
           ),
           const SizedBox(width: 16),
           OutlinedButton.icon(
-            onPressed: () => setState(() {
-              _searchQuery = '';
-              _filterStatus = null;
-              _filterChannel = null;
-            }),
+            onPressed:
+                () => setState(() {
+                  _searchQuery = '';
+                  _filterStatus = null;
+                  _filterChannel = null;
+                }),
             icon: const Icon(Icons.refresh, color: Colors.black54, size: 20),
             label: const Text('Reset', style: TextStyle(color: Colors.black54)),
             style: OutlinedButton.styleFrom(
@@ -421,158 +489,260 @@ class _NotificationsState extends State<Notifications> {
     );
   }
 
+  Widget _buildBulkActions() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.blue.shade50,
+        border: const Border(bottom: BorderSide(color: Colors.black12)),
+      ),
+      child: Row(
+        children: [
+          Text(
+            '${_selectedNotificationIds.length} notifications selected',
+            style: TextStyle(
+              color: Colors.blue.shade700,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const Spacer(),
+          TextButton.icon(
+            onPressed: () {
+              for (var id in _selectedNotificationIds) {
+                FirebaseFirestore.instance
+                    .collection('notifications')
+                    .doc(id)
+                    .delete();
+              }
+              setState(() {
+                _selectedNotificationIds.clear();
+              });
+            },
+            icon: const Icon(Icons.delete, color: Colors.red),
+            label: const Text(
+              'Delete Selected',
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+          const SizedBox(width: 8),
+          IconButton(
+            onPressed: () {
+              setState(() {
+                _selectedNotificationIds.clear();
+              });
+            },
+            icon: const Icon(Icons.close),
+            tooltip: 'Clear Selection',
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildDataTable(List<QueryDocumentSnapshot> docs) {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
-      child: SizedBox(
-        width: 1400,
-        child: Table(
-          columnWidths: const {
-            0: FlexColumnWidth(0.5),
-            1: FlexColumnWidth(2.5),
-            2: FlexColumnWidth(4.0),
-            3: FlexColumnWidth(1.5),
-            4: FlexColumnWidth(1.5),
-            5: FlexColumnWidth(1.8),
-            6: FlexColumnWidth(1.0),
-            7: FlexColumnWidth(1.2),
-          },
-          defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-          children: [
-            TableRow(
-              decoration: BoxDecoration(
-                color: Colors.grey.shade50,
-                border: const Border(
-                  bottom: BorderSide(color: Colors.black12, width: 1),
+      child: DataTable(
+        headingRowColor: MaterialStateProperty.all(Colors.white),
+        headingRowHeight: 54,
+        headingTextStyle: GoogleFonts.inter(
+          fontWeight: FontWeight.w600,
+          color: const Color(0xFF64748B),
+          fontSize: 15,
+        ),
+        dataRowMinHeight: 70,
+        dataRowMaxHeight: 90,
+        columnSpacing: 24,
+        horizontalMargin: 24,
+        dividerThickness: 1,
+        columns: [
+          DataColumn(
+            label: SizedBox(
+              width: 60,
+              child: Checkbox(
+                value:
+                    docs.isNotEmpty &&
+                    _selectedNotificationIds.length == docs.length,
+                onChanged: (val) {
+                  setState(() {
+                    if (val == true) {
+                      _selectedNotificationIds = docs.map((d) => d.id).toSet();
+                    } else {
+                      _selectedNotificationIds.clear();
+                    }
+                  });
+                },
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(4),
                 ),
+                side: const BorderSide(color: Colors.black26),
               ),
-              children: [
-                _buildHeaderCheckbox(),
-                _buildHeaderCell('Title'),
-                _buildHeaderCell('Message'),
-                _buildHeaderCell('Channel'),
-                _buildHeaderCell('Audience'),
-                _buildHeaderCell('Sent On'),
-                _buildHeaderCell('Status'),
-                _buildHeaderCell('Actions'),
-              ],
             ),
-            ...docs.map((doc) {
+          ),
+          const DataColumn(label: SizedBox(width: 220, child: Text('Title'))),
+          const DataColumn(label: SizedBox(width: 340, child: Text('Message'))),
+          const DataColumn(label: SizedBox(width: 130, child: Text('Channel'))),
+          const DataColumn(
+            label: SizedBox(width: 150, child: Text('Audience')),
+          ),
+          const DataColumn(label: SizedBox(width: 160, child: Text('Sent On'))),
+          const DataColumn(label: SizedBox(width: 110, child: Text('Status'))),
+          const DataColumn(label: SizedBox(width: 100, child: Text('Actions'))),
+        ],
+        rows:
+            docs.map((doc) {
               final data = doc.data() as Map<String, dynamic>;
               String dateStr = 'N/A';
-              if (data['created_at'] != null && data['created_at'] is Timestamp) {
-                dateStr = DateFormat('dd MMM yyyy\nhh:mm a').format((data['created_at'] as Timestamp).toDate());
+              if (data['created_at'] != null &&
+                  data['created_at'] is Timestamp) {
+                dateStr = DateFormat(
+                  'dd MMM yyyy\nhh:mm a',
+                ).format((data['created_at'] as Timestamp).toDate());
               }
-              final channel = data['notification_channel']?.toString() ?? 'push';
+              final channel =
+                  data['notification_channel']?.toString() ?? 'push';
               final status = data['status']?.toString() ?? 'sent';
 
-              return TableRow(
-                decoration: const BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(color: Colors.black12, width: 1),
-                  ),
-                ),
-                children: [
-                  _buildDataCheckbox(),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 16.0),
-                    child: Text(
-                      data['title']?.toString() ?? '',
-                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.black87),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 16.0),
-                    child: Text(
-                      data['message']?.toString() ?? '',
-                      style: const TextStyle(fontSize: 13, color: Colors.black54),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 16.0),
-                    child: _buildTypeBadge(channel == 'push' ? 'Push' : 'In-App'),
-                  ),
-                  _buildDataCell(data['audience']?.toString() ?? 'All Users'),
-                  _buildDataCell(dateStr),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 16.0),
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: _buildStatusBadge(status[0].toUpperCase() + status.substring(1)),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 16.0),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.delete_outline, size: 20, color: Colors.redAccent),
-                          onPressed: () async {
-                            await FirebaseFirestore.instance.collection('notifications').doc(doc.id).delete();
-                          },
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
+              return DataRow(
+                cells: [
+                  DataCell(
+                    SizedBox(
+                      width: 60,
+                      child: Checkbox(
+                        value: _selectedNotificationIds.contains(doc.id),
+                        onChanged: (val) {
+                          setState(() {
+                            if (val == true) {
+                              _selectedNotificationIds.add(doc.id);
+                            } else {
+                              _selectedNotificationIds.remove(doc.id);
+                            }
+                          });
+                        },
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(4),
                         ),
-                      ],
+                        side: const BorderSide(color: Colors.black26),
+                      ),
+                    ),
+                  ),
+                  DataCell(
+                    SizedBox(
+                      width: 220,
+                      child: Text(
+                        data['title']?.toString() ?? '',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                          color: Colors.black87,
+                        ),
+                      ),
+                    ),
+                  ),
+                  DataCell(
+                    SizedBox(
+                      width: 340,
+                      child: Text(
+                        data['message']?.toString() ?? '',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Colors.black54,
+                        ),
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
+                  DataCell(
+                    SizedBox(
+                      width: 130,
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: _buildTypeBadge(
+                          channel == 'push' ? 'Push' : 'In-App',
+                        ),
+                      ),
+                    ),
+                  ),
+                  DataCell(
+                    SizedBox(
+                      width: 150,
+                      child: Text(
+                        data['audience']?.toString() ?? 'All Users',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Colors.black87,
+                        ),
+                      ),
+                    ),
+                  ),
+                  DataCell(
+                    SizedBox(
+                      width: 160,
+                      child: Text(
+                        dateStr,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Colors.black87,
+                          height: 1.5,
+                        ),
+                      ),
+                    ),
+                  ),
+                  DataCell(
+                    SizedBox(
+                      width: 110,
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: _buildStatusBadge(
+                          status[0].toUpperCase() + status.substring(1),
+                        ),
+                      ),
+                    ),
+                  ),
+                  DataCell(
+                    SizedBox(
+                      width: 100,
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(
+                                Icons.edit_outlined,
+                                size: 20,
+                                color: Colors.blueAccent,
+                              ),
+                              onPressed:
+                                  () => _showNotificationDialog(document: doc),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                            ),
+                            const SizedBox(width: 12),
+                            IconButton(
+                              icon: const Icon(
+                                Icons.delete_outline,
+                                size: 20,
+                                color: Colors.redAccent,
+                              ),
+                              onPressed: () async {
+                                await FirebaseFirestore.instance
+                                    .collection('notifications')
+                                    .doc(doc.id)
+                                    .delete();
+                              },
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                 ],
               );
             }).toList(),
-          ],
-        ),
-      ),
-    );
-  }
-
-
-  Widget _buildHeaderCheckbox() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 16.0),
-      child: Checkbox(
-        value: false,
-        onChanged: (val) {},
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-        side: const BorderSide(color: Colors.black26),
-      ),
-    );
-  }
-
-  Widget _buildDataCheckbox() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 16.0),
-      child: Checkbox(
-        value: false,
-        onChanged: (val) {},
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-        side: const BorderSide(color: Colors.black26),
-      ),
-    );
-  }
-
-  Widget _buildHeaderCell(String title) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 16.0),
-      child: Text(
-        title,
-        style: const TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w600,
-          color: Colors.black54,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDataCell(String text) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 16.0),
-      child: Text(
-        text,
-        style: const TextStyle(fontSize: 13, color: Colors.black87),
       ),
     );
   }
@@ -767,7 +937,8 @@ class _NotificationsState extends State<Notifications> {
 // _NotificationDialog - Push & In-App notification sender
 class _NotificationDialog extends StatefulWidget {
   final int initialTab;
-  const _NotificationDialog({this.initialTab = 0});
+  final DocumentSnapshot? document;
+  const _NotificationDialog({this.initialTab = 0, this.document});
 
   @override
   State<_NotificationDialog> createState() => _NotificationDialogState();
@@ -811,6 +982,23 @@ class _NotificationDialogState extends State<_NotificationDialog>
       vsync: this,
       initialIndex: widget.initialTab,
     );
+
+    if (widget.document != null) {
+      final data = widget.document!.data() as Map<String, dynamic>;
+      _titleController.text = data['title']?.toString() ?? '';
+      _messageController.text = data['message']?.toString() ?? '';
+      _selectedAudience = data['audience']?.toString() ?? 'All Users';
+      _imageUrlController.text = data['image_url']?.toString() ?? '';
+      _deepLinkController.text = data['deep_link']?.toString() ?? '';
+      _selectedPriority = data['priority']?.toString() ?? 'High';
+      _selectedType = data['notification_type']?.toString() ?? 'Info';
+      _selectedColor = data['accent_color']?.toString() ?? 'Blue';
+      _showIcon = data['show_icon'] ?? true;
+      _isDismissible = data['is_dismissible'] ?? true;
+      if (data['notification_channel'] == 'in_app') {
+        _tabController.index = 1;
+      }
+    }
   }
 
   @override
@@ -1265,10 +1453,13 @@ class _NotificationDialogState extends State<_NotificationDialog>
             label,
             style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
           ),
-          Switch(
-            value: value,
-            onChanged: onChanged,
-            activeColor: const Color(0xFFFFC107),
+          Transform.scale(
+            scale: 0.8,
+            child: Switch(
+              value: value,
+              onChanged: onChanged,
+              activeColor: const Color(0xFFFFC107),
+            ),
           ),
         ],
       ),
@@ -1309,7 +1500,15 @@ class _NotificationDialogState extends State<_NotificationDialog>
     }
 
     try {
-      await FirebaseFirestore.instance.collection('notifications').add(data);
+      if (widget.document != null) {
+        await FirebaseFirestore.instance
+            .collection('notifications')
+            .doc(widget.document!.id)
+            .update(data);
+      } else {
+        await FirebaseFirestore.instance.collection('notifications').add(data);
+      }
+
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1322,9 +1521,9 @@ class _NotificationDialogState extends State<_NotificationDialog>
     } catch (e) {
       if (mounted) {
         setState(() => _isSending = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     }
   }

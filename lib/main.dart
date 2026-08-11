@@ -8,6 +8,7 @@ import 'package:swiftclean_admin/MVVM/view/Dashboard/tablet_scaffold.dart';
 import 'package:swiftclean_admin/MVVM/view/loginpage.dart';
 import 'package:swiftclean_admin/firebase_options.dart';
 import 'package:swiftclean_admin/MVVM/utils/developer_setup.dart';
+import 'package:swiftclean_admin/MVVM/utils/role_migration_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -15,6 +16,9 @@ void main() async {
 
   // Ensure the Super Admin account exists in Firebase Auth and Firestore
   await ensureSuperAdminAccountCreated();
+
+  // Run legacy roles migration on startup
+  await RoleMigrationService.run();
 
   runApp(const MyApp());
 }

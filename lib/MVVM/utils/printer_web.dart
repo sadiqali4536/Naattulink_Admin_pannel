@@ -841,7 +841,7 @@ void printBookingsList(List<BookingModel> bookings) {
         <thead>
           <tr>
             <th>Booking ID &amp; Date</th><th>Customer</th><th>Worker</th><th>Service &amp; Category</th>
-            <th>Amount</th><th>Payment Status</th><th>Status</th>
+            <th>Amount</th><th>Payment Status</th><th>Booking Status</th><th>Work Status</th>
           </tr>
         </thead>
         <tbody>
@@ -871,6 +871,17 @@ void printBookingsList(List<BookingModel> bookings) {
     final amount = b.amount.toStringAsFixed(2);
     final paymentStatus = _escapeHtml(b.paymentStatus);
     final status = _escapeHtml(b.status);
+    final workStatus = _escapeHtml(b.workStatus);
+    final completedStatus = _escapeHtml(b.completedStatus);
+
+    // Determine which work status to show
+    String finalWorkStatus = workStatus;
+    if (status.toLowerCase() == 'completed') {
+      finalWorkStatus =
+          completedStatus.isNotEmpty ? completedStatus : 'Completed';
+    } else if (status.toLowerCase() == 'cancelled') {
+      finalWorkStatus = 'Cancelled';
+    }
 
     htmlBuffer.write('''
           <tr>
@@ -893,6 +904,7 @@ void printBookingsList(List<BookingModel> bookings) {
             <td><strong>₹$amount</strong></td>
             <td><span class="payment-status $paymentClass">$paymentStatus</span></td>
             <td><span class="status $statusClass">$status</span></td>
+            <td><span style="font-weight: 600; font-size: 11px; color: #475569;">$finalWorkStatus</span></td>
           </tr>
     ''');
   }
@@ -1108,7 +1120,8 @@ void exportPaymentsToPdfWeb(List<Map<String, String>> payments) {
             <th>Booking ID</th>
             <th>Payment Mode</th>
             <th>Status</th>
-            <th>Date &amp; Time</th>
+            <th>Date</th>
+            <th>Time</th>
           </tr>
         </thead>
         <tbody>
@@ -1122,7 +1135,8 @@ void exportPaymentsToPdfWeb(List<Map<String, String>> payments) {
     final bookingId = _escapeHtml(p['bookingId'] ?? '');
     final paymentMode = _escapeHtml(p['paymentMode'] ?? '');
     final status = _escapeHtml(p['status'] ?? '');
-    final dateTime = _escapeHtml(p['dateTime'] ?? '');
+    final date = _escapeHtml(p['date'] ?? '');
+    final time = _escapeHtml(p['time'] ?? '').replaceAll('\n', ' ');
 
     htmlBuffer.write('''
           <tr>
@@ -1133,7 +1147,8 @@ void exportPaymentsToPdfWeb(List<Map<String, String>> payments) {
             <td>$bookingId</td>
             <td>$paymentMode</td>
             <td>$status</td>
-            <td>$dateTime</td>
+            <td>$date</td>
+            <td>$time</td>
           </tr>
     ''');
   }
@@ -1669,3 +1684,112 @@ void printBusinessesList(List<Map<String, dynamic>> businessesList) {
   html.window.open(url, '_blank');
 }
 
+void printServiceReviewsList(List<Map<String, dynamic>> reviews) {
+  final htmlBuffer = StringBuffer();
+  htmlBuffer.write('''
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>Service Reviews Export</title>
+      <style>
+        body { font-family: 'Inter', sans-serif; margin: 40px; color: #1E293B; background-color: #FFFFFF; }
+        h1 { font-size: 22px; margin: 0; color: #0F172A; font-weight: 700; }
+        .header-container { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; border-bottom: 2px solid #DBEAFE; padding-bottom: 16px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #E2E8F0; padding: 10px 12px; text-align: left; font-size: 12px; }
+        th { background-color: #EFF6FF; font-weight: 600; color: #1E40AF; text-transform: uppercase; font-size: 11px; }
+        tr:nth-child(even) { background-color: #F8FAFC; }
+        .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+        .approved { background-color: #ECFDF5; color: #047857; }
+        .pending  { background-color: #FEF3C7; color: #92400E; }
+        .rejected { background-color: #FEF2F2; color: #B91C1C; }
+        .table-wrapper { overflow: auto; max-height: 70vh; border: 1px solid #E2E8F0; border-radius: 8px; }
+        .table-wrapper::-webkit-scrollbar { width: 8px; height: 8px; }
+        .table-wrapper::-webkit-scrollbar-track { background: #F1F5F9; }
+        .table-wrapper::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; }
+        th { position: sticky; top: 0; z-index: 10; }
+      </style>
+    </head>
+    <body>
+      <div class="header-container">
+        <div>
+          <h1>Service Reviews</h1>
+          <p style="margin: 4px 0 0 0; font-size: 12px; color: #64748B;">Total Reviews: TOTAL_COUNT | Generated on GENERATED_DATE</p>
+        </div>
+        <button onclick="window.print()" style="padding: 10px 20px; background-color: #3B82F6; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-family: inherit; font-size: 13px;">Print / Save PDF</button>
+      </div>
+      <div class="table-wrapper">
+        <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Service</th>
+            <th>User</th>
+            <th>Rating</th>
+            <th>Review</th>
+            <th>Status</th>
+            <th>Date</th>
+          </tr>
+        </thead>
+        <tbody>
+  ''');
+
+  int i = 1;
+  for (final r in reviews) {
+    final serviceName = _escapeHtml(r['serviceName']?.toString() ?? 'N/A');
+    final userName = _escapeHtml(r['userName']?.toString() ?? 'N/A');
+    final rating =
+        r['rating'] is num ? (r['rating'] as num).toStringAsFixed(1) : '0.0';
+    final review = _escapeHtml(r['review']?.toString() ?? '');
+    final status = _escapeHtml(r['status']?.toString() ?? 'Pending');
+    final statusClass =
+        status == 'Approved'
+            ? 'approved'
+            : status == 'Rejected'
+            ? 'rejected'
+            : 'pending';
+
+    String date = 'N/A';
+    if (r['createdAt'] != null) {
+      try {
+        final ts = r['createdAt'];
+        // Firestore Timestamp has a toDate() method
+        final dt = (ts as dynamic).toDate() as DateTime;
+        date =
+            "${dt.day.toString().padLeft(2, '0')}-${dt.month.toString().padLeft(2, '0')}-${dt.year}";
+      } catch (_) {}
+    }
+
+    htmlBuffer.write('''
+          <tr>
+            <td>$i</td>
+            <td><strong>$serviceName</strong></td>
+            <td>$userName</td>
+            <td>$rating ★</td>
+            <td>$review</td>
+            <td><span class="badge $statusClass">$status</span></td>
+            <td>$date</td>
+          </tr>
+    ''');
+    i++;
+  }
+
+  htmlBuffer.write('''
+        </tbody>
+      </table>
+      </div>
+      <script> window.addEventListener('load', () => { setTimeout(() => { window.print(); }, 500); }); </script>
+    </body>
+    </html>
+  ''');
+
+  final finalHtml = htmlBuffer
+      .toString()
+      .replaceFirst('TOTAL_COUNT', reviews.length.toString())
+      .replaceFirst('GENERATED_DATE', DateTime.now().toString().split('.')[0]);
+
+  final blob = html.Blob([finalHtml], 'text/html');
+  final url = html.Url.createObjectUrlFromBlob(blob);
+  html.window.open(url, '_blank');
+}

@@ -67,17 +67,56 @@ class FirebaseAuthService {
   ///      the web-panel Firebase account using [password].
   ///   4. Load RBAC session (resolves webAuthUid → originalUid internally).
   Future<void> signInWithUsername(String username, String password) async {
-    print('[RBAC LOGIN] Starting authentication for: $username');
+    print('[LOGIN] Username received: $username');
     final trimmedUser = username.trim();
     String? uid;
     String? email;
 
     // 1. Parse virtual email first to get the UID directly if possible
-    if (trimmedUser.endsWith('_adm@naattulink.internal')) {
-      final parts = trimmedUser.split('_adm@naattulink.internal');
+    if (trimmedUser.endsWith('_adm@naattulink.internal') ||
+        trimmedUser.endsWith('_adm@naattulink')) {
+      final suffix =
+          trimmedUser.endsWith('_adm@naattulink.internal')
+              ? '_adm@naattulink.internal'
+              : '_adm@naattulink';
+      final parts = trimmedUser.split(suffix);
       if (parts.isNotEmpty) {
-        uid = parts[0];
-        print('[RBAC LOGIN] Parsed virtual email prefix to resolve UID: $uid');
+        final prefix = parts[0];
+        // Check if the prefix is a valid UID in admin_users
+        try {
+          final adminUserDoc =
+              await _db.collection('admin_users').doc(prefix).get();
+          if (adminUserDoc.exists) {
+            uid = prefix;
+            print(
+              '[LOGIN] Parsed virtual email prefix resolved directly to UID: $uid',
+            );
+          } else {
+            // Otherwise, treat the prefix as a username and look it up
+            print(
+              '[LOGIN] Virtual email prefix "$prefix" is not a UID. Searching as username...',
+            );
+            final query =
+                await _db
+                    .collection('users')
+                    .where('username', isEqualTo: prefix)
+                    .limit(1)
+                    .get();
+            if (query.docs.isNotEmpty) {
+              email = query.docs.first.data()['email'] as String?;
+              uid = query.docs.first.id;
+              print(
+                '[LOGIN] Resolved virtual email prefix username "$prefix" to UID: $uid, Email: $email',
+              );
+            } else {
+              print(
+                '[LOGIN] Failed: No user document found for virtual email username prefix "$prefix"',
+              );
+            }
+          }
+        } catch (e) {
+          print('[LOGIN] Error parsing virtual email prefix: $e');
+        }
       }
     }
 
@@ -94,10 +133,15 @@ class FirebaseAuthService {
           email = query.docs.first.data()['email'] as String?;
           uid = query.docs.first.id;
           print(
-            '[RBAC LOGIN] Resolved username "$trimmedUser" to UID: $uid, Email: $email',
+            '[LOGIN] Username lookup result: SUCCESS. Resolved "$trimmedUser" to UID: $uid, Email: $email',
+          );
+        } else {
+          print(
+            '[LOGIN] Username lookup result: FAILED. No user doc with username "$trimmedUser"',
           );
         }
-      } catch (_) {
+      } catch (e) {
+        print('[LOGIN] Username lookup error: $e');
         throw 'Unable to reach the server. Please check your connection.';
       }
     }
@@ -107,7 +151,7 @@ class FirebaseAuthService {
         final userDoc = await _db.collection('users').doc(uid).get();
         if (userDoc.exists) {
           email = userDoc.data()?['email'] as String?;
-          print('[RBAC LOGIN] Resolved customer email from UID: $email');
+          print('[LOGIN] Customer email resolved from UID: $email');
         }
       } catch (_) {}
     }
@@ -117,27 +161,29 @@ class FirebaseAuthService {
         email = trimmedUser;
       } else {
         await _writeFailedLoginLog(username);
-        print(
-          '[RBAC LOGIN] Failed: No account found with username "$username"',
-        );
+        print('[LOGIN] Failed: No account found with username "$username"');
         throw 'No account found with username "$username".';
       }
     }
 
+    print('[LOGIN] Original UID resolved: $uid');
+    print('[LOGIN] User document found: ${uid != null}');
+
     // 2. Super Admin bypass
     if (_superAdminEmails.contains(email)) {
-      print('[RBAC LOGIN] Super Admin bypass triggered for email: $email');
+      print('[LOGIN] Super Admin bypass triggered for email: $email');
       try {
         await _auth.signInWithEmailAndPassword(
           email: email,
           password: password,
         );
-      } on FirebaseAuthException {
+        print('[LOGIN] Firebase Authentication: SUCCESS (Super Admin)');
+        print('[LOGIN] Web Auth UID: ${_auth.currentUser?.uid}');
+      } on FirebaseAuthException catch (e) {
         await _writeFailedLoginLog(username);
-        print('[RBAC LOGIN] Super Admin login failed.');
+        print('[LOGIN] Super Admin login failed: ${e.message}');
         rethrow;
       }
-      print('[RBAC LOGIN] Super Admin successfully authenticated.');
       await _completeLogin(username);
       return;
     }
@@ -152,16 +198,19 @@ class FirebaseAuthService {
       }
     }
 
+    final bool adminRecordExists = adminDoc != null && adminDoc.exists;
+    print('[LOGIN] Admin record found: $adminRecordExists');
+
     if (uid == null || adminDoc == null || !adminDoc.exists) {
       print(
-        '[RBAC LOGIN] No active role document found in admin_users for UID: $uid',
+        '[LOGIN] Failed: No active role document found in admin_users for UID: $uid',
       );
       await _writeFailedLoginLog(username);
       await _auth.signOut();
 
       // Check if they previously had their role removed
       if (uid != null) {
-        print('[RBAC LOGIN] Checking role_users_history for UID: $uid');
+        print('[LOGIN] Checking role_users_history for UID: $uid');
         try {
           final historyQuery =
               await _db
@@ -171,7 +220,7 @@ class FirebaseAuthService {
                   .get();
           if (historyQuery.docs.isNotEmpty) {
             print(
-              '[RBAC LOGIN] Found revoked role history for UID: $uid. Denying access.',
+              '[LOGIN] Found revoked role history for UID: $uid. Denying access.',
             );
             throw 'No access found. Your admin role has been removed. Please contact the Super Admin if you believe this is an error.';
           }
@@ -183,25 +232,32 @@ class FirebaseAuthService {
     }
 
     final adminData = adminDoc.data() as Map<String, dynamic>? ?? {};
+    final status = adminData['status'] as String? ?? 'Inactive';
     final webEmail = adminData['webEmail'] as String?;
+    print('[LOGIN] Account status: $status');
+    print('[LOGIN] Web email resolved: $webEmail');
 
     if (webEmail == null || webEmail.isEmpty) {
       await _writeFailedLoginLog(username);
-      print('[RBAC LOGIN] Failed: No web admin account set up for UID: $uid');
+      print('[LOGIN] Failed: No web admin account set up for UID: $uid');
       throw 'No web admin account has been set up for this user.\n'
           'Please contact your Super Admin to set up web panel access.';
     }
 
     // 4. Sign in with web-panel Firebase account
-    print('[RBAC LOGIN] Authenticating webEmail: $webEmail with Firebase...');
+    print('[LOGIN] Authenticating webEmail: $webEmail with Firebase...');
     try {
       await _auth.signInWithEmailAndPassword(
         email: webEmail,
         password: password,
       );
+      print('[LOGIN] Firebase Authentication: SUCCESS');
+      print('[LOGIN] Web Auth UID: ${_auth.currentUser?.uid}');
     } on FirebaseAuthException catch (e) {
       await _writeFailedLoginLog(username);
-      print('[RBAC LOGIN] Firebase Auth failed: ${e.code}');
+      print(
+        '[LOGIN] Firebase Authentication: FAILED. Firebase Auth error: ${e.code}',
+      );
       if (e.code == 'wrong-password' ||
           e.code == 'invalid-credential' ||
           e.code == 'invalid-login-credentials') {
@@ -223,6 +279,9 @@ class FirebaseAuthService {
     await RbacSession().loadSession();
 
     if (!RbacSession().isActive) {
+      print(
+        '[LOGIN] Failed: RbacSession is not Active. Status: "${RbacSession().status}". Denying access.',
+      );
       await signOut();
       throw 'Your account access has been ${RbacSession().status.toLowerCase()}. '
           'Please contact your administrator.';
@@ -443,6 +502,29 @@ class FirebaseAuthService {
   }) async {
     final session = RbacSession();
     if (!session.isActive) throw 'You must be logged in to grant access.';
+
+    // Validation checks
+    final targetRoleIds = roleIds ?? [roleId];
+    if (targetRoleIds.isEmpty) {
+      throw 'Cannot assign admin access: No roles specified.';
+    }
+
+    for (final rId in targetRoleIds) {
+      final roleDoc = await _db.collection('roles').doc(rId).get();
+      if (!roleDoc.exists) {
+        throw 'Cannot assign role: Role "$rId" does not exist in the database.';
+      }
+      final role = RoleDefinition.fromFirestore(roleDoc);
+      if (!role.isActive) {
+        throw 'Cannot assign role: Role "${role.name}" is Inactive.';
+      }
+      if (role.permissions.isEmpty) {
+        throw 'Cannot assign role: Role "${role.name}" has an empty permission config.';
+      }
+      if (role.id != rId) {
+        throw 'Cannot assign role: Mismatch between assigned role ID "$rId" and Firestore document ID "${role.id}".';
+      }
+    }
 
     if (!session.canAssignRole(roleLevel)) {
       throw 'You cannot assign a role equal to or higher than your own.';

@@ -2,7 +2,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:swiftclean_admin/MVVM/model/models/admin_model.dart';
 import 'package:swiftclean_admin/MVVM/utils/printer_helper.dart';
+import 'package:swiftclean_admin/MVVM/utils/rbac_session.dart';
 
 class SuspendedUserModel {
   final String name;
@@ -52,6 +54,11 @@ class _SuspendedUsersPageState extends State<SuspendedUsersPage> {
 
   Future<void> _bulkRestoreUsers() async {
     if (_selectedUserIds.isEmpty) return;
+
+    if (!RbacSession().hasPermission('user_management', 'suspend_user')) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Access Denied: You do not have permission to restore users."), backgroundColor: Colors.red));
+      return;
+    }
 
     // Show loading
     showDialog(
@@ -109,6 +116,11 @@ class _SuspendedUsersPageState extends State<SuspendedUsersPage> {
 
   Future<void> _bulkDeleteUsers() async {
     if (_selectedUserIds.isEmpty) return;
+
+    if (!RbacSession().hasPermission('user_management', 'delete')) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Access Denied: You do not have permission to delete users."), backgroundColor: Colors.red));
+      return;
+    }
 
     // Show confirmation dialog first
     final bool? confirm = await showDialog<bool>(
@@ -201,6 +213,14 @@ class _SuspendedUsersPageState extends State<SuspendedUsersPage> {
 
   Widget _buildSelectionActionBar(double width) {
     final bool isSmall = width < 600;
+    final bool canDelete = RbacSession().hasPermission(
+      'user_management',
+      'delete',
+    );
+    final bool canRestore = RbacSession().hasPermission(
+      'user_management',
+      'suspend_user',
+    );
 
     return Container(
       width: double.infinity,
@@ -252,19 +272,22 @@ class _SuspendedUsersPageState extends State<SuspendedUsersPage> {
                     children: [
                       Row(
                         children: [
-                          _buildActionOutlineButton(
-                            icon: Icons.restore_page_rounded,
-                            label: "Restore",
-                            color: const Color(0xFFD97706),
-                            onPressed: _bulkRestoreUsers,
-                          ),
-                          const SizedBox(width: 8),
-                          _buildActionOutlineButton(
-                            icon: Icons.delete_outline_rounded,
-                            label: "Delete",
-                            color: const Color(0xFFEF4444),
-                            onPressed: _bulkDeleteUsers,
-                          ),
+                          if (canRestore) ...[
+                            _buildActionOutlineButton(
+                              icon: Icons.restore_page_rounded,
+                              label: "Restore",
+                              color: const Color(0xFFD97706),
+                              onPressed: _bulkRestoreUsers,
+                            ),
+                            const SizedBox(width: 8),
+                          ],
+                          if (canDelete)
+                            _buildActionOutlineButton(
+                              icon: Icons.delete_outline_rounded,
+                              label: "Delete",
+                              color: const Color(0xFFEF4444),
+                              onPressed: _bulkDeleteUsers,
+                            ),
                         ],
                       ),
                       TextButton.icon(
@@ -312,19 +335,22 @@ class _SuspendedUsersPageState extends State<SuspendedUsersPage> {
                     ),
                   ),
                   const Spacer(),
-                  _buildActionOutlineButton(
-                    icon: Icons.restore_page_rounded,
-                    label: "Restore All",
-                    color: const Color(0xFFD97706), // Orange
-                    onPressed: _bulkRestoreUsers,
-                  ),
-                  const SizedBox(width: 12),
-                  _buildActionOutlineButton(
-                    icon: Icons.delete_outline_rounded,
-                    label: "Delete All",
-                    color: const Color(0xFFEF4444), // Red
-                    onPressed: _bulkDeleteUsers,
-                  ),
+                  if (canRestore) ...[
+                    _buildActionOutlineButton(
+                      icon: Icons.restore_page_rounded,
+                      label: "Restore All",
+                      color: const Color(0xFFD97706), // Orange
+                      onPressed: _bulkRestoreUsers,
+                    ),
+                    const SizedBox(width: 12),
+                  ],
+                  if (canDelete)
+                    _buildActionOutlineButton(
+                      icon: Icons.delete_outline_rounded,
+                      label: "Delete All",
+                      color: const Color(0xFFEF4444), // Red
+                      onPressed: _bulkDeleteUsers,
+                    ),
                   const SizedBox(width: 16),
                   TextButton.icon(
                     onPressed: () => setState(() => _selectedUserIds.clear()),
@@ -839,6 +865,10 @@ class _SuspendedUsersPageState extends State<SuspendedUsersPage> {
   }
 
   Widget _buildsuspendedTable(List<SuspendedUserModel> users) {
+    final bool canSelectUsers =
+        RbacSession().hasPermission('user_management', 'delete') ||
+        RbacSession().hasPermission('user_management', 'ban_user');
+
     const columnWidths = <int, TableColumnWidth>{
       0: FlexColumnWidth(0.5), // Checkbox
       1: FlexColumnWidth(2.6), // User Profile
@@ -881,26 +911,29 @@ class _SuspendedUsersPageState extends State<SuspendedUsersPage> {
                     children: [
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                        child: Checkbox(
-                          value:
-                              users.isNotEmpty &&
-                              _selectedUserIds.length == users.length,
-                          onChanged: (val) {
-                            setState(() {
-                              if (val == true) {
-                                _selectedUserIds.addAll(
-                                  users.map((e) => e.userId),
-                                );
-                              } else {
-                                _selectedUserIds.clear();
-                              }
-                            });
-                          },
-                          activeColor: const Color(0xFFD97706),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                        ),
+                        child:
+                            canSelectUsers
+                                ? Checkbox(
+                                  value:
+                                      users.isNotEmpty &&
+                                      _selectedUserIds.length == users.length,
+                                  onChanged: (val) {
+                                    setState(() {
+                                      if (val == true) {
+                                        _selectedUserIds.addAll(
+                                          users.map((e) => e.userId),
+                                        );
+                                      } else {
+                                        _selectedUserIds.clear();
+                                      }
+                                    });
+                                  },
+                                  activeColor: const Color(0xFFD97706),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                )
+                                : const SizedBox(),
                       ),
                       _buildHeaderCell("User"),
                       _buildHeaderCell("Email / Phone"),
@@ -957,24 +990,34 @@ class _SuspendedUsersPageState extends State<SuspendedUsersPage> {
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 16.0,
                                   ),
-                                  child: Checkbox(
-                                    value: _selectedUserIds.contains(
-                                      user.userId,
-                                    ),
-                                    onChanged: (val) {
-                                      setState(() {
-                                        if (val == true) {
-                                          _selectedUserIds.add(user.userId);
-                                        } else {
-                                          _selectedUserIds.remove(user.userId);
-                                        }
-                                      });
-                                    },
-                                    activeColor: const Color(0xFFD97706),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                  ),
+                                  child:
+                                      canSelectUsers
+                                          ? Checkbox(
+                                            value: _selectedUserIds.contains(
+                                              user.userId,
+                                            ),
+                                            onChanged: (val) {
+                                              setState(() {
+                                                if (val == true) {
+                                                  _selectedUserIds.add(
+                                                    user.userId,
+                                                  );
+                                                } else {
+                                                  _selectedUserIds.remove(
+                                                    user.userId,
+                                                  );
+                                                }
+                                              });
+                                            },
+                                            activeColor: const Color(
+                                              0xFFD97706,
+                                            ),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(4),
+                                            ),
+                                          )
+                                          : const SizedBox(),
                                 ),
                                 // User Profile column
                                 Padding(
@@ -1126,6 +1169,7 @@ class _SuspendedUsersPageState extends State<SuspendedUsersPage> {
                                           user,
                                         );
                                       },
+                                      'view',
                                     ),
                                     const SizedBox(width: 8),
                                     _buildActionButton(
@@ -1134,15 +1178,19 @@ class _SuspendedUsersPageState extends State<SuspendedUsersPage> {
                                       () {
                                         _showUnbanConfirmation(context, user);
                                       },
+                                      'suspend_user',
                                     ),
-                                    const SizedBox(width: 8),
-                                    _buildActionButton(
-                                      Icons.delete_outline_rounded,
-                                      Colors.red,
-                                      () {
-                                        _showDeleteConfirmation(context, user);
-                                      },
-                                    ),
+                                    if (RbacSession().hasPermission(Modules.userManagement, 'delete')) ...[
+                                      const SizedBox(width: 8),
+                                      _buildActionButton(
+                                        Icons.delete_outline_rounded,
+                                        Colors.red,
+                                        () {
+                                          _showDeleteConfirmation(context, user);
+                                        },
+                                        'delete',
+                                      ),
+                                    ],
                                   ],
                                 ),
                               ],
@@ -1220,7 +1268,19 @@ class _SuspendedUsersPageState extends State<SuspendedUsersPage> {
     );
   }
 
-  Widget _buildActionButton(IconData icon, Color color, VoidCallback onTap) {
+  Widget _buildActionButton(
+    IconData icon,
+    Color color,
+    VoidCallback onTap, [
+    String? permissionAction,
+  ]) {
+    if (permissionAction != null &&
+        !RbacSession().hasPermission(
+          Modules.userManagement,
+          permissionAction,
+        )) {
+      return const SizedBox.shrink();
+    }
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(6),
@@ -1327,6 +1387,17 @@ class _SuspendedUsersPageState extends State<SuspendedUsersPage> {
   }
 
   void _showUnbanConfirmation(BuildContext context, SuspendedUserModel user) {
+    if (!RbacSession().hasPermission(Modules.userManagement, 'suspend_user')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "Access Denied: You do not have permission to unsuspend users.",
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
     showDialog(
       context: context,
       builder:
