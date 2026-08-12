@@ -24,6 +24,8 @@ class Modules {
   static const String truck = 'truck';
   static const String healthcare = 'healthcare';
   static const String business = 'business';
+  static const String storeProducts = 'store_products';
+  static const String storeOrders = 'store_orders';
 }
 
 /// Permission action constants.

@@ -5,23 +5,22 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 
 class Dashboard extends StatefulWidget {
-  const Dashboard({super.key});
+  final void Function(String)? onNavigate;
+
+  const Dashboard({super.key, this.onNavigate});
 
   @override
   State<Dashboard> createState() => _DashboardState();
 }
 
 class _DashboardState extends State<Dashboard> {
-  DateTimeRange? _selectedDateRange = DateTimeRange(
-    start: DateTime(2024, 5, 12),
-    end: DateTime(2024, 5, 18),
-  );
+  DateTimeRange? _selectedDateRange;
 
   bool _isLoading = true;
   int _totalUsers = 0;
   int _totalWorkers = 0;
   int _pendingApprovals = 0;
-  int _todaysBookings = 0;
+  int _pendingBookings = 0;
   int _completedBookings = 0;
   int _cancelledBookings = 0;
   double _revenue = 0.0;
@@ -38,6 +37,30 @@ class _DashboardState extends State<Dashboard> {
   List<Map<String, dynamic>> _recentActivities = [];
   List<Map<String, dynamic>> _bookingTrends = [];
 
+  double _usersTrend = 0.0;
+  bool _usersTrendPositive = true;
+  double _workersTrend = 0.0;
+  bool _workersTrendPositive = true;
+  double _pendingTrend = 0.0;
+  bool _pendingTrendPositive = true;
+  double _pendingBookingsTrend = 0.0;
+  bool _pendingBookingsTrendPositive = true;
+  double _completedBookingsTrend = 0.0;
+  bool _completedBookingsTrendPositive = true;
+  double _cancelledBookingsTrend = 0.0;
+  bool _cancelledBookingsTrendPositive = true;
+  double _revenueTrend = 0.0;
+  bool _revenueTrendPositive = true;
+  double _productsTrend = 0.0;
+  bool _productsTrendPositive = true;
+  double _ordersTrend = 0.0;
+  bool _ordersTrendPositive = true;
+  double _advertisementsTrend = 0.0;
+  bool _advertisementsTrendPositive = true;
+  double _busRoutesTrend = 0.0;
+  bool _busRoutesTrendPositive = true;
+  double _taxiDriversTrend = 0.0;
+  bool _taxiDriversTrendPositive = true;
 
   @override
   void initState() {
@@ -49,87 +72,409 @@ class _DashboardState extends State<Dashboard> {
     setState(() => _isLoading = true);
     try {
       final db = FirebaseFirestore.instance;
+      final now = DateTime.now();
+      DateTime? startOfThisPeriod;
+      DateTime? startOfPreviousPeriod;
+      DateTime? endOfThisPeriod;
 
+      if (_selectedDateRange != null) {
+        startOfThisPeriod = _selectedDateRange!.start;
+        // add 1 day to include the end date fully
+        endOfThisPeriod = _selectedDateRange!.end.add(const Duration(days: 1));
+        final duration = endOfThisPeriod.difference(startOfThisPeriod);
+        startOfPreviousPeriod = startOfThisPeriod.subtract(duration);
+      }
+
+      final startOfDay = DateTime(now.year, now.month, now.day);
+      final yesterday = startOfDay.subtract(const Duration(days: 1));
+
+      // Helper to calculate trend safely
+      double calcTrend(int current, int previous) {
+        if (previous == 0 && current == 0) return 0.0;
+        if (previous == 0 && current > 0) return 100.0;
+        return ((current - previous) / previous) * 100.0;
+      }
+
+      double calcRevenueTrend(double current, double previous) {
+        if (previous == 0 && current == 0) return 0.0;
+        if (previous == 0 && current > 0) return 100.0;
+        return ((current - previous) / previous) * 100.0;
+      }
+
+      // 1. Users
       final usersFuture = db.collection('users').count().get();
+      final usersThis =
+          _selectedDateRange != null
+              ? db
+                  .collection('users')
+                  .where(
+                    'createdAt',
+                    isGreaterThanOrEqualTo: startOfThisPeriod!,
+                  )
+                  .where('createdAt', isLessThan: endOfThisPeriod!)
+                  .count()
+                  .get()
+              : Future.value(null);
+      final usersPrev =
+          _selectedDateRange != null
+              ? db
+                  .collection('users')
+                  .where(
+                    'createdAt',
+                    isGreaterThanOrEqualTo: startOfPreviousPeriod!,
+                  )
+                  .where('createdAt', isLessThan: startOfThisPeriod!)
+                  .count()
+                  .get()
+              : Future.value(null);
+
+      // 2. Workers
       final workersFuture = db.collection('workers').count().get();
+      final workersThis =
+          _selectedDateRange != null
+              ? db
+                  .collection('workers')
+                  .where(
+                    'createdAt',
+                    isGreaterThanOrEqualTo: startOfThisPeriod!,
+                  )
+                  .where('createdAt', isLessThan: endOfThisPeriod!)
+                  .count()
+                  .get()
+              : Future.value(null);
+      final workersPrev =
+          _selectedDateRange != null
+              ? db
+                  .collection('workers')
+                  .where(
+                    'createdAt',
+                    isGreaterThanOrEqualTo: startOfPreviousPeriod!,
+                  )
+                  .where('createdAt', isLessThan: startOfThisPeriod!)
+                  .count()
+                  .get()
+              : Future.value(null);
+
+      // 3. Pending Approvals (Workers)
       final pendingFuture =
           db
               .collection('workers')
               .where('isVerified', isEqualTo: 0)
               .count()
               .get();
+      final pendingThis =
+          _selectedDateRange != null
+              ? db
+                  .collection('workers')
+                  .where('isVerified', isEqualTo: 0)
+                  .where(
+                    'createdAt',
+                    isGreaterThanOrEqualTo: startOfThisPeriod!,
+                  )
+                  .where('createdAt', isLessThan: endOfThisPeriod!)
+                  .count()
+                  .get()
+              : Future.value(null);
+      final pendingPrev =
+          _selectedDateRange != null
+              ? db
+                  .collection('workers')
+                  .where('isVerified', isEqualTo: 0)
+                  .where(
+                    'createdAt',
+                    isGreaterThanOrEqualTo: startOfPreviousPeriod!,
+                  )
+                  .where('createdAt', isLessThan: startOfThisPeriod!)
+                  .count()
+                  .get()
+              : Future.value(null);
 
-      final now = DateTime.now();
-      final startOfDay = DateTime(now.year, now.month, now.day);
-      final todayBookingsFuture = db
-          .collection('service_bookings')
-          .where(
-            'timestamp',
-            isGreaterThanOrEqualTo: startOfDay.toIso8601String(),
-          )
-          .count()
-          .get()
-          .catchError((e) => db.collection('service_bookings').count().get());
+      // 4. Today's Bookings
+      final todayBookingsFuture =
+          db
+              .collection('service_bookings')
+              .where(
+                'timestamp',
+                isGreaterThanOrEqualTo: startOfDay.toIso8601String(),
+              )
+              .count()
+              .get();
+      final yesterdayBookingsFuture =
+          db
+              .collection('service_bookings')
+              .where(
+                'timestamp',
+                isGreaterThanOrEqualTo: yesterday.toIso8601String(),
+              )
+              .where('timestamp', isLessThan: startOfDay.toIso8601String())
+              .count()
+              .get();
 
+      // 5. Completed Bookings
       final completedFuture =
           db
               .collection('service_bookings')
               .where('status', isEqualTo: 'Completed')
               .count()
               .get();
+      final completedThis =
+          _selectedDateRange != null
+              ? db
+                  .collection('service_bookings')
+                  .where('status', isEqualTo: 'Completed')
+                  .where(
+                    'timestamp',
+                    isGreaterThanOrEqualTo:
+                        startOfThisPeriod!.toIso8601String(),
+                  )
+                  .where(
+                    'timestamp',
+                    isLessThan: endOfThisPeriod!.toIso8601String(),
+                  )
+                  .count()
+                  .get()
+              : Future.value(null);
+      final completedPrev =
+          _selectedDateRange != null
+              ? db
+                  .collection('service_bookings')
+                  .where('status', isEqualTo: 'Completed')
+                  .where(
+                    'timestamp',
+                    isGreaterThanOrEqualTo:
+                        startOfPreviousPeriod!.toIso8601String(),
+                  )
+                  .where(
+                    'timestamp',
+                    isLessThan: startOfThisPeriod!.toIso8601String(),
+                  )
+                  .count()
+                  .get()
+              : Future.value(null);
+
+      // 6. Cancelled Bookings
       final cancelledFuture =
           db
               .collection('service_bookings')
               .where('status', isEqualTo: 'Cancelled')
               .count()
               .get();
+      final cancelledThis =
+          _selectedDateRange != null
+              ? db
+                  .collection('service_bookings')
+                  .where('status', isEqualTo: 'Cancelled')
+                  .where(
+                    'timestamp',
+                    isGreaterThanOrEqualTo:
+                        startOfThisPeriod!.toIso8601String(),
+                  )
+                  .where(
+                    'timestamp',
+                    isLessThan: endOfThisPeriod!.toIso8601String(),
+                  )
+                  .count()
+                  .get()
+              : Future.value(null);
+      final cancelledPrev =
+          _selectedDateRange != null
+              ? db
+                  .collection('service_bookings')
+                  .where('status', isEqualTo: 'Cancelled')
+                  .where(
+                    'timestamp',
+                    isGreaterThanOrEqualTo:
+                        startOfPreviousPeriod!.toIso8601String(),
+                  )
+                  .where(
+                    'timestamp',
+                    isLessThan: startOfThisPeriod!.toIso8601String(),
+                  )
+                  .count()
+                  .get()
+              : Future.value(null);
 
-      final productsFuture = db
-          .collection('products')
-          .count()
-          .get()
-          .catchError((_) => null);
-      final ordersFuture = db
-          .collection('orders')
-          .count()
-          .get()
-          .catchError((_) => null);
-      final adsFuture = db
-          .collection('advertisements')
-          .count()
-          .get()
-          .catchError((_) => null);
-      final taxiDriversFuture = db
-          .collection('taxi_drivers')
-          .count()
-          .get()
-          .catchError((_) => null);
+      // Paid Payments Calculation
+      // We need to fetch all payments and sum the paid amount
+      final allPayments = await db.collection('payments').get();
+      double currentRevenue = 0.0;
+      double previousRevenue = 0.0;
+      double totalRev = 0.0;
 
-      final results = await Future.wait([
-        usersFuture, // 0
-        workersFuture, // 1
-        pendingFuture, // 2
-        todayBookingsFuture, // 3
-        completedFuture, // 4
-        cancelledFuture, // 5
-      ]);
+      for (var doc in allPayments.docs) {
+        final data = doc.data();
+        final status = data['status']?.toString().toLowerCase() ?? '';
 
-      int prods = 0, ords = 0, ads = 0, taxis = 0;
+        if (status == 'paid') {
+          final amountStr = data['amount']?.toString() ?? '0';
+          final amount =
+              double.tryParse(amountStr.replaceAll(RegExp(r'[^0-9.]'), '')) ??
+              0.0;
+          totalRev += amount;
+
+          final tStamp =
+              data['date']?.toString() ??
+              data['timestamp']?.toString() ??
+              data['createdAt']?.toString() ??
+              '';
+          DateTime? dt;
+          if (tStamp.isNotEmpty) {
+            dt = DateTime.tryParse(tStamp);
+          }
+
+          if (dt != null && _selectedDateRange != null) {
+            if (((dt.isAfter(startOfThisPeriod!) ||
+                    dt.isAtSameMomentAs(startOfThisPeriod!)) &&
+                dt.isBefore(endOfThisPeriod!))) {
+              currentRevenue += amount;
+            } else if ((dt.isAfter(startOfPreviousPeriod!) ||
+                    dt.isAtSameMomentAs(startOfPreviousPeriod!)) &&
+                dt.isBefore(startOfThisPeriod!)) {
+              previousRevenue += amount;
+            }
+          }
+        }
+      }
+
+      // 8. Products
+      final productsFuture = db.collection('products').count().get();
+      final productsThis =
+          _selectedDateRange != null
+              ? db
+                  .collection('products')
+                  .where(
+                    'createdAt',
+                    isGreaterThanOrEqualTo: startOfThisPeriod!,
+                  )
+                  .where('createdAt', isLessThan: endOfThisPeriod!)
+                  .count()
+                  .get()
+              : Future.value(null);
+      final productsPrev =
+          _selectedDateRange != null
+              ? db
+                  .collection('products')
+                  .where(
+                    'createdAt',
+                    isGreaterThanOrEqualTo: startOfPreviousPeriod!,
+                  )
+                  .where('createdAt', isLessThan: startOfThisPeriod!)
+                  .count()
+                  .get()
+              : Future.value(null);
+
+      // 9. Orders
+      final ordersFuture = db.collection('orders').count().get();
+      final ordersThis =
+          _selectedDateRange != null
+              ? db
+                  .collection('orders')
+                  .where(
+                    'createdAt',
+                    isGreaterThanOrEqualTo: startOfThisPeriod!,
+                  )
+                  .where('createdAt', isLessThan: endOfThisPeriod!)
+                  .count()
+                  .get()
+              : Future.value(null);
+      final ordersPrev =
+          _selectedDateRange != null
+              ? db
+                  .collection('orders')
+                  .where(
+                    'createdAt',
+                    isGreaterThanOrEqualTo: startOfPreviousPeriod!,
+                  )
+                  .where('createdAt', isLessThan: startOfThisPeriod!)
+                  .count()
+                  .get()
+              : Future.value(null);
+
+      // 10. Advertisements
+      final adsFuture = db.collection('advertisements').count().get();
+      final adsThis =
+          _selectedDateRange != null
+              ? db
+                  .collection('advertisements')
+                  .where(
+                    'createdAt',
+                    isGreaterThanOrEqualTo: startOfThisPeriod!,
+                  )
+                  .where('createdAt', isLessThan: endOfThisPeriod!)
+                  .count()
+                  .get()
+              : Future.value(null);
+      final adsPrev =
+          _selectedDateRange != null
+              ? db
+                  .collection('advertisements')
+                  .where(
+                    'createdAt',
+                    isGreaterThanOrEqualTo: startOfPreviousPeriod!,
+                  )
+                  .where('createdAt', isLessThan: startOfThisPeriod!)
+                  .count()
+                  .get()
+              : Future.value(null);
+
+      // 11. Taxi Drivers
+      final taxiDriversFuture = Future.value(null);
+      final taxiThis = Future.value(null);
+      final taxiPrev = Future.value(null);
+
+      int activeTaxiCount = 0;
+      int taxiThisCount = 0;
+      int taxiPrevCount = 0;
       try {
-        prods = (await productsFuture)?.count ?? 0;
-      } catch (_) {}
-      try {
-        ords = (await ordersFuture)?.count ?? 0;
-      } catch (_) {}
-      try {
-        ads = (await adsFuture)?.count ?? 0;
-      } catch (_) {}
-      try {
-        taxis = (await taxiDriversFuture)?.count ?? 0;
+        final taxiQuery =
+            await db
+                .collection('transports')
+                .where('transport_category', isEqualTo: 'Taxi')
+                .get();
+        for (var doc in taxiQuery.docs) {
+          final data = doc.data();
+          final status = data['status']?.toString().toLowerCase() ?? '';
+          if (status == 'active' || status == 'approved') {
+            activeTaxiCount++;
+            if (_selectedDateRange != null) {
+              final tStamp =
+                  data['created_at']?.toString() ??
+                  data['createdAt']?.toString() ??
+                  '';
+              DateTime? dt;
+              if (tStamp.isNotEmpty) dt = DateTime.tryParse(tStamp);
+              if (dt == null && data['created_at'] is Timestamp) {
+                dt = (data['created_at'] as Timestamp).toDate();
+              }
+              if (dt != null) {
+                if (startOfThisPeriod != null && endOfThisPeriod != null) {
+                  if ((dt.isAfter(startOfThisPeriod) ||
+                          dt.isAtSameMomentAs(startOfThisPeriod)) &&
+                      dt.isBefore(endOfThisPeriod)) {
+                    taxiThisCount++;
+                  }
+                }
+                if (startOfPreviousPeriod != null &&
+                    startOfThisPeriod != null) {
+                  if ((dt.isAfter(startOfPreviousPeriod) ||
+                          dt.isAtSameMomentAs(startOfPreviousPeriod)) &&
+                      dt.isBefore(startOfThisPeriod)) {
+                    taxiPrevCount++;
+                  }
+                }
+              }
+            }
+          }
+        }
       } catch (_) {}
 
+      // Bus Routes (Transports)
+      // Transports query doesn't have an easy aggregate. We will fetch them and filter by date.
       int routes = 0, activeRoutes = 0;
       Set<String> busDistricts = {};
+      int busRoutesThis = 0;
+      int busRoutesPrev = 0;
+
       try {
         final transportQuery =
             await db
@@ -149,6 +494,23 @@ class _DashboardState extends State<Dashboard> {
           if (pDist != null && pDist.trim().isNotEmpty) {
             busDistricts.add(pDist);
           }
+
+          DateTime? pDate;
+          if (parentData['created_at'] != null) {
+            pDate =
+                (parentData['created_at'] is Timestamp)
+                    ? (parentData['created_at']).toDate()
+                    : DateTime.tryParse(parentData['created_at'].toString());
+          }
+          if (pDate != null && _selectedDateRange != null) {
+            if (pDate.isAfter(startOfThisPeriod!) &&
+                pDate.isBefore(endOfThisPeriod!)) {
+              busRoutesThis++;
+            } else if (pDate.isAfter(startOfPreviousPeriod!)) {
+              busRoutesPrev++;
+            }
+          }
+
           try {
             final buses = await doc.reference.collection('buses').get();
             for (var b in buses.docs) {
@@ -164,105 +526,479 @@ class _DashboardState extends State<Dashboard> {
               if (bDist != null && bDist.trim().isNotEmpty) {
                 busDistricts.add(bDist);
               }
+
+              DateTime? bDate;
+              if (bData['created_at'] != null) {
+                bDate =
+                    (bData['created_at'] is Timestamp)
+                        ? (bData['created_at']).toDate()
+                        : DateTime.tryParse(bData['created_at'].toString());
+              }
+              if (bDate != null && _selectedDateRange != null) {
+                if (bDate.isAfter(startOfThisPeriod!) &&
+                    bDate.isBefore(endOfThisPeriod!)) {
+                  busRoutesThis++;
+                } else if (bDate.isAfter(startOfPreviousPeriod!)) {
+                  busRoutesPrev++;
+                }
+              }
             }
           } catch (_) {}
         }
       } catch (_) {}
 
-
-      // Fetch Latest Bookings
-      List<Map<String, dynamic>> fetchedBookings = [];
       Map<String, int> fetchedCategoryCounts = {};
-      List<Map<String, dynamic>> fetchedTrends = [];
-      try {
-        final bookingsQuery = await db
-            .collection('service_bookings')
-            .orderBy('timestamp', descending: true)
-            .limit(50)
-            .get();
-            
-        int i = 0;
-        for (var doc in bookingsQuery.docs) {
-          final data = doc.data();
-          final String cat = data['service_category']?.toString() ?? 'Others';
-          fetchedCategoryCounts[cat] = (fetchedCategoryCounts[cat] ?? 0) + 1;
-          
-          if (i < 5) {
-             fetchedBookings.add({
-               'id': doc.id.substring(0, 8).toUpperCase(),
-               'customer': data['customer_name']?.toString() ?? 'Unknown',
-               'service': cat,
-               'dateTime': data['timestamp']?.toString() ?? '',
-               'status': data['status']?.toString() ?? 'Pending',
-               'amount': data['amount']?.toString() ?? data['total_amount']?.toString() ?? '₹0',
-             });
+
+      // Fetch all bookings to manually compute pending and completed counts properly
+      final allBookingsQuery = await db.collection('service_bookings').get();
+      List<Map<String, dynamic>> allBookingsList = [];
+
+      int pendingCount = 0;
+      int completedCount = 0;
+      int completedThisCount = 0;
+      int completedPrevCount = 0;
+
+      int cancelledCount = 0;
+      int cancelledThisCount = 0;
+      int cancelledPrevCount = 0;
+
+      final DateFormat dayFormatter = DateFormat('MMM d');
+      final List<DateTime> last7Days = List.generate(
+        7,
+        (i) => now.subtract(Duration(days: 6 - i)),
+      );
+      Map<String, int> dailyBookingCounts = {};
+      for (var day in last7Days) {
+        dailyBookingCounts[dayFormatter.format(day)] = 0;
+      }
+
+      for (var doc in allBookingsQuery.docs) {
+        final data = doc.data();
+
+        final String cat =
+            (data['category'] ?? data['serviceCategory'])?.toString() ??
+            'Others';
+        fetchedCategoryCounts[cat] = (fetchedCategoryCounts[cat] ?? 0) + 1;
+
+        DateTime? parsedTimestamp;
+        if (data['timestamp'] != null) {
+          if (data['timestamp'] is Timestamp) {
+            parsedTimestamp = (data['timestamp'] as Timestamp).toDate();
+          } else {
+            parsedTimestamp = DateTime.tryParse(data['timestamp'].toString());
           }
-          i++;
         }
-      } catch(e) {}
-      
-      // Fetch Products
+
+        String dateStr =
+            (data['date'] ?? data['selectedDate'])?.toString() ?? '';
+        String timeStr =
+            (data['Time'] ?? data['selectedTimeSlot'])?.toString() ?? '';
+
+        if (parsedTimestamp == null &&
+            dateStr.isNotEmpty &&
+            timeStr.isNotEmpty) {
+          try {
+            final dateParts = dateStr.split('-');
+            if (dateParts.length == 3) {
+              final year = int.parse(dateParts[2]);
+              final month = int.parse(dateParts[1]);
+              final day = int.parse(dateParts[0]);
+              final timeParsed = DateFormat(
+                'hh:mm a',
+              ).parse(timeStr.trim().toUpperCase());
+              parsedTimestamp = DateTime(
+                year,
+                month,
+                day,
+                timeParsed.hour,
+                timeParsed.minute,
+              );
+            }
+          } catch (_) {}
+        }
+
+        if (parsedTimestamp != null) {
+          final dayStr = dayFormatter.format(parsedTimestamp);
+          if (dailyBookingCounts.containsKey(dayStr)) {
+            dailyBookingCounts[dayStr] = dailyBookingCounts[dayStr]! + 1;
+          }
+        }
+
+        String status =
+            (data['booking_status'] ?? data['status'])?.toString().trim() ??
+            'Pending';
+        if (status.isNotEmpty) {
+          status = status[0].toUpperCase() + status.substring(1).toLowerCase();
+        }
+
+        String dateTimeDisplay =
+            timeStr.isNotEmpty ? "$dateStr\n$timeStr" : dateStr;
+        if (dateTimeDisplay.trim().isEmpty && parsedTimestamp != null) {
+          dateTimeDisplay = DateFormat(
+            'MMM d, yyyy\nh:mm a',
+          ).format(parsedTimestamp);
+        }
+
+        allBookingsList.add({
+          'id': doc.id.substring(0, 8).toUpperCase(),
+          'customer':
+              data['customer_name']?.toString() ??
+              data['customerName']?.toString() ??
+              'Unknown',
+          'service':
+              data['serviceName']?.toString() ??
+              data['serviceTitle']?.toString() ??
+              cat,
+          'serviceImage':
+              data['serviceImage']?.toString() ??
+              data['imageUrl']?.toString() ??
+              data['image']?.toString() ??
+              '',
+          'dateTime': dateTimeDisplay,
+          'status': status,
+          'amount':
+              data['amount']?.toString() ??
+              data['total_amount']?.toString() ??
+              data['price']?.toString() ??
+              '₹0',
+          'parsedDate': parsedTimestamp ?? DateTime.now(),
+        });
+
+        String workStatus = data['work_status']?.toString().trim() ?? 'Pending';
+        if (workStatus.isNotEmpty) {
+          workStatus =
+              workStatus[0].toUpperCase() +
+              workStatus.substring(1).toLowerCase();
+        }
+
+        String completedStatus =
+            data['completed_status']?.toString().trim() ?? '';
+        if (completedStatus.isNotEmpty) {
+          completedStatus =
+              completedStatus[0].toUpperCase() +
+              completedStatus.substring(1).toLowerCase();
+        }
+
+        if (status == 'Confirmed' &&
+            workStatus == 'Pending' &&
+            completedStatus != 'Ongoing') {
+          pendingCount++;
+        }
+
+        if (status == 'Completed' || completedStatus == 'Completed') {
+          completedCount++;
+
+          if (_selectedDateRange != null) {
+            final timestampStr = data['timestamp']?.toString() ?? '';
+            if (timestampStr.isNotEmpty) {
+              final timestamp = DateTime.tryParse(timestampStr);
+              if (timestamp != null) {
+                if (startOfThisPeriod != null && endOfThisPeriod != null) {
+                  if ((timestamp.isAfter(startOfThisPeriod) ||
+                          timestamp.isAtSameMomentAs(startOfThisPeriod)) &&
+                      timestamp.isBefore(endOfThisPeriod)) {
+                    completedThisCount++;
+                  }
+                }
+                if (startOfPreviousPeriod != null &&
+                    startOfThisPeriod != null) {
+                  if ((timestamp.isAfter(startOfPreviousPeriod) ||
+                          timestamp.isAtSameMomentAs(startOfPreviousPeriod)) &&
+                      timestamp.isBefore(startOfThisPeriod)) {
+                    completedPrevCount++;
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        if (status == 'Cancelled') {
+          cancelledCount++;
+
+          if (_selectedDateRange != null) {
+            final timestampStr = data['timestamp']?.toString() ?? '';
+            if (timestampStr.isNotEmpty) {
+              final timestamp = DateTime.tryParse(timestampStr);
+              if (timestamp != null) {
+                if (startOfThisPeriod != null && endOfThisPeriod != null) {
+                  if ((timestamp.isAfter(startOfThisPeriod) ||
+                          timestamp.isAtSameMomentAs(startOfThisPeriod)) &&
+                      timestamp.isBefore(endOfThisPeriod)) {
+                    cancelledThisCount++;
+                  }
+                }
+                if (startOfPreviousPeriod != null &&
+                    startOfThisPeriod != null) {
+                  if ((timestamp.isAfter(startOfPreviousPeriod) ||
+                          timestamp.isAtSameMomentAs(startOfPreviousPeriod)) &&
+                      timestamp.isBefore(startOfThisPeriod)) {
+                    cancelledPrevCount++;
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // Wait for all aggregation queries
+      final results = await Future.wait([
+        usersFuture, // 0
+        usersThis, // 1
+        usersPrev, // 2
+        workersFuture, // 3
+        workersThis, // 4
+        workersPrev, // 5
+        pendingFuture, // 6
+        pendingThis, // 7
+        pendingPrev, // 8
+        todayBookingsFuture, // 9
+        yesterdayBookingsFuture, // 10
+        completedFuture, // 11
+        completedThis, // 12
+        completedPrev, // 13
+        cancelledFuture, // 14
+        cancelledThis, // 15
+        cancelledPrev, // 16
+        productsFuture, // 17
+        productsThis, // 18
+        productsPrev, // 19
+        ordersFuture, // 20
+        ordersThis, // 21
+        ordersPrev, // 22
+        adsFuture, // 23
+        adsThis, // 24
+        adsPrev, // 25
+        taxiDriversFuture, // 26
+        taxiThis, // 27
+        taxiPrev, // 28
+      ]);
+
+      allBookingsList.sort(
+        (a, b) => (b['parsedDate'] as DateTime).compareTo(
+          a['parsedDate'] as DateTime,
+        ),
+      );
+
+      List<Map<String, dynamic>> fetchedBookings = [];
+      for (int i = 0; i < allBookingsList.length && i < 5; i++) {
+        fetchedBookings.add(allBookingsList[i]);
+      }
+
+      // Fetch Products (Safely process all)
       List<Map<String, dynamic>> fetchedProducts = [];
       try {
-        final productsQuery = await db
-            .collection('products')
-            .limit(5)
-            .get();
+        final productsQuery = await db.collection('products').get();
+        List<Map<String, dynamic>> allProducts = [];
         for (var doc in productsQuery.docs) {
-           final data = doc.data();
-           fetchedProducts.add({
-              'name': data['product_name']?.toString() ?? data['name']?.toString() ?? 'Product',
-              'sales': data['soldCount'] ?? data['sales'] ?? 0,
-              'revenue': data['price']?.toString() ?? '₹0',
-           });
+          final data = doc.data();
+          int sales =
+              int.tryParse(
+                data['soldCount']?.toString() ??
+                    data['sales']?.toString() ??
+                    '0',
+              ) ??
+              0;
+          allProducts.add({
+            'name':
+                data['product_name']?.toString() ??
+                data['name']?.toString() ??
+                'Product',
+            'sales': sales,
+            'revenue': data['price']?.toString() ?? '₹0',
+          });
         }
-      } catch(e) {}
+        allProducts.sort(
+          (a, b) => (b['sales'] as int).compareTo(a['sales'] as int),
+        );
+        for (int i = 0; i < allProducts.length && i < 5; i++) {
+          fetchedProducts.add(allProducts[i]);
+        }
+      } catch (e) {}
 
-      // Fetch Recent Activities
+      // Fetch Recent Activities (Users + Bookings)
       List<Map<String, dynamic>> fetchedActivities = [];
       try {
-         final usersQuery = await db.collection('users').orderBy('createdAt', descending: true).limit(3).get().catchError((e) => db.collection('users').limit(3).get());
-         for (var doc in usersQuery.docs) {
-            fetchedActivities.add({
-               'title': 'New user registered',
-               'subtitle': '${doc.data()['name'] ?? 'A user'} joined the platform',
-               'time': 'Recent',
-               'type': 'user'
-            });
-         }
-         if (fetchedBookings.isNotEmpty) {
-            for (var b in fetchedBookings.take(3)) {
-               fetchedActivities.add({
-                  'title': 'New booking received',
-                  'subtitle': 'Booking #${b['id']} received',
-                  'time': 'Recent',
-                  'type': 'booking'
-               });
-            }
-         }
-      } catch(e) {}
+        final usersQuery =
+            await db
+                .collection('users')
+                .orderBy('createdAt', descending: true)
+                .limit(10)
+                .get();
+        List<Map<String, dynamic>> allUsers = [];
+        for (var doc in usersQuery.docs) {
+          final data = doc.data();
+          DateTime? uDate;
+          if (data['createdAt'] != null) {
+            uDate =
+                (data['createdAt'] is Timestamp)
+                    ? (data['createdAt'] as Timestamp).toDate()
+                    : DateTime.tryParse(data['createdAt'].toString());
+          }
+          allUsers.add({
+            'name':
+                data['name']?.toString() ??
+                data['userName']?.toString() ??
+                'A user',
+            'date': uDate ?? DateTime.fromMillisecondsSinceEpoch(0),
+          });
+        }
+        allUsers.sort(
+          (a, b) => (b['date'] as DateTime).compareTo(a['date'] as DateTime),
+        );
+
+        for (int i = 0; i < allUsers.length && i < 3; i++) {
+          fetchedActivities.add({
+            'title': 'New user registered',
+            'subtitle': '${allUsers[i]['name']} joined the platform',
+            'time': DateFormat(
+              'MMM d, h:mm a',
+            ).format(allUsers[i]['date'] as DateTime),
+            'type': 'user',
+            'date': allUsers[i]['date'],
+          });
+        }
+
+        for (var b in fetchedBookings.take(3)) {
+          final isCancelled =
+              (b['booking_status'] ?? b['status'] ?? '')
+                  .toString()
+                  .trim()
+                  .toLowerCase() ==
+              'cancelled';
+          fetchedActivities.add({
+            'title': isCancelled ? 'Booking cancelled' : 'New booking received',
+            'subtitle':
+                isCancelled
+                    ? 'Booking #${b['id']} was cancelled'
+                    : 'Booking #${b['id']} received',
+            'time': DateFormat(
+              'MMM d, h:mm a',
+            ).format((b['parsedDate'] ?? DateTime.now()) as DateTime),
+            'type': isCancelled ? 'cancelled' : 'booking',
+            'date': b['parsedDate'] ?? DateTime.now(),
+          });
+        }
+
+        fetchedActivities.sort(
+          (a, b) => (b['date'] as DateTime).compareTo(a['date'] as DateTime),
+        );
+        if (fetchedActivities.length > 5) {
+          fetchedActivities = fetchedActivities.sublist(0, 5);
+        }
+      } catch (e) {}
+
+      List<Map<String, dynamic>> fetchedTrends = [];
+      int dayIndex = 0;
+      for (var day in last7Days) {
+        final dayStr = dayFormatter.format(day);
+        fetchedTrends.add({
+          'index': dayIndex,
+          'day': dayStr,
+          'count': dailyBookingCounts[dayStr] ?? 0,
+        });
+        dayIndex++;
+      }
+
       if (mounted) {
         setState(() {
-
           _latestBookings = fetchedBookings;
           _serviceCategoryCounts = fetchedCategoryCounts;
           _topProducts = fetchedProducts;
           _recentActivities = fetchedActivities;
+          _bookingTrends = fetchedTrends;
 
-          _totalUsers = results[0].count ?? 0;
-          _totalWorkers = results[1].count ?? 0;
-          _pendingApprovals = results[2].count ?? 0;
-          _todaysBookings = results[3].count ?? 0;
-          _completedBookings = results[4].count ?? 0;
-          _cancelledBookings = results[5].count ?? 0;
+          final bool hasDateFilter = _selectedDateRange != null;
 
-          _totalProducts = prods;
-          _totalOrders = ords;
-          _totalAdvertisements = ads;
+          _totalUsers =
+              hasDateFilter
+                  ? (results[1]?.count ?? 0)
+                  : (results[0]?.count ?? 0);
+          final ut = results[1]?.count ?? 0;
+          final up = results[2]?.count ?? 0;
+          _usersTrend = hasDateFilter ? calcTrend(ut, up) : 0.0;
+          _usersTrendPositive = _usersTrend >= 0;
+
+          _totalWorkers =
+              hasDateFilter
+                  ? (results[4]?.count ?? 0)
+                  : (results[3]?.count ?? 0);
+          final wt = results[4]?.count ?? 0;
+          final wp = results[5]?.count ?? 0;
+          _workersTrend = hasDateFilter ? calcTrend(wt, wp) : 0.0;
+          _workersTrendPositive = _workersTrend >= 0;
+
+          // User requested Pending Approvals to always show the global count from Worker Management
+          _pendingApprovals = results[6]?.count ?? 0;
+          final pt = results[7]?.count ?? 0;
+          final pp = results[8]?.count ?? 0;
+          _pendingTrend = hasDateFilter ? calcTrend(pt, pp) : 0.0;
+          _pendingTrendPositive = _pendingTrend >= 0;
+
+          _pendingBookings = pendingCount;
+          _pendingBookingsTrend = 0.0;
+          _pendingBookingsTrendPositive = true;
+
+          _completedBookings =
+              hasDateFilter ? completedThisCount : completedCount;
+          final ct = completedThisCount;
+          final cp = completedPrevCount;
+          _completedBookingsTrend = hasDateFilter ? calcTrend(ct, cp) : 0.0;
+          _completedBookingsTrendPositive = _completedBookingsTrend >= 0;
+
+          _cancelledBookings =
+              hasDateFilter ? cancelledThisCount : cancelledCount;
+          final cant = cancelledThisCount;
+          final canp = cancelledPrevCount;
+          _cancelledBookingsTrend = hasDateFilter ? calcTrend(cant, canp) : 0.0;
+          _cancelledBookingsTrendPositive = _cancelledBookingsTrend >= 0;
+
+          _revenue = hasDateFilter ? currentRevenue : totalRev;
+          _revenueTrend =
+              hasDateFilter
+                  ? calcRevenueTrend(currentRevenue, previousRevenue)
+                  : 0.0;
+          _revenueTrendPositive = _revenueTrend >= 0;
+
+          _totalProducts =
+              hasDateFilter
+                  ? (results[18]?.count ?? 0)
+                  : (results[17]?.count ?? 0);
+          final pt_ = results[18]?.count ?? 0;
+          final pp_ = results[19]?.count ?? 0;
+          _productsTrend = hasDateFilter ? calcTrend(pt_, pp_) : 0.0;
+          _productsTrendPositive = _productsTrend >= 0;
+
+          _totalOrders =
+              hasDateFilter
+                  ? (results[21]?.count ?? 0)
+                  : (results[20]?.count ?? 0);
+          final ot = results[21]?.count ?? 0;
+          final op = results[22]?.count ?? 0;
+          _ordersTrend = hasDateFilter ? calcTrend(ot, op) : 0.0;
+          _ordersTrendPositive = _ordersTrend >= 0;
+
+          _totalAdvertisements =
+              hasDateFilter
+                  ? (results[24]?.count ?? 0)
+                  : (results[23]?.count ?? 0);
+          final adt = results[24]?.count ?? 0;
+          final adp = results[25]?.count ?? 0;
+          _advertisementsTrend = hasDateFilter ? calcTrend(adt, adp) : 0.0;
+          _advertisementsTrendPositive = _advertisementsTrend >= 0;
+
+          _totalTaxiDrivers = hasDateFilter ? taxiThisCount : activeTaxiCount;
+          final tdxt = taxiThisCount;
+          final tdxp = taxiPrevCount;
+          _taxiDriversTrend = hasDateFilter ? calcTrend(tdxt, tdxp) : 0.0;
+          _taxiDriversTrendPositive = _taxiDriversTrend >= 0;
+
           _totalBusRoutes = routes;
           _totalActiveBuses = activeRoutes;
           _totalBusDistricts = busDistricts.length;
-          _totalTaxiDrivers = taxis;
+          _busRoutesTrend = calcTrend(busRoutesThis, busRoutesPrev);
+          _busRoutesTrendPositive = _busRoutesTrend >= 0;
         });
       }
     } catch (e) {
@@ -375,6 +1111,7 @@ class _DashboardState extends State<Dashboard> {
               setState(() {
                 _selectedDateRange = picked;
               });
+              _loadDashboardData();
             }
           },
           borderRadius: BorderRadius.circular(18),
@@ -541,116 +1278,122 @@ class _DashboardState extends State<Dashboard> {
   Widget _getStatsCard(int index) {
     final formatter = NumberFormat('#,##0');
 
+    String formatTrend(double trend) {
+      if (trend == 100.0) return "New";
+      if (trend == 0.0) return "0.0%";
+      return "${trend.abs().toStringAsFixed(1)}%";
+    }
+
     switch (index) {
       case 0:
         return StatsCard(
           title: "Total Users",
           value: formatter.format(_totalUsers),
-          trendPercentage: "12.5%",
+          trendPercentage: formatTrend(_usersTrend),
           trendPeriod: "from last week",
-          isPositiveTrend: true,
+          isPositiveTrend: _usersTrendPositive,
           icon: Icons.people_alt_rounded,
-          iconColor: Color(0xFF6366F1),
-          iconBgColor: Color(0xFFEEF2FF),
+          iconColor: const Color(0xFF6366F1),
+          iconBgColor: const Color(0xFFEEF2FF),
         );
       case 1:
         return StatsCard(
           title: "Total Workers",
           value: formatter.format(_totalWorkers),
-          trendPercentage: "8.3%",
+          trendPercentage: formatTrend(_workersTrend),
           trendPeriod: "from last week",
-          isPositiveTrend: true,
+          isPositiveTrend: _workersTrendPositive,
           icon: Icons.engineering_rounded,
-          iconColor: Color(0xFF10B981),
-          iconBgColor: Color(0xFFECFDF5),
+          iconColor: const Color(0xFF10B981),
+          iconBgColor: const Color(0xFFECFDF5),
         );
       case 2:
         return StatsCard(
           title: "Pending Approvals",
           value: formatter.format(_pendingApprovals),
-          trendPercentage: "5.6%",
+          trendPercentage: formatTrend(_pendingTrend),
           trendPeriod: "from last week",
-          isPositiveTrend: false,
+          isPositiveTrend: _pendingTrendPositive,
           icon: Icons.pending_actions_rounded,
-          iconColor: Color(0xFFF59E0B),
-          iconBgColor: Color(0xFFFEF3C7),
+          iconColor: const Color(0xFFF59E0B),
+          iconBgColor: const Color(0xFFFEF3C7),
         );
       case 3:
         return StatsCard(
-          title: "Today's Bookings",
-          value: formatter.format(_todaysBookings),
-          trendPercentage: "15.2%",
-          trendPeriod: "from yesterday",
-          isPositiveTrend: true,
-          icon: Icons.calendar_today_rounded,
-          iconColor: Color(0xFF3B82F6),
-          iconBgColor: Color(0xFFEFF6FF),
+          title: "Pending Bookings",
+          value: formatter.format(_pendingBookings),
+          trendPercentage: formatTrend(_pendingBookingsTrend),
+          trendPeriod: "currently pending",
+          isPositiveTrend: _pendingBookingsTrendPositive,
+          icon: Icons.hourglass_empty_rounded,
+          iconColor: const Color(0xFF3B82F6),
+          iconBgColor: const Color(0xFFEFF6FF),
         );
       case 4:
         return StatsCard(
           title: "Completed Bookings",
           value: formatter.format(_completedBookings),
-          trendPercentage: "10.1%",
+          trendPercentage: formatTrend(_completedBookingsTrend),
           trendPeriod: "from last week",
-          isPositiveTrend: true,
+          isPositiveTrend: _completedBookingsTrendPositive,
           icon: Icons.check_circle_outline_rounded,
-          iconColor: Color(0xFF10B981),
-          iconBgColor: Color(0xFFECFDF5),
+          iconColor: const Color(0xFF10B981),
+          iconBgColor: const Color(0xFFECFDF5),
         );
       case 5:
         return StatsCard(
           title: "Cancelled Bookings",
           value: formatter.format(_cancelledBookings),
-          trendPercentage: "2.4%",
+          trendPercentage: formatTrend(_cancelledBookingsTrend),
           trendPeriod: "from last week",
-          isPositiveTrend: false,
+          isPositiveTrend: _cancelledBookingsTrendPositive,
           icon: Icons.cancel_outlined,
-          iconColor: Color(0xFFEF4444),
-          iconBgColor: Color(0xFFFEF2F2),
+          iconColor: const Color(0xFFEF4444),
+          iconBgColor: const Color(0xFFFEF2F2),
         );
       case 6:
         return StatsCard(
-          title: "Revenue (This Week)",
+          title: "Paid Total Amount",
           value: "₹${formatter.format(_revenue)}",
-          trendPercentage: "18.6%",
+          trendPercentage: formatTrend(_revenueTrend),
           trendPeriod: "from last week",
-          isPositiveTrend: true,
-          icon: Icons.account_balance_wallet_rounded,
-          iconColor: Color(0xFF8B5CF6),
-          iconBgColor: Color(0xFFF5F3FF),
+          isPositiveTrend: _revenueTrendPositive,
+          icon: Icons.payments_rounded,
+          iconColor: const Color(0xFF8B5CF6),
+          iconBgColor: const Color(0xFFF5F3FF),
         );
       case 7:
         return StatsCard(
           title: "Products",
           value: formatter.format(_totalProducts),
-          trendPercentage: "7.4%",
+          trendPercentage: formatTrend(_productsTrend),
           trendPeriod: "from last week",
-          isPositiveTrend: true,
+          isPositiveTrend: _productsTrendPositive,
           icon: Icons.shopping_bag_rounded,
-          iconColor: Color(0xFF2563EB),
-          iconBgColor: Color(0xFFEFF6FF),
+          iconColor: const Color(0xFF2563EB),
+          iconBgColor: const Color(0xFFEFF6FF),
         );
       case 8:
         return StatsCard(
           title: "Orders (This Week)",
           value: formatter.format(_totalOrders),
-          trendPercentage: "13.7%",
+          trendPercentage: formatTrend(_ordersTrend),
           trendPeriod: "from last week",
-          isPositiveTrend: true,
+          isPositiveTrend: _ordersTrendPositive,
           icon: Icons.shopping_cart_rounded,
-          iconColor: Color(0xFFEA580C),
-          iconBgColor: Color(0xFFFFF7ED),
+          iconColor: const Color(0xFFEA580C),
+          iconBgColor: const Color(0xFFFFF7ED),
         );
       case 9:
         return StatsCard(
           title: "Advertisements",
           value: formatter.format(_totalAdvertisements),
-          trendPercentage: "3.2%",
+          trendPercentage: formatTrend(_advertisementsTrend),
           trendPeriod: "from last week",
-          isPositiveTrend: true,
+          isPositiveTrend: _advertisementsTrendPositive,
           icon: Icons.campaign_rounded,
-          iconColor: Color(0xFFEC4899),
-          iconBgColor: Color(0xFFFDF2F8),
+          iconColor: const Color(0xFFEC4899),
+          iconBgColor: const Color(0xFFFDF2F8),
         );
       case 10:
         return StatsCard(
@@ -658,23 +1401,23 @@ class _DashboardState extends State<Dashboard> {
           value: formatter.format(_totalBusRoutes),
           extraInfo:
               "Active: ${formatter.format(_totalActiveBuses)} | Districts: ${formatter.format(_totalBusDistricts)}",
-          trendPercentage: "4.8%",
+          trendPercentage: formatTrend(_busRoutesTrend),
           trendPeriod: "from last week",
-          isPositiveTrend: true,
+          isPositiveTrend: _busRoutesTrendPositive,
           icon: Icons.directions_bus_rounded,
-          iconColor: Color(0xFF0284C7),
-          iconBgColor: Color(0xFFF0F9FF),
+          iconColor: const Color(0xFF0284C7),
+          iconBgColor: const Color(0xFFF0F9FF),
         );
       case 11:
         return StatsCard(
-          title: "Taxi Drivers",
+          title: "Active Taxi Drivers",
           value: formatter.format(_totalTaxiDrivers),
-          trendPercentage: "6.3%",
+          trendPercentage: formatTrend(_taxiDriversTrend),
           trendPeriod: "from last week",
-          isPositiveTrend: true,
+          isPositiveTrend: _taxiDriversTrendPositive,
           icon: Icons.local_taxi_rounded,
-          iconColor: Color(0xFFEAB308),
-          iconBgColor: Color(0xFFFEFCE8),
+          iconColor: const Color(0xFFEAB308),
+          iconBgColor: const Color(0xFFFEFCE8),
         );
       default:
         return const SizedBox.shrink();
@@ -688,9 +1431,22 @@ class _DashboardState extends State<Dashboard> {
         children: [
           Expanded(flex: 4, child: BookingTrendsChart(data: _bookingTrends)),
           SizedBox(width: 24),
-          Expanded(flex: 3, child: ServiceCategoryChart(categoryCounts: _serviceCategoryCounts)),
+          Expanded(
+            flex: 3,
+            child: ServiceCategoryChart(categoryCounts: _serviceCategoryCounts),
+          ),
           SizedBox(width: 24),
-          Expanded(flex: 3, child: RecentActivitiesList(activitiesData: _recentActivities)),
+          Expanded(
+            flex: 3,
+            child: RecentActivitiesList(
+              activitiesData: _recentActivities,
+              onViewAll: () {
+                if (widget.onNavigate != null) {
+                  widget.onNavigate!("Recent Activity");
+                }
+              },
+            ),
+          ),
         ],
       );
     } else {
@@ -702,15 +1458,35 @@ class _DashboardState extends State<Dashboard> {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(child: ServiceCategoryChart(categoryCounts: _serviceCategoryCounts)),
+                Expanded(
+                  child: ServiceCategoryChart(
+                    categoryCounts: _serviceCategoryCounts,
+                  ),
+                ),
                 const SizedBox(width: 24),
-                Expanded(child: RecentActivitiesList(activitiesData: _recentActivities)),
+                Expanded(
+                  child: RecentActivitiesList(
+                    activitiesData: _recentActivities,
+                    onViewAll: () {
+                      if (widget.onNavigate != null) {
+                        widget.onNavigate!("Recent Activity");
+                      }
+                    },
+                  ),
+                ),
               ],
             )
           else ...[
             ServiceCategoryChart(categoryCounts: _serviceCategoryCounts),
             const SizedBox(height: 24),
-            RecentActivitiesList(activitiesData: _recentActivities),
+            RecentActivitiesList(
+              activitiesData: _recentActivities,
+              onViewAll: () {
+                if (widget.onNavigate != null) {
+                  widget.onNavigate!("Recent Activity");
+                }
+              },
+            ),
           ],
         ],
       );
@@ -722,15 +1498,35 @@ class _DashboardState extends State<Dashboard> {
       return Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(flex: 13, child: LatestBookingsTable(bookingsData: _latestBookings)),
+          Expanded(
+            flex: 13,
+            child: LatestBookingsTable(
+              bookingsData: _latestBookings,
+              onViewAll: () {
+                if (widget.onNavigate != null) {
+                  widget.onNavigate!("All Bookings");
+                }
+              },
+            ),
+          ),
           SizedBox(width: 24),
-          Expanded(flex: 7, child: TopSellingProducts(productsData: _topProducts)),
+          Expanded(
+            flex: 7,
+            child: TopSellingProducts(productsData: _topProducts),
+          ),
         ],
       );
     } else {
       return Column(
         children: [
-          LatestBookingsTable(bookingsData: _latestBookings),
+          LatestBookingsTable(
+            bookingsData: _latestBookings,
+            onViewAll: () {
+              if (widget.onNavigate != null) {
+                widget.onNavigate!("All Bookings");
+              }
+            },
+          ),
           SizedBox(height: 24),
           TopSellingProducts(productsData: _topProducts),
         ],
@@ -881,10 +1677,16 @@ class StatsCard extends StatelessWidget {
   }
 }
 
-class BookingTrendsChart extends StatelessWidget {
+class BookingTrendsChart extends StatefulWidget {
   final List<Map<String, dynamic>> data;
   const BookingTrendsChart({super.key, required this.data});
 
+  @override
+  State<BookingTrendsChart> createState() => _BookingTrendsChartState();
+}
+
+class _BookingTrendsChartState extends State<BookingTrendsChart> {
+  String selectedFilter = 'This Week';
 
   @override
   Widget build(BuildContext context) {
@@ -910,32 +1712,69 @@ class BookingTrendsChart extends StatelessWidget {
                   color: const Color(0xFF1E293B),
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
+              PopupMenuButton<String>(
+                onSelected: (value) {
+                  setState(() {
+                    selectedFilter = value;
+                  });
+                  // Note: Data fetching needs to be wired up here in the future
+                },
+                offset: const Offset(0, 40),
+                shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
                 ),
-                child: Row(
-                  children: [
-                    Text(
-                      "This Week",
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: const Color(0xFF64748B),
+                color: Colors.white,
+                itemBuilder:
+                    (context) => [
+                      PopupMenuItem(
+                        value: 'This Week',
+                        child: Text(
+                          'This Week',
+                          style: GoogleFonts.inter(fontSize: 13),
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 4),
-                    const Icon(
-                      Icons.keyboard_arrow_down_rounded,
-                      size: 16,
-                      color: Color(0xFF64748B),
-                    ),
-                  ],
+                      PopupMenuItem(
+                        value: 'This Month',
+                        child: Text(
+                          'This Month',
+                          style: GoogleFonts.inter(fontSize: 13),
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: 'This Year',
+                        child: Text(
+                          'This Year',
+                          style: GoogleFonts.inter(fontSize: 13),
+                        ),
+                      ),
+                    ],
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: Row(
+                    children: [
+                      Text(
+                        selectedFilter,
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: const Color(0xFF64748B),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      const Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        size: 16,
+                        color: Color(0xFF64748B),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -989,40 +1828,20 @@ class BookingTrendsChart extends StatelessWidget {
                       reservedSize: 32,
                       interval: 1,
                       getTitlesWidget: (value, meta) {
-                        String text = '';
-                        switch (value.toInt()) {
-                          case 0:
-                            text = 'May 12';
-                            break;
-                          case 1:
-                            text = 'May 13';
-                            break;
-                          case 2:
-                            text = 'May 14';
-                            break;
-                          case 3:
-                            text = 'May 15';
-                            break;
-                          case 4:
-                            text = 'May 16';
-                            break;
-                          case 5:
-                            text = 'May 17';
-                            break;
-                          case 6:
-                            text = 'May 18';
-                            break;
-                        }
-                        return SideTitleWidget(
-                          meta: meta,
-                          child: Text(
-                            text,
-                            style: GoogleFonts.inter(
-                              fontSize: 11,
-                              color: const Color(0xFF94A3B8),
+                        final index = value.toInt();
+                        if (index >= 0 && index < widget.data.length) {
+                          return SideTitleWidget(
+                            meta: meta,
+                            child: Text(
+                              widget.data[index]['day'],
+                              style: GoogleFonts.inter(
+                                fontSize: 11,
+                                color: const Color(0xFF94A3B8),
+                              ),
                             ),
-                          ),
-                        );
+                          );
+                        }
+                        return const SizedBox.shrink();
                       },
                     ),
                   ),
@@ -1031,18 +1850,29 @@ class BookingTrendsChart extends StatelessWidget {
                 minX: 0,
                 maxX: 6,
                 minY: 0,
-                maxY: 1000,
+                maxY:
+                    (() {
+                      if (widget.data.isEmpty) return 10.0;
+                      double maxVal = widget.data.fold<double>(
+                        0.0,
+                        (prev, e) =>
+                            (e['count'] as int).toDouble() > prev
+                                ? (e['count'] as int).toDouble()
+                                : prev,
+                      );
+                      return maxVal < 10.0 ? 10.0 : maxVal * 1.2;
+                    })(),
                 lineBarsData: [
                   LineChartBarData(
-                    spots: const [
-                      FlSpot(0, 480),
-                      FlSpot(1, 450),
-                      FlSpot(2, 620),
-                      FlSpot(3, 320),
-                      FlSpot(4, 600),
-                      FlSpot(5, 480),
-                      FlSpot(6, 750),
-                    ],
+                    spots:
+                        widget.data
+                            .map(
+                              (e) => FlSpot(
+                                (e['index'] as int).toDouble(),
+                                (e['count'] as int).toDouble(),
+                              ),
+                            )
+                            .toList(),
                     isCurved: true,
                     color: const Color(0xFF10B981),
                     barWidth: 3,
@@ -1074,10 +1904,8 @@ class ServiceCategoryChart extends StatelessWidget {
   final Map<String, int> categoryCounts;
   const ServiceCategoryChart({super.key, required this.categoryCounts});
 
-
   @override
   Widget build(BuildContext context) {
-    
     final List<Color> colors = [
       const Color(0xFF10B981),
       const Color(0xFF3B82F6),
@@ -1087,7 +1915,7 @@ class ServiceCategoryChart extends StatelessWidget {
       const Color(0xFFEC4899),
       const Color(0xFF64748B),
     ];
-    
+
     int total = categoryCounts.values.fold(0, (sum, val) => sum + val);
     List<_ServiceData> data = [];
     if (total == 0) {
@@ -1100,7 +1928,6 @@ class ServiceCategoryChart extends StatelessWidget {
         i++;
       });
     }
-
 
     return Container(
       height: 360,
@@ -1197,33 +2024,56 @@ class _ServiceData {
 
 class RecentActivitiesList extends StatelessWidget {
   final List<Map<String, dynamic>> activitiesData;
-  const RecentActivitiesList({super.key, required this.activitiesData});
+  final VoidCallback? onViewAll;
 
+  const RecentActivitiesList({
+    super.key,
+    required this.activitiesData,
+    this.onViewAll,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final activities = activitiesData.map((d) {
-      bool isUser = d['type'] == 'user';
-      return _ActivityItem(
-        title: d['title'] ?? '',
-        subtitle: d['subtitle'] ?? '',
-        time: d['time'] ?? 'Recent',
-        icon: isUser ? Icons.person_add_rounded : Icons.calendar_today_rounded,
-        color: isUser ? const Color(0xFF6366F1) : const Color(0xFF10B981),
-        bgColor: isUser ? const Color(0xFFEEF2FF) : const Color(0xFFECFDF5),
-      );
-    }).toList();
+    final activities =
+        activitiesData.map((d) {
+          bool isUser = d['type'] == 'user';
+          bool isCancelled = d['type'] == 'cancelled';
+          return _ActivityItem(
+            title: d['title'] ?? '',
+            subtitle: d['subtitle'] ?? '',
+            time: d['time'] ?? 'Recent',
+            icon:
+                isUser
+                    ? Icons.person_add_rounded
+                    : isCancelled
+                    ? Icons.cancel_rounded
+                    : Icons.calendar_today_rounded,
+            color:
+                isUser
+                    ? const Color(0xFF6366F1)
+                    : isCancelled
+                    ? const Color(0xFFEF4444)
+                    : const Color(0xFF10B981),
+            bgColor:
+                isUser
+                    ? const Color(0xFFEEF2FF)
+                    : isCancelled
+                    ? const Color(0xFFFEF2F2)
+                    : const Color(0xFFECFDF5),
+          );
+        }).toList();
     if (activities.isEmpty) {
-       activities.add(_ActivityItem(
+      activities.add(
+        _ActivityItem(
           title: "No recent activities",
           subtitle: "Waiting for new actions",
           time: "-",
           icon: Icons.hourglass_empty,
           color: Colors.grey,
           bgColor: Colors.grey.shade200,
-       ));
+        ),
+      );
     }
-
 
     return Container(
       height: 360,
@@ -1248,7 +2098,7 @@ class RecentActivitiesList extends StatelessWidget {
                 ),
               ),
               TextButton(
-                onPressed: () {},
+                onPressed: onViewAll,
                 style: TextButton.styleFrom(
                   padding: EdgeInsets.zero,
                   minimumSize: Size.zero,
@@ -1352,24 +2202,32 @@ class _ActivityItem {
 
 class LatestBookingsTable extends StatelessWidget {
   final List<Map<String, dynamic>> bookingsData;
-  const LatestBookingsTable({super.key, required this.bookingsData});
+  final VoidCallback? onViewAll;
 
+  const LatestBookingsTable({
+    super.key,
+    required this.bookingsData,
+    this.onViewAll,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final bookings = bookingsData.map((d) {
-      // formatting date safely if it's ISO string
-      String dt = d['dateTime'] ?? '';
-      if (dt.contains('T')) dt = dt.split('T')[0] + ' ' + dt.split('T')[1].substring(0, 5);
-      return _BookingRow(
-        "#${d['id']}",
-        d['customer'] ?? 'Unknown',
-        d['service'] ?? 'Service',
-        dt,
-        d['status'] ?? 'Pending',
-        "${d['amount']}",
-      );
-    }).toList();
+    final bookings =
+        bookingsData.map((d) {
+          // formatting date safely if it's ISO string
+          String dt = d['dateTime'] ?? '';
+          if (dt.contains('T'))
+            dt = dt.split('T')[0] + ' ' + dt.split('T')[1].substring(0, 5);
+          return _BookingRow(
+            "#${d['id']}",
+            d['customer'] ?? 'Unknown',
+            d['service'] ?? 'Service',
+            d['serviceImage'] ?? '',
+            dt,
+            d['status'] ?? 'Pending',
+            "${d['amount']}",
+          );
+        }).toList();
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -1392,13 +2250,8 @@ class LatestBookingsTable extends StatelessWidget {
                   color: const Color(0xFF1E293B),
                 ),
               ),
-              TextButton(
-                onPressed: () {},
-                style: TextButton.styleFrom(
-                  padding: EdgeInsets.zero,
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
+              InkWell(
+                onTap: onViewAll,
                 child: Text(
                   "View All",
                   style: GoogleFonts.inter(
@@ -1456,59 +2309,219 @@ class LatestBookingsTable extends StatelessWidget {
                       children: [
                         Padding(
                           padding: const EdgeInsets.symmetric(vertical: 12.0),
-                          child: Text(
-                            booking.id,
-                            style: GoogleFonts.inter(
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
-                              color: const Color(0xFF3B82F6),
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              booking.id,
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: const Color(0xFF3B82F6),
+                              ),
                             ),
                           ),
                         ),
-                        Text(
-                          booking.customer,
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            color: const Color(0xFF1E293B),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            booking.customer,
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              color: const Color(0xFF1E293B),
+                            ),
                           ),
                         ),
-                        Text(
-                          booking.service,
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            color: const Color(0xFF475569),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 32,
+                                height: 32,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(6),
+                                  color: const Color(0xFFF1F5F9),
+                                  image:
+                                      booking.serviceImage.isNotEmpty
+                                          ? DecorationImage(
+                                            image: NetworkImage(
+                                              booking.serviceImage,
+                                            ),
+                                            fit: BoxFit.cover,
+                                          )
+                                          : null,
+                                ),
+                                child:
+                                    booking.serviceImage.isEmpty
+                                        ? const Icon(
+                                          Icons.cleaning_services,
+                                          size: 16,
+                                          color: Color(0xFF94A3B8),
+                                        )
+                                        : null,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  booking.service,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 13,
+                                    color: const Color(0xFF475569),
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        Text(
-                          booking.dateTime,
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            color: const Color(0xFF64748B),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            booking.dateTime,
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              color: const Color(0xFF64748B),
+                            ),
                           ),
                         ),
-                        _buildStatusBadge(booking.status),
-                        Text(
-                          booking.amount,
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: const Color(0xFF1E293B),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: _buildStatusBadge(booking.status),
+                        ),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            booking.amount,
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFF1E293B),
+                            ),
                           ),
                         ),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.visibility_outlined,
-                            size: 18,
-                            color: Color(0xFF64748B),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: IconButton(
+                            icon: const Icon(
+                              Icons.visibility_outlined,
+                              size: 18,
+                              color: Color(0xFF64748B),
+                            ),
+                            onPressed: () {
+                              _showBookingDetailsDialog(context, booking);
+                            },
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
                           ),
-                          onPressed: () {},
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
                         ),
                       ],
                     );
                   }),
                 ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showBookingDetailsDialog(BuildContext context, _BookingRow booking) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          title: Text(
+            "Booking ${booking.id}",
+            style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 18),
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (booking.serviceImage.isNotEmpty)
+                  Center(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.network(
+                        booking.serviceImage,
+                        height: 120,
+                        width: 120,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  )
+                else
+                  Center(
+                    child: Container(
+                      height: 120,
+                      width: 120,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.cleaning_services,
+                        size: 48,
+                        color: Color(0xFF94A3B8),
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 16),
+                _buildDetailRow("Customer", booking.customer),
+                _buildDetailRow("Service", booking.service),
+                _buildDetailRow(
+                  "Date & Time",
+                  booking.dateTime.replaceAll('\n', ' '),
+                ),
+                _buildDetailRow("Amount", booking.amount),
+                _buildDetailRow("Status", booking.status),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(
+                "Close",
+                style: GoogleFonts.inter(color: const Color(0xFF3B82F6)),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(
+              label,
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFF64748B),
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                color: const Color(0xFF1E293B),
+                fontWeight: FontWeight.w500,
               ),
             ),
           ),
@@ -1539,6 +2552,10 @@ class LatestBookingsTable extends StatelessWidget {
       case "Pending":
         bgColor = const Color(0xFFFEF3C7);
         textColor = const Color(0xFFD97706);
+        break;
+      case "Confirmed":
+        bgColor = const Color(0xFFD1FAE5);
+        textColor = const Color(0xFF059669);
         break;
       case "Assigned":
         bgColor = const Color(0xFFE0F2FE);
@@ -1584,6 +2601,7 @@ class _BookingRow {
   final String id;
   final String customer;
   final String service;
+  final String serviceImage;
   final String dateTime;
   final String status;
   final String amount;
@@ -1592,6 +2610,7 @@ class _BookingRow {
     this.id,
     this.customer,
     this.service,
+    this.serviceImage,
     this.dateTime,
     this.status,
     this.amount,
@@ -1602,12 +2621,14 @@ class TopSellingProducts extends StatelessWidget {
   final List<Map<String, dynamic>> productsData;
   const TopSellingProducts({super.key, required this.productsData});
 
-
   @override
   Widget build(BuildContext context) {
-    
     final List<Color> bgColors = [
-      Colors.green[50]!, Colors.amber[50]!, Colors.orange[50]!, Colors.yellow[50]!, Colors.teal[50]!
+      Colors.green[50]!,
+      Colors.amber[50]!,
+      Colors.orange[50]!,
+      Colors.yellow[50]!,
+      Colors.teal[50]!,
     ];
     final products = List.generate(productsData.length, (i) {
       final d = productsData[i];
@@ -1619,9 +2640,10 @@ class TopSellingProducts extends StatelessWidget {
       );
     });
     if (products.isEmpty) {
-       products.add(_ProductItem("No products found", 0, "₹0", Colors.grey[50]!));
+      products.add(
+        _ProductItem("No products found", 0, "₹0", Colors.grey[50]!),
+      );
     }
-
 
     return Container(
       padding: const EdgeInsets.all(20),

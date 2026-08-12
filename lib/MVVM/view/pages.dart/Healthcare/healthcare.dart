@@ -603,10 +603,15 @@ class _HealthcarePageState extends State<HealthcarePage> {
               onChanged: (val) => setState(() => _searchQuery = val),
               decoration: InputDecoration(
                 hintText: 'Search by name, facility or phone...',
-                prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                prefixIcon: const Icon(
+                  Icons.search,
+                  color: Colors.grey,
+                  size: 20,
+                ),
+                isDense: true,
                 contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
+                  horizontal: 12,
+                  vertical: 10,
                 ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -625,9 +630,10 @@ class _HealthcarePageState extends State<HealthcarePage> {
             child: DropdownButtonFormField<String>(
               value: _selectedStatus,
               decoration: InputDecoration(
+                isDense: true,
                 contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
+                  horizontal: 12,
+                  vertical: 10,
                 ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -656,9 +662,10 @@ class _HealthcarePageState extends State<HealthcarePage> {
             child: DropdownButtonFormField<String>(
               value: _selectedType,
               decoration: InputDecoration(
+                isDense: true,
                 contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
+                  horizontal: 12,
+                  vertical: 10,
                 ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -687,9 +694,10 @@ class _HealthcarePageState extends State<HealthcarePage> {
             child: DropdownButtonFormField<String>(
               value: _selectedCity,
               decoration: InputDecoration(
+                isDense: true,
                 contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
+                  horizontal: 12,
+                  vertical: 10,
                 ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -899,7 +907,8 @@ class _HealthcarePageState extends State<HealthcarePage> {
                   Transform.scale(
                     scale: 0.8,
                     child: Switch(
-                      value: data['status']?.toString().toLowerCase() == 'active',
+                      value:
+                          data['status']?.toString().toLowerCase() == 'active',
                       onChanged: (val) {
                         FirebaseFirestore.instance
                             .collection('healthcare')
@@ -1115,14 +1124,14 @@ class _HealthcarePageState extends State<HealthcarePage> {
         scrollDirection: Axis.horizontal,
         child: DataTable(
           headingRowColor: MaterialStateProperty.all(Colors.white),
-          headingRowHeight: 54,
+          headingRowHeight: 48,
           headingTextStyle: GoogleFonts.inter(
             fontWeight: FontWeight.w600,
             color: const Color(0xFF64748B),
-            fontSize: 15,
+            fontSize: 14,
           ),
           dataRowMinHeight: 40,
-          dataRowMaxHeight: 75,
+          dataRowMaxHeight: 64,
           columnSpacing: 24,
           horizontalMargin: 24,
           dividerThickness: 1,

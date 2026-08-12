@@ -308,55 +308,8 @@ class _LoginpageState extends State<Loginpage>
               ),
             ),
           ),
-          const SizedBox(height: 16),
 
           // Remember Me and Forgot Password
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: Checkbox(
-                      value: true, // Dummy value for UI
-                      onChanged: (v) {},
-                      activeColor: const Color(0xFFFFC107),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Remember me',
-                    style: GoogleFonts.inter(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: const Color(0xFF0F172A),
-                    ),
-                  ),
-                ],
-              ),
-              TextButton(
-                onPressed: () {},
-                style: TextButton.styleFrom(
-                  padding: EdgeInsets.zero,
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                child: Text(
-                  'Forgot password?',
-                  style: GoogleFonts.inter(
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                    color: const Color(0xFF2563EB), // Blue color from mockup
-                  ),
-                ),
-              ),
-            ],
-          ),
           const SizedBox(height: 32),
 
           // Login button
@@ -533,7 +486,11 @@ class _LoginpageState extends State<Loginpage>
       SnackBar(
         content: Row(
           children: [
-            const Icon(Icons.error_outline, color: const Color(0xFFFFC107), size: 18),
+            const Icon(
+              Icons.error_outline,
+              color: const Color(0xFFFFC107),
+              size: 18,
+            ),
             const SizedBox(width: 10),
             Expanded(
               child: Text(message, style: GoogleFonts.inter(fontSize: 13)),

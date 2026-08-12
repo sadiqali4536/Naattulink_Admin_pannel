@@ -13,18 +13,13 @@ class PreferencesSettingsPage extends StatefulWidget {
 
 class _PreferencesSettingsPageState extends State<PreferencesSettingsPage> {
   String selectedTab = "General";
-  bool maintenanceMode = false;
   bool isLoading = true;
 
   final TextEditingController _supportEmailController = TextEditingController();
   final TextEditingController _supportPhoneController = TextEditingController();
-  final TextEditingController _adminEmailController = TextEditingController();
-  final TextEditingController _adminPhoneController = TextEditingController();
-  final TextEditingController _officeAddressController =
-      TextEditingController();
-  final TextEditingController _maintenanceMessageController =
-      TextEditingController();
   final TextEditingController _appVersionController = TextEditingController();
+  final TextEditingController _iosAppVersionController =
+      TextEditingController();
   final TextEditingController _platformNameController = TextEditingController();
   final TextEditingController _platformTaglineController =
       TextEditingController();
@@ -33,16 +28,42 @@ class _PreferencesSettingsPageState extends State<PreferencesSettingsPage> {
   String _lastUpdated = 'Never';
 
   String appVersion = 'Loading...';
-  String _initialAppVersion = '1.0.0';
+
+  // Original states for tracking unsaved changes
+  String _origSupportEmail = '';
+  String _origSupportPhone = '';
+  String _origLanguage = 'English';
+  String _origTimezone = 'Asia/Kolkata (GMT +05:30)';
+  String _origAppVersion = '';
+  String _origIosAppVersion = '';
+
+  bool maintenanceMode = false;
+  final TextEditingController _maintenanceMessageController =
+      TextEditingController();
+  bool _origMaintenanceMode = false;
+  String _origMaintenanceMessage = '';
+
+  // Saving states
+  bool _isSavingGeneral = false;
+  bool _isSavingMaintenance = false;
+
+  bool get hasGeneralChanges =>
+      _supportEmailController.text != _origSupportEmail ||
+      _supportPhoneController.text != _origSupportPhone ||
+      _defaultLanguage != _origLanguage ||
+      _timezone != _origTimezone ||
+      _appVersionController.text != _origAppVersion ||
+      _iosAppVersionController.text != _origIosAppVersion;
 
   final List<String> tabs = ["General"];
 
   @override
   void initState() {
     super.initState();
-    _appVersionController.addListener(() {
-      setState(() {});
-    });
+    _appVersionController.addListener(() => setState(() {}));
+    _iosAppVersionController.addListener(() => setState(() {}));
+    _supportEmailController.addListener(() => setState(() {}));
+    _supportPhoneController.addListener(() => setState(() {}));
     _loadSettings();
   }
 
@@ -62,40 +83,35 @@ class _PreferencesSettingsPageState extends State<PreferencesSettingsPage> {
               .get();
       if (doc.exists && doc.data() != null) {
         final data = doc.data()!;
-        _supportEmailController.text =
-            data['supportEmail'] ?? 'support@naattulink.com';
-        _supportPhoneController.text =
-            data['supportPhone'] ?? '+91 98765 43210';
-        _adminEmailController.text =
-            data['adminEmail'] ?? 'admin@naattulink.com';
-        _adminPhoneController.text = data['adminPhone'] ?? '+91 98765 12345';
-        _officeAddressController.text =
-            data['officeAddress'] ??
-            'NaattuLink Admin Office, 2nd Floor, Kinfra Techno Park,\nKozhikode, Kerala, India - 673016';
-        maintenanceMode = data['maintenanceMode'] ?? false;
-        _maintenanceMessageController.text =
-            data['maintenanceMessage'] ??
-            'We are currently performing scheduled\nmaintenance. Please try again later.';
-        _appVersionController.text = data['appVersion'] ?? '1.0.0';
-        _initialAppVersion = _appVersionController.text;
+        _origSupportEmail = data['supportEmail'] ?? 'support@naattulink.com';
+        _origSupportPhone = data['supportPhone'] ?? '+91 98765 43210';
+        _origAppVersion = data['appVersion'] ?? '1.0.0';
+        _origIosAppVersion = data['iosAppVersion'] ?? '1.0.0';
+        _origLanguage = data['defaultLanguage'] ?? 'English';
+        _origTimezone = data['timezone'] ?? 'Asia/Kolkata (GMT +05:30)';
+
+        _platformNameController.text = data['platformName'] ?? 'NaattuLink';
+        _platformTaglineController.text =
+            data['platformTagline'] ?? 'Your City, One App';
       } else {
+        _origSupportEmail = 'support@naattulink.com';
+        _origSupportPhone = '+91 98765 43210';
+        _origAppVersion = '1.0.0';
+        _origIosAppVersion = '1.0.0';
+        _origLanguage = 'English';
+        _origTimezone = 'Asia/Kolkata (GMT +05:30)';
+
         _platformNameController.text = 'NaattuLink';
         _platformTaglineController.text = 'Your City, One App';
-        _defaultLanguage = 'English';
-        _timezone = 'Asia/Kolkata (GMT +05:30)';
         _lastUpdated = 'Never';
-        _supportEmailController.text = 'support@naattulink.com';
-        _supportPhoneController.text = '+91 98765 43210';
-        _adminEmailController.text = 'admin@naattulink.com';
-        _adminPhoneController.text = '+91 98765 12345';
-        _officeAddressController.text =
-            'NaattuLink Admin Office, 2nd Floor, Kinfra Techno Park,\nKozhikode, Kerala, India - 673016';
-        maintenanceMode = false;
-        _maintenanceMessageController.text =
-            'We are currently performing scheduled\nmaintenance. Please try again later.';
-        _appVersionController.text = '1.0.0';
-        _initialAppVersion = '1.0.0';
       }
+
+      _supportEmailController.text = _origSupportEmail;
+      _supportPhoneController.text = _origSupportPhone;
+      _appVersionController.text = _origAppVersion;
+      _iosAppVersionController.text = _origIosAppVersion;
+      _defaultLanguage = _origLanguage;
+      _timezone = _origTimezone;
     } catch (e) {
       debugPrint('Error loading settings: $e');
     }
@@ -108,11 +124,9 @@ class _PreferencesSettingsPageState extends State<PreferencesSettingsPage> {
     _platformTaglineController.dispose();
     _supportEmailController.dispose();
     _supportPhoneController.dispose();
-    _adminEmailController.dispose();
-    _adminPhoneController.dispose();
-    _officeAddressController.dispose();
-    _maintenanceMessageController.dispose();
     _appVersionController.dispose();
+    _iosAppVersionController.dispose();
+    _maintenanceMessageController.dispose();
     super.dispose();
   }
 
@@ -172,37 +186,73 @@ class _PreferencesSettingsPageState extends State<PreferencesSettingsPage> {
     );
   }
 
-  Future<void> _saveSettings() async {
+  Future<void> _saveGeneralSettings() async {
+    setState(() => _isSavingGeneral = true);
     try {
       await FirebaseFirestore.instance
           .collection('platform_settings')
           .doc('general')
           .set({
-            'platformName': _platformNameController.text,
-            'platformTagline': _platformTaglineController.text,
-            'defaultLanguage': _defaultLanguage,
-            'timezone': _timezone,
-            'lastUpdated': FieldValue.serverTimestamp(),
             'supportEmail': _supportEmailController.text,
             'supportPhone': _supportPhoneController.text,
-            'adminEmail': _adminEmailController.text,
-            'adminPhone': _adminPhoneController.text,
-            'officeAddress': _officeAddressController.text,
-            'maintenanceMode': maintenanceMode,
-            'maintenanceMessage': _maintenanceMessageController.text,
+            'defaultLanguage': _defaultLanguage,
+            'timezone': _timezone,
             'appVersion': _appVersionController.text,
+            'iosAppVersion': _iosAppVersionController.text,
+            'lastUpdated': FieldValue.serverTimestamp(),
           }, SetOptions(merge: true));
       if (mounted) {
+        setState(() {
+          _origSupportEmail = _supportEmailController.text;
+          _origSupportPhone = _supportPhoneController.text;
+          _origLanguage = _defaultLanguage;
+          _origTimezone = _timezone;
+          _origAppVersion = _appVersionController.text;
+          _origIosAppVersion = _iosAppVersionController.text;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Settings saved successfully')),
+          const SnackBar(content: Text('General settings saved successfully')),
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error saving settings: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error saving general settings: $e')),
+        );
       }
+    } finally {
+      if (mounted) setState(() => _isSavingGeneral = false);
+    }
+  }
+
+  Future<void> _saveMaintenance() async {
+    setState(() => _isSavingMaintenance = true);
+    try {
+      await FirebaseFirestore.instance
+          .collection('platform_settings')
+          .doc('general')
+          .set({
+            'maintenanceMode': maintenanceMode,
+            'maintenanceMessage': _maintenanceMessageController.text,
+            'lastUpdated': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+      if (mounted) {
+        setState(() {
+          _origMaintenanceMode = maintenanceMode;
+          _origMaintenanceMessage = _maintenanceMessageController.text;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Site maintenance saved successfully')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error saving site maintenance: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSavingMaintenance = false);
     }
   }
 
@@ -217,60 +267,16 @@ class _PreferencesSettingsPageState extends State<PreferencesSettingsPage> {
             Text(
               'Settings',
               style: TextStyle(
-                fontSize: 24,
+                fontSize: 28,
                 fontWeight: FontWeight.bold,
-                color: Color(0xFF1E293B),
+                color: Color(0xFF0F172A),
+                letterSpacing: -0.5,
               ),
             ),
-            SizedBox(height: 4),
+            SizedBox(height: 8),
             Text(
               'Manage your platform preferences and configurations',
-              style: TextStyle(fontSize: 14, color: Colors.grey),
-            ),
-          ],
-        ),
-        Row(
-          children: [
-            OutlinedButton.icon(
-              onPressed: () {},
-              icon: const Icon(Icons.refresh, color: Colors.black87, size: 20),
-              label: const Text(
-                'Discard Changes',
-                style: TextStyle(color: Colors.black87),
-              ),
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Colors.black12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-            ),
-            const SizedBox(width: 16),
-            ElevatedButton.icon(
-              onPressed: _saveSettings,
-              icon: const Icon(
-                Icons.save_outlined,
-                color: Color(0xFF1E293B),
-                size: 20,
-              ),
-              label: const Text(
-                'Save Changes',
-                style: TextStyle(
-                  color: Color(0xFF1E293B),
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFFFC107), // Theme yellow
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 16,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                elevation: 0,
-              ),
+              style: TextStyle(fontSize: 15, color: Color(0xFF64748B)),
             ),
           ],
         ),
@@ -281,7 +287,7 @@ class _PreferencesSettingsPageState extends State<PreferencesSettingsPage> {
   Widget _buildTabs() {
     return Container(
       decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: Colors.black12, width: 1)),
+        border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1)),
       ),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
@@ -293,13 +299,16 @@ class _PreferencesSettingsPageState extends State<PreferencesSettingsPage> {
                   onTap: () => setState(() => selectedTab = tab),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
+                      horizontal: 20,
+                      vertical: 14,
                     ),
                     decoration: BoxDecoration(
                       border: Border(
                         bottom: BorderSide(
-                          color: isSelected ? Colors.green : Colors.transparent,
+                          color:
+                              isSelected
+                                  ? const Color(0xFFFFC107)
+                                  : Colors.transparent,
                           width: 2,
                         ),
                       ),
@@ -307,10 +316,13 @@ class _PreferencesSettingsPageState extends State<PreferencesSettingsPage> {
                     child: Text(
                       tab,
                       style: TextStyle(
-                        color: isSelected ? Colors.green : Colors.black54,
+                        color:
+                            isSelected
+                                ? const Color(0xFF0F172A)
+                                : const Color(0xFF64748B),
                         fontWeight:
-                            isSelected ? FontWeight.w600 : FontWeight.normal,
-                        fontSize: 14,
+                            isSelected ? FontWeight.w600 : FontWeight.w500,
+                        fontSize: 15,
                       ),
                     ),
                   ),
@@ -322,42 +334,33 @@ class _PreferencesSettingsPageState extends State<PreferencesSettingsPage> {
   }
 
   Widget _buildLeftColumn() {
-    return Column(
-      children: [
-        _buildGeneralInfoCard(),
-        const SizedBox(height: 24),
-        _buildAdminContactCard(),
-      ],
-    );
+    return Column(children: [_buildGeneralInfoCard()]);
   }
 
   Widget _buildRightColumn() {
-    return Column(
-      children: [
-        _buildSiteMaintenanceCard(),
-        const SizedBox(height: 24),
-        _buildPlatformStatusCard(),
-        const SizedBox(height: 24),
-        _buildDangerZoneCard(),
-      ],
-    );
+    return Column(children: [_buildPlatformStatusCard()]);
   }
 
   Widget _buildCard({required Widget child}) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.black12.withOpacity(0.05)),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.02),
+            color: const Color(0xFF0F172A).withOpacity(0.04),
+            blurRadius: 30,
+            offset: const Offset(0, 10),
+          ),
+          BoxShadow(
+            color: const Color(0xFF0F172A).withOpacity(0.02),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
         ],
+        border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
       child: child,
     );
@@ -371,9 +374,16 @@ class _PreferencesSettingsPageState extends State<PreferencesSettingsPage> {
     Color iconColor,
   ) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: iconBgColor,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, color: iconColor, size: 22),
+        ),
+        const SizedBox(width: 16),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -381,26 +391,18 @@ class _PreferencesSettingsPageState extends State<PreferencesSettingsPage> {
               Text(
                 title,
                 style: const TextStyle(
-                  fontSize: 16,
+                  fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: Color(0xFF1E293B),
+                  color: Color(0xFF0F172A),
                 ),
               ),
               const SizedBox(height: 4),
               Text(
                 subtitle,
-                style: const TextStyle(fontSize: 13, color: Colors.grey),
+                style: const TextStyle(fontSize: 14, color: Color(0xFF64748B)),
               ),
             ],
           ),
-        ),
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: iconBgColor,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(icon, color: iconColor, size: 24),
         ),
       ],
     );
@@ -417,7 +419,11 @@ class _PreferencesSettingsPageState extends State<PreferencesSettingsPage> {
       children: [
         Text(
           label,
-          style: const TextStyle(fontSize: 12, color: Colors.black87),
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF334155),
+          ),
         ),
         const SizedBox(height: 8),
         TextFormField(
@@ -425,23 +431,31 @@ class _PreferencesSettingsPageState extends State<PreferencesSettingsPage> {
           maxLines: maxLines,
           readOnly: readOnly,
           style: TextStyle(
-            fontSize: 13,
-            color: readOnly ? Colors.black54 : Colors.black87,
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: readOnly ? const Color(0xFF94A3B8) : const Color(0xFF0F172A),
           ),
           decoration: InputDecoration(
             filled: readOnly,
-            fillColor: readOnly ? Colors.grey.shade100 : null,
+            fillColor: readOnly ? const Color(0xFFF8F9FA) : Colors.white,
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 16,
-              vertical: 12,
+              vertical: 16,
             ),
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: Colors.black12),
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
             ),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: Colors.black12),
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(
+                color: Color(0xFF4F46E5),
+                width: 1.5,
+              ),
             ),
           ),
         ),
@@ -455,20 +469,28 @@ class _PreferencesSettingsPageState extends State<PreferencesSettingsPage> {
       children: [
         Text(
           label,
-          style: const TextStyle(fontSize: 12, color: Colors.black87),
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF334155),
+          ),
         ),
         const SizedBox(height: 8),
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           decoration: BoxDecoration(
-            color: Colors.grey.shade100,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.black12),
+            color: const Color(0xFFF8F9FA),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
           ),
           child: Text(
             value,
-            style: const TextStyle(fontSize: 13, color: Colors.black54),
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: Color(0xFF94A3B8),
+            ),
           ),
         ),
       ],
@@ -486,7 +508,11 @@ class _PreferencesSettingsPageState extends State<PreferencesSettingsPage> {
       children: [
         Text(
           label,
-          style: const TextStyle(fontSize: 12, color: Colors.black87),
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF334155),
+          ),
         ),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
@@ -494,24 +520,40 @@ class _PreferencesSettingsPageState extends State<PreferencesSettingsPage> {
           decoration: InputDecoration(
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 16,
-              vertical: 12,
+              vertical: 16,
             ),
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: Colors.black12),
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
             ),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: Colors.black12),
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(
+                color: Color(0xFF4F46E5),
+                width: 1.5,
+              ),
             ),
           ),
-          style: const TextStyle(fontSize: 13, color: Colors.black87),
-          icon: const Icon(Icons.keyboard_arrow_down, size: 18),
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: Color(0xFF0F172A),
+          ),
+          icon: const Icon(
+            Icons.keyboard_arrow_down,
+            size: 20,
+            color: Color(0xFF64748B),
+          ),
+          dropdownColor: Colors.white,
           items:
               items.map((String item) {
                 return DropdownMenuItem<String>(
                   value: item,
-                  child: Text(item, style: const TextStyle(fontSize: 13)),
+                  child: Text(item, style: const TextStyle(fontSize: 14)),
                 );
               }).toList(),
           onChanged: (_) {},
@@ -529,8 +571,8 @@ class _PreferencesSettingsPageState extends State<PreferencesSettingsPage> {
             'General Information',
             'Update your platform basic information.',
             Icons.computer,
-            Colors.green.shade50,
-            Colors.green,
+            const Color(0xFFFFF8E1), // Light amber background
+            const Color(0xFF1E293B), // Dark slate icon for contrast
           ),
           const SizedBox(height: 24),
           Row(
@@ -589,189 +631,62 @@ class _PreferencesSettingsPageState extends State<PreferencesSettingsPage> {
             children: [
               Expanded(
                 child: _buildTextField(
-                  'Required Client App Version',
+                  'Android App Version',
                   _appVersionController,
                 ),
               ),
               const SizedBox(width: 16),
               Expanded(
-                child:
-                    _appVersionController.text != _initialAppVersion
-                        ? Align(
-                          alignment: Alignment.centerLeft,
-                          child: ElevatedButton.icon(
-                            onPressed: () async {
-                              final newVersion =
-                                  _appVersionController.text.trim();
-                              if (newVersion.isEmpty) {
-                                if (mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'Please enter a valid App Version',
-                                      ),
-                                    ),
-                                  );
-                                }
-                                return;
-                              }
-
-                              try {
-                                await FirebaseFirestore.instance
-                                    .collection('platform_settings')
-                                    .doc('general')
-                                    .set({
-                                      'appVersion': newVersion,
-                                    }, SetOptions(merge: true));
-                                setState(() {
-                                  _initialAppVersion = newVersion;
-                                  _appVersionController.text =
-                                      newVersion; // ensures trimmed text is set
-                                });
-                                if (mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'App version updated successfully',
-                                      ),
-                                    ),
-                                  );
-                                }
-                              } catch (e) {
-                                if (mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text('Error: $e')),
-                                  );
-                                }
-                              }
-                            },
-                            icon: const Icon(Icons.check, size: 18),
-                            label: const Text('Save Version'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.green,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 12,
-                              ),
-                            ),
-                          ),
-                        )
-                        : const SizedBox(),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAdminContactCard() {
-    return _buildCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildSectionHeader(
-            'Admin Contact Details',
-            'These details will be used for important communications.',
-            Icons.person_outline,
-            Colors.blue.shade50,
-            Colors.blue,
-          ),
-          const SizedBox(height: 24),
-          Row(
-            children: [
-              Expanded(
-                child: _buildTextField('Admin Email', _adminEmailController),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: _buildTextField('Admin Phone', _adminPhoneController),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          _buildTextField(
-            'Office Address',
-            _officeAddressController,
-            maxLines: 2,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSiteMaintenanceCard() {
-    return _buildCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Site Maintenance',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF1E293B),
-            ),
-          ),
-          const SizedBox(height: 4),
-          const Text(
-            'Enable maintenance mode to restrict\naccess to the platform.',
-            style: TextStyle(fontSize: 13, color: Colors.grey),
-          ),
-          const SizedBox(height: 24),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Maintenance Mode',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    SizedBox(height: 4),
-                    Text(
-                      'When enabled, only admins can access\nthe platform.',
-                      style: TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
-                  ],
+                child: _buildTextField(
+                  'iOS App Version',
+                  _iosAppVersionController,
                 ),
               ),
-              Switch(
-                value: maintenanceMode,
-                onChanged: (val) => setState(() => maintenanceMode = val),
-                activeColor: Colors.green,
-              ),
             ],
           ),
-          const SizedBox(height: 16),
-          _buildTextField(
-            'Maintenance Message',
-            _maintenanceMessageController,
-            maxLines: 2,
-          ),
-          const SizedBox(height: 16),
-          ElevatedButton(
-            onPressed: _saveSettings,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF10B981),
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(6),
+          if (hasGeneralChanges) ...[
+            const SizedBox(height: 16),
+            Align(
+              alignment: Alignment.centerRight,
+              child: ElevatedButton.icon(
+                onPressed: _isSavingGeneral ? null : _saveGeneralSettings,
+                icon:
+                    _isSavingGeneral
+                        ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            color: Colors.black,
+                            strokeWidth: 2,
+                          ),
+                        )
+                        : const Icon(
+                          Icons.save_outlined,
+                          color: Colors.black,
+                          size: 18,
+                        ),
+                label: Text(
+                  _isSavingGeneral ? 'Saving...' : 'Save Changes',
+                  style: const TextStyle(
+                    color: Colors.black,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFFFC107),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  elevation: 0,
+                ),
               ),
-              elevation: 0,
             ),
-            child: const Text(
-              'Save',
-              style: TextStyle(color: Colors.white, fontSize: 13),
-            ),
-          ),
+          ],
         ],
       ),
     );
@@ -782,27 +697,21 @@ class _PreferencesSettingsPageState extends State<PreferencesSettingsPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          _buildSectionHeader(
             'Platform Status',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF1E293B),
-            ),
+            'Monitor the current status of the system.',
+            Icons.speed_outlined,
+            const Color(0xFFFFF8E1), // Light amber background
+            const Color(0xFF1E293B), // Dark slate icon for contrast
           ),
           const SizedBox(height: 24),
-          const SizedBox(height: 24),
-          _buildStatusRow(
-            'Current Status',
-            maintenanceMode ? 'Maintenance' : 'Online',
-            !maintenanceMode,
-          ),
+          _buildStatusRowText('Support Email', _origSupportEmail),
           const SizedBox(height: 16),
-          _buildStatusRowText('Last Updated', _lastUpdated),
+          _buildStatusRowText('Support Phone', _origSupportPhone),
           const SizedBox(height: 16),
-          _buildStatusRowText('Version', appVersion),
-
+          _buildStatusRowText('Android Version', _origAppVersion),
           const SizedBox(height: 16),
+          _buildStatusRowText('iOS Version', _origIosAppVersion),
         ],
       ),
     );
@@ -885,45 +794,6 @@ class _PreferencesSettingsPageState extends State<PreferencesSettingsPage> {
           ],
         ),
       ],
-    );
-  }
-
-  Widget _buildDangerZoneCard() {
-    return _buildCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Danger Zone',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF1E293B),
-            ),
-          ),
-          const SizedBox(height: 4),
-          const Text(
-            'This action will reset all settings to default values.',
-            style: TextStyle(fontSize: 13, color: Colors.grey),
-          ),
-          const SizedBox(height: 16),
-          OutlinedButton.icon(
-            onPressed: () {},
-            icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
-            label: const Text(
-              'Reset All Settings',
-              style: TextStyle(color: Colors.red, fontSize: 13),
-            ),
-            style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              side: const BorderSide(color: Colors.red),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(6),
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 

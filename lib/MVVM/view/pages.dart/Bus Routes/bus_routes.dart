@@ -678,9 +678,10 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
                 hintText: 'Search by bus name, reg no, or places...',
                 hintStyle: const TextStyle(color: Colors.black38, fontSize: 14),
                 prefixIcon: const Icon(Icons.search, color: Colors.black38),
+                isDense: true,
                 contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
+                  horizontal: 12,
+                  vertical: 10,
                 ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -778,14 +779,14 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
         scrollDirection: Axis.horizontal,
         child: DataTable(
           headingRowColor: MaterialStateProperty.all(Colors.white),
-          headingRowHeight: 54,
+          headingRowHeight: 48,
           headingTextStyle: GoogleFonts.inter(
             fontWeight: FontWeight.w600,
             color: const Color(0xFF64748B),
-            fontSize: 15,
+            fontSize: 14,
           ),
-          dataRowMinHeight: 70,
-          dataRowMaxHeight: 75,
+          dataRowMinHeight: 56,
+          dataRowMaxHeight: 64,
           columnSpacing: 24,
           horizontalMargin: 24,
           dividerThickness: 1,

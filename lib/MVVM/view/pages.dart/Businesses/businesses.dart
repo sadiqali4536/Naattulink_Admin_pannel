@@ -18,6 +18,7 @@ class _BusinessesPageState extends State<BusinessesPage> {
   String _searchQuery = '';
   Set<String> _selectedBusinessIds = {};
   final ScrollController _verticalScrollController = ScrollController();
+  final ScrollController _horizontalScrollController = ScrollController();
   late Stream<QuerySnapshot> _businessesStream;
 
   @override
@@ -30,6 +31,7 @@ class _BusinessesPageState extends State<BusinessesPage> {
   @override
   void dispose() {
     _verticalScrollController.dispose();
+    _horizontalScrollController.dispose();
     super.dispose();
   }
 
@@ -37,179 +39,188 @@ class _BusinessesPageState extends State<BusinessesPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
-      body: SingleChildScrollView(
+      body: Scrollbar(
         controller: _verticalScrollController,
-        padding: const EdgeInsets.all(24.0),
-        child: StreamBuilder<QuerySnapshot>(
-          stream: _businessesStream,
-          builder: (context, snapshot) {
-            if (snapshot.hasError) {
-              return const Center(child: Text('Something went wrong'));
-            }
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(
-                child: CircularProgressIndicator(
-                  color: const Color(0xFFFFC107),
-                ),
-              );
-            }
+        thumbVisibility: true,
+        child: SingleChildScrollView(
+          controller: _verticalScrollController,
+          padding: const EdgeInsets.all(24.0),
+          child: StreamBuilder<QuerySnapshot>(
+            stream: _businessesStream,
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return const Center(child: Text('Something went wrong'));
+              }
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(
+                  child: CircularProgressIndicator(
+                    color: const Color(0xFFFFC107),
+                  ),
+                );
+              }
 
-            final docs = snapshot.data?.docs ?? [];
-            final activeCount =
-                docs.where((d) {
-                  final status =
-                      (d.data() as Map<String, dynamic>)['status']
-                          ?.toString()
-                          .toLowerCase();
-                  return status == 'active' || status == 'approved';
-                }).length;
-
-            final inactiveCount =
-                docs.where((d) {
-                  final status =
-                      (d.data() as Map<String, dynamic>)['status']
-                          ?.toString()
-                          .toLowerCase();
-                  return status == 'inactive' ||
-                      status == 'pending' ||
-                      status == 'suspended';
-                }).length;
-
-            var filteredDocs = docs;
-            if (_selectedStatus != 'All Status' ||
-                _selectedType != 'All Types' ||
-                _searchQuery.isNotEmpty) {
-              filteredDocs =
+              final docs = snapshot.data?.docs ?? [];
+              final activeCount =
                   docs.where((d) {
-                    final data = d.data() as Map<String, dynamic>;
                     final status =
-                        data['status']?.toString().toLowerCase() ?? '';
-                    final type = data['business_category']?.toString() ?? '';
+                        (d.data() as Map<String, dynamic>)['status']
+                            ?.toString()
+                            .toLowerCase();
+                    return status == 'active' || status == 'approved';
+                  }).length;
 
-                    bool statusMatches = true;
-                    if (_selectedStatus == 'Active')
-                      statusMatches =
-                          (status == 'active' || status == 'approved');
-                    else if (_selectedStatus == 'Inactive')
-                      statusMatches =
-                          (status == 'inactive' ||
-                              status == 'pending' ||
-                              status == 'suspended');
+              final inactiveCount =
+                  docs.where((d) {
+                    final status =
+                        (d.data() as Map<String, dynamic>)['status']
+                            ?.toString()
+                            .toLowerCase();
+                    return status == 'inactive' ||
+                        status == 'pending' ||
+                        status == 'suspended';
+                  }).length;
 
-                    bool typeMatches = true;
-                    if (_selectedType != 'All Types')
-                      typeMatches =
-                          (type.toLowerCase() == _selectedType.toLowerCase());
+              var filteredDocs = docs;
+              if (_selectedStatus != 'All Status' ||
+                  _selectedType != 'All Types' ||
+                  _searchQuery.isNotEmpty) {
+                filteredDocs =
+                    docs.where((d) {
+                      final data = d.data() as Map<String, dynamic>;
+                      final status =
+                          data['status']?.toString().toLowerCase() ?? '';
+                      final type = data['business_category']?.toString() ?? '';
 
-                    bool searchMatches = true;
-                    if (_searchQuery.isNotEmpty) {
-                      final searchLower = _searchQuery.toLowerCase();
-                      final name =
-                          data['username']?.toString().toLowerCase() ?? '';
-                      final business =
-                          data['business_name']?.toString().toLowerCase() ?? '';
-                      final phone =
-                          data['phone']?.toString().toLowerCase() ?? '';
-                      final address =
-                          data['address']?.toString().toLowerCase() ?? '';
-                      final category =
-                          data['business_category']?.toString().toLowerCase() ??
-                          '';
-                      searchMatches =
-                          name.contains(searchLower) ||
-                          business.contains(searchLower) ||
-                          phone.contains(searchLower) ||
-                          address.contains(searchLower) ||
-                          category.contains(searchLower);
-                    }
+                      bool statusMatches = true;
+                      if (_selectedStatus == 'Active')
+                        statusMatches =
+                            (status == 'active' || status == 'approved');
+                      else if (_selectedStatus == 'Inactive')
+                        statusMatches =
+                            (status == 'inactive' ||
+                                status == 'pending' ||
+                                status == 'suspended');
 
-                    return statusMatches && typeMatches && searchMatches;
-                  }).toList();
-            }
+                      bool typeMatches = true;
+                      if (_selectedType != 'All Types')
+                        typeMatches =
+                            (type.toLowerCase() == _selectedType.toLowerCase());
 
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildHeader(
-                  filteredDocs,
-                  activeCount,
-                  inactiveCount,
-                  docs.length,
-                ),
-                const SizedBox(height: 24),
-                if (_selectedBusinessIds.isNotEmpty)
+                      bool searchMatches = true;
+                      if (_searchQuery.isNotEmpty) {
+                        final searchLower = _searchQuery.toLowerCase();
+                        final name =
+                            data['username']?.toString().toLowerCase() ?? '';
+                        final business =
+                            data['business_name']?.toString().toLowerCase() ??
+                            '';
+                        final phone =
+                            data['phone']?.toString().toLowerCase() ?? '';
+                        final address =
+                            data['address']?.toString().toLowerCase() ?? '';
+                        final category =
+                            data['business_category']
+                                ?.toString()
+                                .toLowerCase() ??
+                            '';
+                        searchMatches =
+                            name.contains(searchLower) ||
+                            business.contains(searchLower) ||
+                            phone.contains(searchLower) ||
+                            address.contains(searchLower) ||
+                            category.contains(searchLower);
+                      }
+
+                      return statusMatches && typeMatches && searchMatches;
+                    }).toList();
+              }
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildHeader(
+                    filteredDocs,
+                    activeCount,
+                    inactiveCount,
+                    docs.length,
+                  ),
+                  const SizedBox(height: 24),
+                  if (_selectedBusinessIds.isNotEmpty)
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 24),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.blue.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          Text(
+                            '${_selectedBusinessIds.length} businesses selected',
+                            style: TextStyle(
+                              color: Colors.blue.shade700,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const Spacer(),
+                          TextButton.icon(
+                            onPressed: () {
+                              for (var id in _selectedBusinessIds) {
+                                _deleteBusiness(id);
+                              }
+                              setState(() {
+                                _selectedBusinessIds.clear();
+                              });
+                            },
+                            icon: const Icon(Icons.delete, color: Colors.red),
+                            label: const Text(
+                              'Delete Selected',
+                              style: TextStyle(color: Colors.red),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            onPressed: () {
+                              setState(() {
+                                _selectedBusinessIds.clear();
+                              });
+                            },
+                            icon: const Icon(Icons.close),
+                            tooltip: 'Clear Selection',
+                          ),
+                        ],
+                      ),
+                    ),
+                  _buildFilters(docs),
+                  const SizedBox(height: 24),
                   Container(
-                    margin: const EdgeInsets.only(bottom: 24),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
                     decoration: BoxDecoration(
-                      color: Colors.blue.shade50,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.blue.shade200),
-                    ),
-                    child: Row(
-                      children: [
-                        Text(
-                          '${_selectedBusinessIds.length} businesses selected',
-                          style: TextStyle(
-                            color: Colors.blue.shade700,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const Spacer(),
-                        TextButton.icon(
-                          onPressed: () {
-                            for (var id in _selectedBusinessIds) {
-                              _deleteBusiness(id);
-                            }
-                            setState(() {
-                              _selectedBusinessIds.clear();
-                            });
-                          },
-                          icon: const Icon(Icons.delete, color: Colors.red),
-                          label: const Text(
-                            'Delete Selected',
-                            style: TextStyle(color: Colors.red),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        IconButton(
-                          onPressed: () {
-                            setState(() {
-                              _selectedBusinessIds.clear();
-                            });
-                          },
-                          icon: const Icon(Icons.close),
-                          tooltip: 'Clear Selection',
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: Colors.black12.withOpacity(0.05),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.02),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
                         ),
                       ],
                     ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [_buildDataTable(filteredDocs)],
+                    ),
                   ),
-                _buildFilters(docs),
-                const SizedBox(height: 24),
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.black12.withOpacity(0.05)),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.02),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [_buildDataTable(filteredDocs)],
-                  ),
-                ),
-              ],
-            );
-          },
+                ],
+              );
+            },
+          ),
         ),
       ),
     );
@@ -422,20 +433,29 @@ class _BusinessesPageState extends State<BusinessesPage> {
             flex: 2,
             child: TextField(
               onChanged: (val) => setState(() => _searchQuery = val),
+              style: const TextStyle(color: Color(0xFF1E293B), fontSize: 12),
               decoration: InputDecoration(
+                filled: true,
+                fillColor: Colors.white,
                 hintText: 'Search by name, business or phone...',
-                prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+                suffixIcon: const Icon(Icons.search, color: Color(0xFF94A3B8), size: 16),
+                isDense: true,
                 contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
+                  horizontal: 12,
+                  vertical: 8,
                 ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: Colors.black12),
+                  borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: Colors.black12),
+                  borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
                 ),
               ),
             ),
@@ -446,24 +466,31 @@ class _BusinessesPageState extends State<BusinessesPage> {
             child: DropdownButtonFormField<String>(
               value: _selectedStatus,
               decoration: InputDecoration(
+                filled: true,
+                fillColor: Colors.white,
+                isDense: true,
                 contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
+                  horizontal: 12,
+                  vertical: 8,
                 ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: Colors.black12),
+                  borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: Colors.black12),
+                  borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
                 ),
               ),
               items:
                   ['All Status', 'Active', 'Inactive'].map((String value) {
                     return DropdownMenuItem<String>(
                       value: value,
-                      child: Text(value),
+                      child: Text(value, style: const TextStyle(fontSize: 14)),
                     );
                   }).toList(),
               onChanged: (val) {
@@ -477,24 +504,31 @@ class _BusinessesPageState extends State<BusinessesPage> {
             child: DropdownButtonFormField<String>(
               value: _selectedType,
               decoration: InputDecoration(
+                filled: true,
+                fillColor: Colors.white,
+                isDense: true,
                 contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
+                  horizontal: 12,
+                  vertical: 8,
                 ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: Colors.black12),
+                  borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: Colors.black12),
+                  borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
                 ),
               ),
               items:
                   ['All Types', ...categoryList].map((String value) {
                     return DropdownMenuItem<String>(
                       value: value,
-                      child: Text(value),
+                      child: Text(value, style: const TextStyle(fontSize: 14)),
                     );
                   }).toList(),
               onChanged: (val) {
@@ -508,277 +542,284 @@ class _BusinessesPageState extends State<BusinessesPage> {
   }
 
   Widget _buildDataTable(List<QueryDocumentSnapshot> docs) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: DataTable(
-        headingRowColor: MaterialStateProperty.all(Colors.white),
-        headingRowHeight: 54,
-        headingTextStyle: GoogleFonts.inter(
-          fontWeight: FontWeight.w600,
-          color: const Color(0xFF64748B),
-          fontSize: 15,
-        ),
-        dataRowMinHeight: 70,
-        dataRowMaxHeight: 75,
-        columnSpacing: 24,
-        horizontalMargin: 24,
-        dividerThickness: 1,
-        columns: [
-          DataColumn(
-            label: Row(
-              children: [
-                Checkbox(
-                  value:
-                      docs.isNotEmpty &&
-                      _selectedBusinessIds.length == docs.length,
-                  onChanged: (val) {
-                    setState(() {
-                      if (val == true) {
-                        _selectedBusinessIds = docs.map((d) => d.id).toSet();
-                      } else {
-                        _selectedBusinessIds.clear();
-                      }
-                    });
-                  },
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  side: const BorderSide(color: Colors.black26),
-                ),
-                const SizedBox(width: 8),
-                const Text('Owner Details'),
-              ],
-            ),
+    return Scrollbar(
+      controller: _horizontalScrollController,
+      thumbVisibility: true,
+      child: SingleChildScrollView(
+        controller: _horizontalScrollController,
+        scrollDirection: Axis.horizontal,
+        child: DataTable(
+          headingRowColor: MaterialStateProperty.all(Colors.white),
+          headingRowHeight: 48,
+          headingTextStyle: GoogleFonts.inter(
+            fontWeight: FontWeight.w600,
+            color: const Color(0xFF64748B),
+            fontSize: 14,
           ),
-          const DataColumn(label: Text('Phone')),
-          const DataColumn(label: Text('Business Name')),
-          const DataColumn(label: Text('Category')),
-          const DataColumn(label: Text('Address')),
-          const DataColumn(label: Text('Joined On')),
-          const DataColumn(label: Text('Status')),
-          const DataColumn(label: Text('Actions')),
-        ],
-        rows:
-            docs.map((doc) {
-              final data = doc.data() as Map<String, dynamic>;
-              String name =
-                  data['username']?.toString() ??
-                  data['name']?.toString() ??
-                  'Unknown';
-              String dateString = 'N/A';
-              if (data['created_at'] != null) {
-                try {
-                  if (data['created_at'] is Timestamp) {
-                    dateString = DateFormat(
-                      'dd MMM yyyy',
-                    ).format((data['created_at'] as Timestamp).toDate());
-                  } else if (data['created_at'] is String) {
-                    dateString = DateFormat(
-                      'dd MMM yyyy',
-                    ).format(DateTime.parse(data['created_at']));
-                  }
-                } catch (_) {}
-              }
+          dataRowMinHeight: 56,
+          dataRowMaxHeight: 64,
+          columnSpacing: 24,
+          horizontalMargin: 24,
+          dividerThickness: 1,
+          columns: [
+            DataColumn(
+              label: Row(
+                children: [
+                  Checkbox(
+                    value:
+                        docs.isNotEmpty &&
+                        _selectedBusinessIds.length == docs.length,
+                    onChanged: (val) {
+                      setState(() {
+                        if (val == true) {
+                          _selectedBusinessIds = docs.map((d) => d.id).toSet();
+                        } else {
+                          _selectedBusinessIds.clear();
+                        }
+                      });
+                    },
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    side: const BorderSide(color: Colors.black26),
+                  ),
+                  const SizedBox(width: 8),
+                  const Text('Owner Details'),
+                ],
+              ),
+            ),
+            const DataColumn(label: Text('Phone')),
+            const DataColumn(label: Text('Business Name')),
+            const DataColumn(label: Text('Category')),
+            const DataColumn(label: Text('Address')),
+            const DataColumn(label: Text('Joined On')),
+            const DataColumn(label: Text('Status')),
+            const DataColumn(label: Text('Actions')),
+          ],
+          rows:
+              docs.map((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                String name =
+                    data['username']?.toString() ??
+                    data['name']?.toString() ??
+                    'Unknown';
+                String dateString = 'N/A';
+                if (data['created_at'] != null) {
+                  try {
+                    if (data['created_at'] is Timestamp) {
+                      dateString = DateFormat(
+                        'dd MMM yyyy',
+                      ).format((data['created_at'] as Timestamp).toDate());
+                    } else if (data['created_at'] is String) {
+                      dateString = DateFormat(
+                        'dd MMM yyyy',
+                      ).format(DateTime.parse(data['created_at']));
+                    }
+                  } catch (_) {}
+                }
 
-              return DataRow(
-                cells: [
-                  DataCell(
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Checkbox(
-                          value: _selectedBusinessIds.contains(doc.id),
-                          onChanged: (val) {
-                            setState(() {
-                              if (val == true) {
-                                _selectedBusinessIds.add(doc.id);
-                              } else {
-                                _selectedBusinessIds.remove(doc.id);
-                              }
-                            });
-                          },
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          side: const BorderSide(color: Colors.black26),
-                        ),
-                        const SizedBox(width: 8),
-                        CircleAvatar(
-                          radius: 16,
-                          backgroundColor: Colors.purple.shade100,
-                          child: Text(
-                            name.isNotEmpty ? name[0].toUpperCase() : '?',
-                            style: const TextStyle(
-                              color: Colors.purple,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        SizedBox(
-                          width: 150,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                name,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 13,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                'Email: ${data['email']?.toString() ?? 'N/A'}',
-                                style: const TextStyle(
-                                  color: Colors.grey,
-                                  fontSize: 11,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                'ID: ${doc.id.length > 6 ? doc.id.substring(0, 6) : doc.id} | ${data['isVerified'] == 1 ? "Verified" : "Unverified"}',
-                                style: const TextStyle(
-                                  color: Colors.grey,
-                                  fontSize: 11,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  DataCell(
-                    SizedBox(
-                      width: 100,
-                      child: Text(
-                        data['phone']?.toString() ?? 'N/A',
-                        style: const TextStyle(fontSize: 13),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ),
-                  DataCell(
-                    SizedBox(
-                      width: 150,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
+                return DataRow(
+                  cells: [
+                    DataCell(
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(
-                            data['business_name']?.toString() ?? 'N/A',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w500,
-                              fontSize: 13,
+                          Checkbox(
+                            value: _selectedBusinessIds.contains(doc.id),
+                            onChanged: (val) {
+                              setState(() {
+                                if (val == true) {
+                                  _selectedBusinessIds.add(doc.id);
+                                } else {
+                                  _selectedBusinessIds.remove(doc.id);
+                                }
+                              });
+                            },
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(4),
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                            side: const BorderSide(color: Colors.black26),
                           ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Contact: ${data['contact_number']?.toString() ?? 'N/A'}',
-                            style: const TextStyle(
-                              color: Colors.grey,
-                              fontSize: 12,
+                          const SizedBox(width: 8),
+                          CircleAvatar(
+                            radius: 16,
+                            backgroundColor: Colors.purple.shade100,
+                            child: Text(
+                              name.isNotEmpty ? name[0].toUpperCase() : '?',
+                              style: const TextStyle(
+                                color: Colors.purple,
+                                fontSize: 14,
+                              ),
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(width: 12),
+                          SizedBox(
+                            width: 150,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  name,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Email: ${data['email']?.toString() ?? 'N/A'}',
+                                  style: const TextStyle(
+                                    color: Colors.grey,
+                                    fontSize: 11,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'ID: ${doc.id.length > 6 ? doc.id.substring(0, 6) : doc.id} | ${data['isVerified'] == 1 ? "Verified" : "Unverified"}',
+                                  style: const TextStyle(
+                                    color: Colors.grey,
+                                    fontSize: 11,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
                           ),
                         ],
                       ),
                     ),
-                  ),
-                  DataCell(
-                    SizedBox(
-                      width: 120,
-                      child: Text(
-                        data['business_category']?.toString() ?? 'N/A',
-                        style: const TextStyle(fontSize: 13),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                    DataCell(
+                      SizedBox(
+                        width: 100,
+                        child: Text(
+                          data['phone']?.toString() ?? 'N/A',
+                          style: const TextStyle(fontSize: 13),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                     ),
-                  ),
-                  DataCell(
-                    SizedBox(
-                      width: 150,
-                      child: Text(
-                        data['address']?.toString() ?? 'N/A',
-                        style: const TextStyle(fontSize: 13),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
+                    DataCell(
+                      SizedBox(
+                        width: 150,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              data['business_name']?.toString() ?? 'N/A',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w500,
+                                fontSize: 13,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Contact: ${data['contact_number']?.toString() ?? 'N/A'}',
+                              style: const TextStyle(
+                                color: Colors.grey,
+                                fontSize: 12,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                  DataCell(
-                    SizedBox(
-                      width: 100,
-                      child: Text(
-                        dateString,
-                        style: const TextStyle(fontSize: 13),
+                    DataCell(
+                      SizedBox(
+                        width: 120,
+                        child: Text(
+                          data['business_category']?.toString() ?? 'N/A',
+                          style: const TextStyle(fontSize: 13),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                     ),
-                  ),
-                  DataCell(
-                    _buildStatusBadge(data['status']?.toString() ?? 'Pending'),
-                  ),
-                  DataCell(
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Transform.scale(
-                          scale: 0.8,
-                          child: Switch(
-                            value:
-                                data['status']?.toString().toLowerCase() ==
-                                'active',
-                            onChanged: (val) {
-                              FirebaseFirestore.instance
-                                  .collection('businesses')
-                                  .doc(doc.id)
-                                  .update({
-                                    'status': val ? 'active' : 'inactive',
-                                  });
-                            },
-                            activeColor: Colors.green,
-                          ),
+                    DataCell(
+                      SizedBox(
+                        width: 150,
+                        child: Text(
+                          data['address']?.toString() ?? 'N/A',
+                          style: const TextStyle(fontSize: 13),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(width: 4),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.edit_outlined,
-                            color: Colors.blue,
-                            size: 18,
-                          ),
-                          onPressed: () => _showBusinessDialog(document: doc),
-                          constraints: const BoxConstraints(),
-                          padding: const EdgeInsets.all(4),
-                        ),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.delete_outline,
-                            color: Colors.red,
-                            size: 18,
-                          ),
-                          onPressed: () => _deleteBusiness(doc.id),
-                          constraints: const BoxConstraints(),
-                          padding: const EdgeInsets.all(4),
-                        ),
-                      ],
+                      ),
                     ),
-                  ),
-                ],
-              );
-            }).toList(),
+                    DataCell(
+                      SizedBox(
+                        width: 100,
+                        child: Text(
+                          dateString,
+                          style: const TextStyle(fontSize: 13),
+                        ),
+                      ),
+                    ),
+                    DataCell(
+                      _buildStatusBadge(
+                        data['status']?.toString() ?? 'Pending',
+                      ),
+                    ),
+                    DataCell(
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Transform.scale(
+                            scale: 0.8,
+                            child: Switch(
+                              value:
+                                  data['status']?.toString().toLowerCase() ==
+                                  'active',
+                              onChanged: (val) {
+                                FirebaseFirestore.instance
+                                    .collection('businesses')
+                                    .doc(doc.id)
+                                    .update({
+                                      'status': val ? 'active' : 'inactive',
+                                    });
+                              },
+                              activeColor: Colors.green,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          IconButton(
+                            icon: const Icon(
+                              Icons.edit_outlined,
+                              color: Colors.blue,
+                              size: 18,
+                            ),
+                            onPressed: () => _showBusinessDialog(document: doc),
+                            constraints: const BoxConstraints(),
+                            padding: const EdgeInsets.all(4),
+                          ),
+                          IconButton(
+                            icon: const Icon(
+                              Icons.delete_outline,
+                              color: Colors.red,
+                              size: 18,
+                            ),
+                            onPressed: () => _deleteBusiness(doc.id),
+                            constraints: const BoxConstraints(),
+                            padding: const EdgeInsets.all(4),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              }).toList(),
+        ),
       ),
     );
   }

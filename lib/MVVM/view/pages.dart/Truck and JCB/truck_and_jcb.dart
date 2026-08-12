@@ -566,10 +566,11 @@ class _TruckAndJcbPageState extends State<TruckAndJcbPage> {
                 fillColor: Colors.white,
                 hintText: 'Search by name, phone or license number...',
                 hintStyle: const TextStyle(color: Colors.black38, fontSize: 14),
-                prefixIcon: const Icon(Icons.search, color: Colors.black38),
+                prefixIcon: const Icon(Icons.search, color: Colors.black38, size: 20),
+                isDense: true,
                 contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
+                  horizontal: 12,
+                  vertical: 10,
                 ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -596,9 +597,10 @@ class _TruckAndJcbPageState extends State<TruckAndJcbPage> {
               dropdownColor: Colors.white,
               value: _selectedStatus,
               decoration: InputDecoration(
+                isDense: true,
                 contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
+                  horizontal: 12,
+                  vertical: 10,
                 ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -628,9 +630,10 @@ class _TruckAndJcbPageState extends State<TruckAndJcbPage> {
               dropdownColor: Colors.white,
               value: _selectedType,
               decoration: InputDecoration(
+                isDense: true,
                 contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
+                  horizontal: 12,
+                  vertical: 10,
                 ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -660,9 +663,10 @@ class _TruckAndJcbPageState extends State<TruckAndJcbPage> {
               dropdownColor: Colors.white,
               value: _selectedCity,
               decoration: InputDecoration(
+                isDense: true,
                 contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
+                  horizontal: 12,
+                  vertical: 10,
                 ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -699,14 +703,14 @@ class _TruckAndJcbPageState extends State<TruckAndJcbPage> {
         scrollDirection: Axis.horizontal,
         child: DataTable(
           headingRowColor: MaterialStateProperty.all(Colors.white),
-          headingRowHeight: 54,
+          headingRowHeight: 48,
           headingTextStyle: GoogleFonts.inter(
             fontWeight: FontWeight.w600,
             color: const Color(0xFF64748B),
-            fontSize: 15,
+            fontSize: 14,
           ),
-          dataRowMinHeight: 70,
-          dataRowMaxHeight: 75,
+          dataRowMinHeight: 56,
+          dataRowMaxHeight: 64,
           columnSpacing: 24,
           horizontalMargin: 24,
           dividerThickness: 1,

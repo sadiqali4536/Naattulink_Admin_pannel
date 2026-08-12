@@ -635,10 +635,36 @@ class _PaymentPageState extends State<PaymentPage> {
             child: CircularProgressIndicator(color: const Color(0xFFFFC107)),
           );
         }
+        double totalAmount = 0.0;
+        double paidAmount = 0.0;
+        double refundedAmount = 0.0;
+        int totalCount = 0;
+        int paidCount = 0;
+        int refundedCount = 0;
+
         if (snapshot.hasData) {
           transactions =
               snapshot.data!.docs.map((doc) {
                 var data = doc.data() as Map<String, dynamic>;
+                final String amtStr = data['amount']?.toString() ?? '0';
+                final double amt =
+                    double.tryParse(
+                      amtStr.replaceAll(RegExp(r'[^0-9.]'), ''),
+                    ) ??
+                    0.0;
+                final String status =
+                    data['status']?.toString().toLowerCase() ?? '';
+
+                totalAmount += amt;
+                totalCount++;
+
+                if (status == 'paid') {
+                  paidAmount += amt;
+                  paidCount++;
+                } else if (status == 'refund') {
+                  refundedAmount += amt;
+                  refundedCount++;
+                }
                 String formattedDate = '';
                 String formattedTime = '';
                 if (data['createdAt'] is Timestamp) {
@@ -725,37 +751,30 @@ class _PaymentPageState extends State<PaymentPage> {
                       Expanded(
                         child: _buildStatCard(
                           'Total Payments',
-                          transactions.length.toString(),
+                          totalCount.toString(),
                           Icons.receipt_long,
                           const Color(0xFF3B82F6),
+                          amount: "₹${totalAmount.toStringAsFixed(0)}",
                         ),
                       ),
                       const SizedBox(width: 16),
                       Expanded(
                         child: _buildStatCard(
                           'Paid',
-                          transactions
-                              .where(
-                                (t) => t['status']?.toLowerCase() == 'paid',
-                              )
-                              .length
-                              .toString(),
+                          paidCount.toString(),
                           Icons.check_circle_outline,
                           const Color(0xFF10B981),
+                          amount: "₹${paidAmount.toStringAsFixed(0)}",
                         ),
                       ),
                       const SizedBox(width: 16),
                       Expanded(
                         child: _buildStatCard(
                           'Refunded',
-                          transactions
-                              .where(
-                                (t) => t['status']?.toLowerCase() == 'refund',
-                              )
-                              .length
-                              .toString(),
+                          refundedCount.toString(),
                           Icons.refresh,
                           const Color(0xFFF59E0B),
+                          amount: "₹${refundedAmount.toStringAsFixed(0)}",
                         ),
                       ),
                     ],
@@ -1379,8 +1398,9 @@ class _PaymentPageState extends State<PaymentPage> {
     String title,
     String count,
     IconData icon,
-    Color color,
-  ) {
+    Color color, {
+    String? amount,
+  }) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -1426,6 +1446,18 @@ class _PaymentPageState extends State<PaymentPage> {
                   color: const Color(0xFF0F172A),
                 ),
               ),
+              if (amount != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4.0),
+                  child: Text(
+                    amount,
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: color,
+                    ),
+                  ),
+                ),
             ],
           ),
         ],

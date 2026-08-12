@@ -31,6 +31,9 @@ import 'package:swiftclean_admin/MVVM/view/pages.dart/worker/All_workers.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/worker/Verification_Worker.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/worker/profile_Worker.dart';
 import 'package:swiftclean_admin/MVVM/view/loginpage.dart';
+import 'package:swiftclean_admin/MVVM/view/pages.dart/Recent Activity/recent_activity.dart';
+import 'package:swiftclean_admin/MVVM/view/pages.dart/Online Store/store_products.dart';
+import 'package:swiftclean_admin/MVVM/view/pages.dart/Online Store/store_orders.dart';
 
 class NotificationItem {
   final String message;
@@ -162,6 +165,12 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
     print(
       '[SIDEBAR] Businesses -> ${_can(Modules.business, Perms.view) ? "Visible" : "Hidden (Missing business.view)"}',
     );
+    print(
+      '[SIDEBAR] Store Products -> ${_can(Modules.storeProducts, Perms.view) ? "Visible" : "Hidden (Missing store_products.view)"}',
+    );
+    print(
+      '[SIDEBAR] Store Orders -> ${_can(Modules.storeOrders, Perms.view) ? "Visible" : "Hidden (Missing store_orders.view)"}',
+    );
   }
 
   String _getFirstPermittedTile() {
@@ -184,6 +193,8 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
     if (_can(Modules.notifications, Perms.view)) return "Notifications";
     if (_can(Modules.reports, Perms.view)) return "Reports";
     if (_can(Modules.settings, Perms.view)) return "Settings";
+    if (_can(Modules.storeProducts, Perms.view)) return "Store Products";
+    if (_can(Modules.storeOrders, Perms.view)) return "Store Orders";
     return "Profile";
   }
 
@@ -216,7 +227,7 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
                       .trim()
                       .toLowerCase();
               final workStatus =
-                  (doc.data()['work_status'] ?? '')
+                  (doc.data()['work_status'] ?? 'pending')
                       .toString()
                       .trim()
                       .toLowerCase();
@@ -226,12 +237,10 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
                       .trim()
                       .toLowerCase();
 
-              if (bookingStatus == 'confirmed' && workStatus == 'pending') {
+              if (bookingStatus == 'confirmed' && workStatus == 'pending' && completedStatus != 'ongoing') {
                 pCount++;
               }
-              if (bookingStatus == 'confirmed' &&
-                  workStatus == 'accepted' &&
-                  completedStatus == 'ongoing') {
+              if (completedStatus == 'ongoing') {
                 oCount++;
               }
             }
@@ -252,7 +261,17 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
         return PermissionGuard(
           module: Modules.dashboard,
           action: Perms.view,
-          child: const Dashboard(),
+          child: Dashboard(
+            onNavigate: (tab) => setState(() => selectedTile = tab),
+          ),
+        );
+      case "Recent Activity":
+        return PermissionGuard(
+          module: Modules.dashboard,
+          action: Perms.view,
+          child: RecentActivityPage(
+            onNavigate: (tab) => setState(() => selectedTile = tab),
+          ),
         );
       case "Settings":
         return PermissionGuard(
@@ -500,6 +519,18 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
           module: Modules.reports,
           action: Perms.view,
           child: const ReportsOverviewPage(),
+        );
+      case "Store Products":
+        return PermissionGuard(
+          module: Modules.storeProducts,
+          action: Perms.view,
+          child: const StoreProductsPage(),
+        );
+      case "Store Orders":
+        return PermissionGuard(
+          module: Modules.storeOrders,
+          action: Perms.view,
+          child: const StoreOrdersPage(),
         );
       default:
         return Center(
@@ -985,6 +1016,39 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
                                         () => selectedTile = "Service Reviews",
                                       ),
                                 ),
+                              ],
+                            ),
+                          // ── Online Store ─────────────────────────────────────────────
+                          if (_can(Modules.storeProducts, Perms.view) || _can(Modules.storeOrders, Perms.view))
+                            SidebarExpansionTile(
+                              title: "Online Store",
+                              icon: Icons.storefront_rounded,
+                              isInitiallyExpanded:
+                                  selectedTile == "Store Products" ||
+                                  selectedTile == "Store Orders",
+                              onTap: () => setState(() =>
+                                  selectedTile = _can(Modules.storeProducts, Perms.view)
+                                      ? "Store Products"
+                                      : "Store Orders"),
+                              children: [
+                                if (_can(Modules.storeProducts, Perms.view))
+                                  SidebarTile(
+                                    title: "Store Products",
+                                    icon: Icons.inventory_2_rounded,
+                                    isSelected: selectedTile == "Store Products",
+                                    onTap: () => setState(
+                                      () => selectedTile = "Store Products",
+                                    ),
+                                  ),
+                                if (_can(Modules.storeOrders, Perms.view))
+                                  SidebarTile(
+                                    title: "Store Orders",
+                                    icon: Icons.shopping_cart_checkout_rounded,
+                                    isSelected: selectedTile == "Store Orders",
+                                    onTap: () => setState(
+                                      () => selectedTile = "Store Orders",
+                                    ),
+                                  ),
                               ],
                             ),
                           // ── Ads / Payments / Reports / Settings ────────────────────

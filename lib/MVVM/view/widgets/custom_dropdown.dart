@@ -27,9 +27,10 @@ class CustomDropdown<T> extends StatelessWidget {
       decoration: InputDecoration(
         filled: true,
         fillColor: Colors.white,
+        isDense: true,
         contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 12,
+          horizontal: 12,
+          vertical: 10,
         ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(borderRadius),

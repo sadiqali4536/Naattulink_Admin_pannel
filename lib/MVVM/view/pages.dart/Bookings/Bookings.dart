@@ -231,13 +231,12 @@ class _BookingsState extends State<Bookings> {
     return _bookings.where((booking) {
       // Tab selection filter
       if (_selectedTabIndex == 1 &&
-          !(booking.status == "Confirmed" && booking.workStatus == "Pending")) {
+          !(booking.status == "Confirmed" &&
+              booking.workStatus == "Pending" &&
+              booking.completedStatus != "Ongoing")) {
         return false;
       }
-      if (_selectedTabIndex == 2 &&
-          !(booking.status == "Confirmed" &&
-              booking.workStatus == "Accepted" &&
-              booking.completedStatus == "Ongoing")) {
+      if (_selectedTabIndex == 2 && booking.completedStatus != "Ongoing") {
         return false;
       }
       if (_selectedTabIndex == 3 &&
@@ -409,18 +408,14 @@ class _BookingsState extends State<Bookings> {
         int pending =
             _bookings
                 .where(
-                  (b) => b.status == "Confirmed" && b.workStatus == "Pending",
+                  (b) =>
+                      b.status == "Confirmed" &&
+                      b.workStatus == "Pending" &&
+                      b.completedStatus != "Ongoing",
                 )
                 .length;
         int ongoing =
-            _bookings
-                .where(
-                  (b) =>
-                      b.status == "Confirmed" &&
-                      b.workStatus == "Accepted" &&
-                      b.completedStatus == "Ongoing",
-                )
-                .length;
+            _bookings.where((b) => b.completedStatus == "Ongoing").length;
         int completed =
             _bookings
                 .where(
@@ -604,11 +599,11 @@ class _BookingsState extends State<Bookings> {
         _bookings.where((b) {
           switch (_selectedTabIndex) {
             case 1: // Pending Bookings
-              return b.status == "Confirmed" && b.workStatus == "Pending";
-            case 2: // On Going Works
               return b.status == "Confirmed" &&
-                  b.workStatus == "Accepted" &&
-                  b.completedStatus == "Ongoing";
+                  b.workStatus == "Pending" &&
+                  b.completedStatus != "Ongoing";
+            case 2: // On Going Works
+              return b.completedStatus == "Ongoing";
             case 3: // Completed Bookings
               return b.status == "Completed" ||
                   b.completedStatus == "Completed";
@@ -935,17 +930,15 @@ class _BookingsState extends State<Bookings> {
     final allCount = _bookings.length;
     final pendingCount =
         _bookings
-            .where((b) => b.status == "Confirmed" && b.workStatus == "Pending")
-            .length;
-    final ongoingCount =
-        _bookings
             .where(
               (b) =>
                   b.status == "Confirmed" &&
-                  b.workStatus == "Accepted" &&
-                  b.completedStatus == "Ongoing",
+                  b.workStatus == "Pending" &&
+                  b.completedStatus != "Ongoing",
             )
             .length;
+    final ongoingCount =
+        _bookings.where((b) => b.completedStatus == "Ongoing").length;
     final completedCount =
         _bookings
             .where(
@@ -1338,8 +1331,7 @@ class _BookingsState extends State<Bookings> {
                               horizontal: 16.0,
                             ),
                             child: _buildStatusBadge(
-                              (booking.completedStatus == 'Ongoing' ||
-                                      booking.completedStatus == 'Completed')
+                              booking.completedStatus.isNotEmpty
                                   ? booking.completedStatus
                                   : booking.workStatus,
                             ),
@@ -2376,17 +2368,9 @@ class _BookingsState extends State<Bookings> {
       );
       return;
     }
-    String selectedStatus = booking.status;
-    List<String> validStatuses = [
-      "Pending",
-      "Ongoing",
-      "Completed",
-      "Rejected",
-      "Confirmed",
-    ];
-    if (RbacSession().hasPermission(Modules.bookings, 'cancel_booking')) {
-      validStatuses.add("Cancelled");
-    }
+    String selectedStatus = booking.completedStatus;
+    if (selectedStatus.isEmpty) selectedStatus = "Pending";
+    List<String> validStatuses = ["Completed", "Ongoing", "Pending"];
     if (!validStatuses.contains(selectedStatus)) {
       validStatuses.add(selectedStatus);
     }
@@ -2544,10 +2528,26 @@ class _BookingsState extends State<Bookings> {
                           ElevatedButton(
                             onPressed: () async {
                               try {
+                                String newWorkStatus =
+                                    (selectedStatus == "Completed" ||
+                                            selectedStatus == "Ongoing")
+                                        ? "Accepted"
+                                        : "Pending";
+
+                                Map<String, dynamic> updateData = {
+                                  'completed_status': selectedStatus,
+                                  'work_status': newWorkStatus,
+                                };
+
+                                if (selectedStatus == "Completed" ||
+                                    selectedStatus == "Ongoing") {
+                                  updateData['status'] = "Confirmed";
+                                }
+
                                 await FirebaseFirestore.instance
                                     .collection('service_bookings')
                                     .doc(booking.id)
-                                    .update({'status': selectedStatus});
+                                    .update(updateData);
 
                                 if (mounted) {
                                   Navigator.pop(dialogContext);

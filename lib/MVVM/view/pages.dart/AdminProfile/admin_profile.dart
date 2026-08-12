@@ -97,7 +97,9 @@ class _AdminProfilePageState extends State<AdminProfilePage> {
     if (isLoading) {
       return const Scaffold(
         backgroundColor: Color(0xFFF8F9FA),
-        body: Center(child: CircularProgressIndicator(color: const Color(0xFFFFC107))),
+        body: Center(
+          child: CircularProgressIndicator(color: const Color(0xFFFFC107)),
+        ),
       );
     }
     return Scaffold(
@@ -123,15 +125,16 @@ class _AdminProfilePageState extends State<AdminProfilePage> {
         Text(
           'Profile',
           style: TextStyle(
-            fontSize: 24,
+            fontSize: 28,
             fontWeight: FontWeight.bold,
-            color: Color(0xFF1E293B),
+            color: Color(0xFF0F172A),
+            letterSpacing: -0.5,
           ),
         ),
         SizedBox(height: 8),
         Text(
           'View and manage your profile information.',
-          style: TextStyle(fontSize: 14, color: Colors.grey),
+          style: TextStyle(fontSize: 15, color: Color(0xFF64748B)),
         ),
       ],
     );
@@ -142,144 +145,175 @@ class _AdminProfilePageState extends State<AdminProfilePage> {
       width: double.infinity,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.black12),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withOpacity(0.04),
+            blurRadius: 30,
+            offset: const Offset(0, 10),
+          ),
+          BoxShadow(
+            color: const Color(0xFF0F172A).withOpacity(0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+        border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
-      padding: const EdgeInsets.all(32),
+      padding: const EdgeInsets.all(40),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Profile Overview',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF1E293B),
-            ),
-          ),
-          const SizedBox(height: 32),
+          //Row(
+          //children: [
+          //     const Text(
+          //       'Profile Overview',
+          //       style: TextStyle(
+          //         fontSize: 20,
+          //         fontWeight: FontWeight.bold,
+          //         color: Color(0xFF0F172A),
+          //       ),
+          //     ),
+          // ],
+          //),
+          const SizedBox(height: 40),
           Row(
             children: [
-              Stack(
-                children: [
-                  Container(
-                    width: 100,
-                    height: 100,
-                    decoration: BoxDecoration(
-                      color: Colors.green.shade50,
-                      shape: BoxShape.circle,
+              Container(
+                width: 100,
+                height: 100,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.green.shade400, Colors.green.shade600],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.green.withOpacity(0.25),
+                      blurRadius: 12,
+                      offset: const Offset(0, 6),
                     ),
-                    child: Center(
-                      child: Text(
-                        name.isNotEmpty ? name[0].toUpperCase() : 'S',
-                        style: TextStyle(
-                          fontSize: 40,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.green.shade700,
-                        ),
-                      ),
+                  ],
+                ),
+                child: Center(
+                  child: Text(
+                    name.isNotEmpty ? name[0].toUpperCase() : 'S',
+                    style: const TextStyle(
+                      fontSize: 40,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
                     ),
                   ),
-                  Positioned(
-                    bottom: 0,
-                    right: 0,
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: const BoxDecoration(
-                        color: Color(0xFFFFC107),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.camera_alt_outlined,
-                        color: Color(0xFF1E293B),
-                        size: 16,
-                      ),
-                    ),
-                  ),
-                ],
+                ),
               ),
               const SizedBox(width: 32),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Text(
-                        name,
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF1E293B),
+                  Text(
+                    name,
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1E293B),
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    email.isNotEmpty ? email : 'admin@system.com',
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFF64748B),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade50,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.green.shade100),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: Colors.green.shade600,
+                            shape: BoxShape.circle,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 16),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.green.shade50,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Text(
+                        const SizedBox(width: 8),
+                        Text(
                           status,
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: 13,
                             fontWeight: FontWeight.w600,
                             color: Colors.green.shade700,
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ],
               ),
             ],
           ),
           const SizedBox(height: 48),
-          _buildInfoRow(
-            icon: Icons.work_outline,
-            label: 'Occupation',
-            value: occupation,
-          ),
-          _buildDivider(),
-          if (!RbacSession().isSuperAdmin) ...[
-            _buildInfoRow(
-              icon: Icons.phone_outlined,
-              label: 'Phone Number',
-              value: phone,
+          Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFFFAFAFA),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFF1F5F9)),
             ),
-            _buildDivider(),
-          ],
-          _buildInfoRow(
-            icon: Icons.local_offer_outlined,
-            label: 'Assigned Category',
-            value: assignedCategory,
-            isBadge: true,
-            badgeColor: Colors.green.shade50,
-            badgeTextColor: Colors.green.shade700,
-          ),
-          _buildDivider(),
-          _buildInfoRow(
-            icon: Icons.email_outlined,
-            label: 'Email Address',
-            value: email,
-          ),
-          _buildDivider(),
-          _buildInfoRow(
-            icon: Icons.calendar_today_outlined,
-            label: 'Joined On',
-            value: joinedOn,
-          ),
-          _buildDivider(),
-          _buildInfoRow(
-            icon: Icons.verified_user_outlined,
-            label: 'Status',
-            value: status,
-            isBadge: true,
-            badgeColor: Colors.green.shade50,
-            badgeTextColor: Colors.green.shade700,
+            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 8),
+            child: Column(
+              children: [
+                _buildInfoRow(
+                  icon: Icons.work_outline,
+                  label: 'Occupation',
+                  value: occupation,
+                ),
+                _buildDivider(),
+                if (!RbacSession().isSuperAdmin) ...[
+                  _buildInfoRow(
+                    icon: Icons.phone_outlined,
+                    label: 'Phone Number',
+                    value: phone,
+                  ),
+                  _buildDivider(),
+                ],
+                _buildInfoRow(
+                  icon: Icons.local_offer_outlined,
+                  label: 'Assigned Category',
+                  value: assignedCategory,
+                  isBadge: true,
+                  badgeColor: const Color(0xFFEEF2FF),
+                  badgeTextColor: const Color(0xFF4F46E5),
+                ),
+                _buildDivider(),
+                _buildInfoRow(
+                  icon: Icons.email_outlined,
+                  label: 'Email Address',
+                  value: email,
+                ),
+                _buildDivider(),
+                _buildInfoRow(
+                  icon: Icons.calendar_today_outlined,
+                  label: 'Joined On',
+                  value: joinedOn,
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -302,11 +336,22 @@ class _AdminProfilePageState extends State<AdminProfilePage> {
             flex: 2,
             child: Row(
               children: [
-                Icon(icon, color: Colors.grey, size: 20),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(icon, color: const Color(0xFF64748B), size: 20),
+                ),
                 const SizedBox(width: 16),
                 Text(
                   label,
-                  style: const TextStyle(fontSize: 14, color: Colors.black87),
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF64748B),
+                  ),
                 ),
               ],
             ),
@@ -339,8 +384,9 @@ class _AdminProfilePageState extends State<AdminProfilePage> {
                     : Text(
                       value,
                       style: const TextStyle(
-                        fontSize: 14,
-                        color: Colors.black87,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFF1E293B),
                       ),
                     ),
           ),
@@ -350,6 +396,6 @@ class _AdminProfilePageState extends State<AdminProfilePage> {
   }
 
   Widget _buildDivider() {
-    return const Divider(color: Colors.black12, height: 1);
+    return const Divider(color: Color(0xFFE2E8F0), height: 1);
   }
 }
