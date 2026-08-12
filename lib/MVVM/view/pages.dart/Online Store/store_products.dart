@@ -3,10 +3,10 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:swiftclean_admin/MVVM/model/models/admin_model.dart';
 import 'package:swiftclean_admin/MVVM/utils/rbac_session.dart';
+import 'package:swiftclean_admin/modules/products/product_image_service.dart';
 
 class StoreProductModel {
   final String id;
@@ -19,6 +19,7 @@ class StoreProductModel {
   final String sku;
   final String unit;
   final String imageUrl;
+  final String? imageFileId;
   final String status;
   final DateTime? createdAt;
   final DateTime? updatedAt;
@@ -34,6 +35,7 @@ class StoreProductModel {
     required this.sku,
     required this.unit,
     required this.imageUrl,
+    this.imageFileId,
     required this.status,
     this.createdAt,
     this.updatedAt,
@@ -52,6 +54,7 @@ class StoreProductModel {
       sku: data['sku'] ?? '',
       unit: data['unit'] ?? 'Piece',
       imageUrl: data['imageUrl'] ?? '',
+      imageFileId: data['imageFileId'] as String?,
       status: data['status'] ?? 'Active',
       createdAt:
           data['createdAt'] != null
@@ -75,6 +78,8 @@ class StoreProductModel {
       'sku': sku,
       'unit': unit,
       'imageUrl': imageUrl,
+      if (imageFileId != null && imageFileId!.isNotEmpty)
+        'imageFileId': imageFileId,
       'status': status,
       'createdAt':
           createdAt != null
@@ -102,6 +107,7 @@ class _StoreProductsPageState extends State<StoreProductsPage> {
 
   final ScrollController _verticalScrollController = ScrollController();
   final ScrollController _horizontalScrollController = ScrollController();
+  final _productImageService = ProductImageService();
 
   List<StoreProductModel> _products = [];
   List<String> _categories = [];
@@ -530,13 +536,11 @@ class _StoreProductsPageState extends State<StoreProductsPage> {
             .collection("store_products")
             .doc(product.id)
             .delete();
-        if (product.imageUrl.isNotEmpty) {
+        if (product.imageFileId != null && product.imageFileId!.isNotEmpty) {
           try {
-            await FirebaseStorage.instance
-                .refFromURL(product.imageUrl)
-                .delete();
+            await _productImageService.deleteProductImage(product.imageFileId!);
           } catch (e) {
-            print("Error deleting image: $e");
+            print("Error deleting image from ImageKit: $e");
           }
         }
         if (mounted) {
@@ -1277,11 +1281,13 @@ class _ProductFormDialog extends StatefulWidget {
 
 class _ProductFormDialogState extends State<_ProductFormDialog> {
   final _formKey = GlobalKey<FormState>();
+  final _productImageService = ProductImageService();
 
   bool _isLoading = false;
   Uint8List? _selectedImageBytes;
   String? _selectedImageName;
   String _imageUrl = "";
+  String _imageFileId = "";
 
   String _productName = "";
   String _category = "";
@@ -1317,6 +1323,7 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
       _unit = p.unit;
       _status = p.status;
       _imageUrl = p.imageUrl;
+      _imageFileId = p.imageFileId ?? '';
     }
   }
 
@@ -1338,19 +1345,28 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
     }
   }
 
-  Future<String> _uploadImage() async {
-    if (_selectedImageBytes == null) return _imageUrl;
+  Future<void> _uploadImage() async {
+    if (_selectedImageBytes == null) return;
 
     final fileName =
         '${DateTime.now().millisecondsSinceEpoch}_$_selectedImageName';
-    final ref = FirebaseStorage.instance
-        .ref()
-        .child('store_products')
-        .child(fileName);
 
-    final uploadTask = ref.putData(_selectedImageBytes!);
-    final snapshot = await uploadTask;
-    return await snapshot.ref.getDownloadURL();
+    // Delete old image from ImageKit if replacing
+    if (_imageFileId.isNotEmpty) {
+      try {
+        await _productImageService.deleteProductImage(_imageFileId);
+      } catch (e) {
+        print('Error deleting old product image: $e');
+      }
+    }
+
+    final result = await _productImageService.uploadProductImage(
+      imageBytes: _selectedImageBytes!,
+      fileName: fileName,
+    );
+
+    _imageUrl = result.imageUrl;
+    _imageFileId = result.imageFileId;
   }
 
   Future<void> _saveProduct() async {
@@ -1362,7 +1378,7 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
     });
 
     try {
-      String finalImageUrl = await _uploadImage();
+      await _uploadImage();
 
       final data = {
         'productName': _productName,
@@ -1373,7 +1389,8 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
         'stockQuantity': _stockQuantity,
         'sku': _sku,
         'unit': _unit,
-        'imageUrl': finalImageUrl,
+        'imageUrl': _imageUrl,
+        'imageFileId': _imageFileId,
         'status': _status,
         'updatedAt': FieldValue.serverTimestamp(),
       };

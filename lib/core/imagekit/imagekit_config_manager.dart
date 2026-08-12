@@ -22,9 +22,9 @@ class ImageKitConfigManager {
         );
       case ImageStorageType.products:
         return const ImageKitConfig(
-          publicKey: 'account3_public_key',
-          privateKey: 'account3_private_key',
-          urlEndpoint: 'https://ik.imagekit.io/account3',
+          publicKey: 'public_t88OIct944WyyAoX5I48PjKkiBc=',
+          privateKey: 'private_7S6xqXtVuzxoWEOy68+33E9xdA0=',
+          urlEndpoint: 'https://ik.imagekit.io/cupjfca3p',
           defaultFolder: 'products/images/',
           accountName: 'Account 3 (Products)',
         );
