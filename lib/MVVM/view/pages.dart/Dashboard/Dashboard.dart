@@ -3,6 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'package:swiftclean_admin/MVVM/model/models/admin_model.dart';
+import 'package:swiftclean_admin/MVVM/utils/rbac_session.dart';
 
 class Dashboard extends StatefulWidget {
   final void Function(String)? onNavigate;
@@ -15,6 +17,7 @@ class Dashboard extends StatefulWidget {
 
 class _DashboardState extends State<Dashboard> {
   DateTimeRange? _selectedDateRange;
+  final RbacSession _session = RbacSession();
 
   bool _isLoading = true;
   int _totalUsers = 0;
@@ -88,6 +91,37 @@ class _DashboardState extends State<Dashboard> {
       final startOfDay = DateTime(now.year, now.month, now.day);
       final yesterday = startOfDay.subtract(const Duration(days: 1));
 
+      final bool canViewUsers = _session.hasPermission(
+        Modules.userManagement,
+        Perms.view,
+      );
+      final bool canViewWorkers = _session.hasPermission(
+        Modules.workerManagement,
+        Perms.view,
+      );
+      final bool canViewBookings = _session.hasPermission(
+        Modules.bookings,
+        Perms.view,
+      );
+      final bool canViewPayments = _session.hasPermission(
+        Modules.payments,
+        Perms.view,
+      );
+      final bool canViewProducts = _session.hasPermission(
+        Modules.storeProducts,
+        Perms.view,
+      );
+      final bool canViewOrders = _session.hasPermission(
+        Modules.storeOrders,
+        Perms.view,
+      );
+      final bool canViewAds = _session.hasPermission(
+        Modules.advertisement,
+        Perms.view,
+      );
+      final bool canViewBus = _session.hasPermission(Modules.bus, Perms.view);
+      final bool canViewTaxi = _session.hasPermission(Modules.taxi, Perms.view);
+
       // Helper to calculate trend safely
       double calcTrend(int current, int previous) {
         if (previous == 0 && current == 0) return 0.0;
@@ -102,9 +136,12 @@ class _DashboardState extends State<Dashboard> {
       }
 
       // 1. Users
-      final usersFuture = db.collection('users').count().get();
+      final usersFuture =
+          canViewUsers
+              ? db.collection('users').count().get()
+              : Future.value(null);
       final usersThis =
-          _selectedDateRange != null
+          (canViewUsers && _selectedDateRange != null)
               ? db
                   .collection('users')
                   .where(
@@ -116,7 +153,7 @@ class _DashboardState extends State<Dashboard> {
                   .get()
               : Future.value(null);
       final usersPrev =
-          _selectedDateRange != null
+          (canViewUsers && _selectedDateRange != null)
               ? db
                   .collection('users')
                   .where(
@@ -129,9 +166,12 @@ class _DashboardState extends State<Dashboard> {
               : Future.value(null);
 
       // 2. Workers
-      final workersFuture = db.collection('workers').count().get();
+      final workersFuture =
+          canViewWorkers
+              ? db.collection('workers').count().get()
+              : Future.value(null);
       final workersThis =
-          _selectedDateRange != null
+          (canViewWorkers && _selectedDateRange != null)
               ? db
                   .collection('workers')
                   .where(
@@ -143,7 +183,7 @@ class _DashboardState extends State<Dashboard> {
                   .get()
               : Future.value(null);
       final workersPrev =
-          _selectedDateRange != null
+          (canViewWorkers && _selectedDateRange != null)
               ? db
                   .collection('workers')
                   .where(
@@ -157,13 +197,15 @@ class _DashboardState extends State<Dashboard> {
 
       // 3. Pending Approvals (Workers)
       final pendingFuture =
-          db
-              .collection('workers')
-              .where('isVerified', isEqualTo: 0)
-              .count()
-              .get();
+          canViewWorkers
+              ? db
+                  .collection('workers')
+                  .where('isVerified', isEqualTo: 0)
+                  .count()
+                  .get()
+              : Future.value(null);
       final pendingThis =
-          _selectedDateRange != null
+          (canViewWorkers && _selectedDateRange != null)
               ? db
                   .collection('workers')
                   .where('isVerified', isEqualTo: 0)
@@ -176,7 +218,7 @@ class _DashboardState extends State<Dashboard> {
                   .get()
               : Future.value(null);
       final pendingPrev =
-          _selectedDateRange != null
+          (canViewWorkers && _selectedDateRange != null)
               ? db
                   .collection('workers')
                   .where('isVerified', isEqualTo: 0)
@@ -191,34 +233,40 @@ class _DashboardState extends State<Dashboard> {
 
       // 4. Today's Bookings
       final todayBookingsFuture =
-          db
-              .collection('service_bookings')
-              .where(
-                'timestamp',
-                isGreaterThanOrEqualTo: startOfDay.toIso8601String(),
-              )
-              .count()
-              .get();
+          canViewBookings
+              ? db
+                  .collection('service_bookings')
+                  .where(
+                    'timestamp',
+                    isGreaterThanOrEqualTo: startOfDay.toIso8601String(),
+                  )
+                  .count()
+                  .get()
+              : Future.value(null);
       final yesterdayBookingsFuture =
-          db
-              .collection('service_bookings')
-              .where(
-                'timestamp',
-                isGreaterThanOrEqualTo: yesterday.toIso8601String(),
-              )
-              .where('timestamp', isLessThan: startOfDay.toIso8601String())
-              .count()
-              .get();
+          canViewBookings
+              ? db
+                  .collection('service_bookings')
+                  .where(
+                    'timestamp',
+                    isGreaterThanOrEqualTo: yesterday.toIso8601String(),
+                  )
+                  .where('timestamp', isLessThan: startOfDay.toIso8601String())
+                  .count()
+                  .get()
+              : Future.value(null);
 
       // 5. Completed Bookings
       final completedFuture =
-          db
-              .collection('service_bookings')
-              .where('status', isEqualTo: 'Completed')
-              .count()
-              .get();
+          canViewBookings
+              ? db
+                  .collection('service_bookings')
+                  .where('status', isEqualTo: 'Completed')
+                  .count()
+                  .get()
+              : Future.value(null);
       final completedThis =
-          _selectedDateRange != null
+          (canViewBookings && _selectedDateRange != null)
               ? db
                   .collection('service_bookings')
                   .where('status', isEqualTo: 'Completed')
@@ -235,7 +283,7 @@ class _DashboardState extends State<Dashboard> {
                   .get()
               : Future.value(null);
       final completedPrev =
-          _selectedDateRange != null
+          (canViewBookings && _selectedDateRange != null)
               ? db
                   .collection('service_bookings')
                   .where('status', isEqualTo: 'Completed')
@@ -254,13 +302,15 @@ class _DashboardState extends State<Dashboard> {
 
       // 6. Cancelled Bookings
       final cancelledFuture =
-          db
-              .collection('service_bookings')
-              .where('status', isEqualTo: 'Cancelled')
-              .count()
-              .get();
+          canViewBookings
+              ? db
+                  .collection('service_bookings')
+                  .where('status', isEqualTo: 'Cancelled')
+                  .count()
+                  .get()
+              : Future.value(null);
       final cancelledThis =
-          _selectedDateRange != null
+          (canViewBookings && _selectedDateRange != null)
               ? db
                   .collection('service_bookings')
                   .where('status', isEqualTo: 'Cancelled')
@@ -277,7 +327,7 @@ class _DashboardState extends State<Dashboard> {
                   .get()
               : Future.value(null);
       final cancelledPrev =
-          _selectedDateRange != null
+          (canViewBookings && _selectedDateRange != null)
               ? db
                   .collection('service_bookings')
                   .where('status', isEqualTo: 'Cancelled')
@@ -337,9 +387,12 @@ class _DashboardState extends State<Dashboard> {
       }
 
       // 8. Products
-      final productsFuture = db.collection('products').count().get();
+      final productsFuture =
+          canViewProducts
+              ? db.collection('products').count().get()
+              : Future.value(null);
       final productsThis =
-          _selectedDateRange != null
+          (canViewProducts && _selectedDateRange != null)
               ? db
                   .collection('products')
                   .where(
@@ -351,7 +404,7 @@ class _DashboardState extends State<Dashboard> {
                   .get()
               : Future.value(null);
       final productsPrev =
-          _selectedDateRange != null
+          (canViewProducts && _selectedDateRange != null)
               ? db
                   .collection('products')
                   .where(
@@ -364,9 +417,12 @@ class _DashboardState extends State<Dashboard> {
               : Future.value(null);
 
       // 9. Orders
-      final ordersFuture = db.collection('orders').count().get();
+      final ordersFuture =
+          canViewOrders
+              ? db.collection('orders').count().get()
+              : Future.value(null);
       final ordersThis =
-          _selectedDateRange != null
+          (canViewOrders && _selectedDateRange != null)
               ? db
                   .collection('orders')
                   .where(
@@ -378,7 +434,7 @@ class _DashboardState extends State<Dashboard> {
                   .get()
               : Future.value(null);
       final ordersPrev =
-          _selectedDateRange != null
+          (canViewOrders && _selectedDateRange != null)
               ? db
                   .collection('orders')
                   .where(
@@ -391,9 +447,12 @@ class _DashboardState extends State<Dashboard> {
               : Future.value(null);
 
       // 10. Advertisements
-      final adsFuture = db.collection('advertisements').count().get();
+      final adsFuture =
+          canViewAds
+              ? db.collection('advertisements').count().get()
+              : Future.value(null);
       final adsThis =
-          _selectedDateRange != null
+          (canViewAds && _selectedDateRange != null)
               ? db
                   .collection('advertisements')
                   .where(
@@ -405,7 +464,7 @@ class _DashboardState extends State<Dashboard> {
                   .get()
               : Future.value(null);
       final adsPrev =
-          _selectedDateRange != null
+          (canViewAds && _selectedDateRange != null)
               ? db
                   .collection('advertisements')
                   .where(
@@ -426,6 +485,7 @@ class _DashboardState extends State<Dashboard> {
       int taxiThisCount = 0;
       int taxiPrevCount = 0;
       try {
+        if (!canViewTaxi) throw Exception("Skip");
         final taxiQuery =
             await db
                 .collection('transports')
@@ -476,6 +536,7 @@ class _DashboardState extends State<Dashboard> {
       int busRoutesPrev = 0;
 
       try {
+        if (!canViewBus) throw Exception("Skip");
         final transportQuery =
             await db
                 .collection('transports')
@@ -550,7 +611,10 @@ class _DashboardState extends State<Dashboard> {
       Map<String, int> fetchedCategoryCounts = {};
 
       // Fetch all bookings to manually compute pending and completed counts properly
-      final allBookingsQuery = await db.collection('service_bookings').get();
+      final allBookingsQuery =
+          canViewBookings
+              ? await db.collection('service_bookings').get()
+              : null;
       List<Map<String, dynamic>> allBookingsList = [];
 
       int pendingCount = 0;
@@ -572,175 +636,183 @@ class _DashboardState extends State<Dashboard> {
         dailyBookingCounts[dayFormatter.format(day)] = 0;
       }
 
-      for (var doc in allBookingsQuery.docs) {
-        final data = doc.data();
+      if (allBookingsQuery != null) {
+        for (var doc in allBookingsQuery.docs) {
+          final data = doc.data();
 
-        final String cat =
-            (data['category'] ?? data['serviceCategory'])?.toString() ??
-            'Others';
-        fetchedCategoryCounts[cat] = (fetchedCategoryCounts[cat] ?? 0) + 1;
+          final String cat =
+              (data['category'] ?? data['serviceCategory'])?.toString() ??
+              'Others';
+          fetchedCategoryCounts[cat] = (fetchedCategoryCounts[cat] ?? 0) + 1;
 
-        DateTime? parsedTimestamp;
-        if (data['timestamp'] != null) {
-          if (data['timestamp'] is Timestamp) {
-            parsedTimestamp = (data['timestamp'] as Timestamp).toDate();
-          } else {
-            parsedTimestamp = DateTime.tryParse(data['timestamp'].toString());
-          }
-        }
-
-        String dateStr =
-            (data['date'] ?? data['selectedDate'])?.toString() ?? '';
-        String timeStr =
-            (data['Time'] ?? data['selectedTimeSlot'])?.toString() ?? '';
-
-        if (parsedTimestamp == null &&
-            dateStr.isNotEmpty &&
-            timeStr.isNotEmpty) {
-          try {
-            final dateParts = dateStr.split('-');
-            if (dateParts.length == 3) {
-              final year = int.parse(dateParts[2]);
-              final month = int.parse(dateParts[1]);
-              final day = int.parse(dateParts[0]);
-              final timeParsed = DateFormat(
-                'hh:mm a',
-              ).parse(timeStr.trim().toUpperCase());
-              parsedTimestamp = DateTime(
-                year,
-                month,
-                day,
-                timeParsed.hour,
-                timeParsed.minute,
-              );
+          DateTime? parsedTimestamp;
+          if (data['timestamp'] != null) {
+            if (data['timestamp'] is Timestamp) {
+              parsedTimestamp = (data['timestamp'] as Timestamp).toDate();
+            } else {
+              parsedTimestamp = DateTime.tryParse(data['timestamp'].toString());
             }
-          } catch (_) {}
-        }
-
-        if (parsedTimestamp != null) {
-          final dayStr = dayFormatter.format(parsedTimestamp);
-          if (dailyBookingCounts.containsKey(dayStr)) {
-            dailyBookingCounts[dayStr] = dailyBookingCounts[dayStr]! + 1;
           }
-        }
 
-        String status =
-            (data['booking_status'] ?? data['status'])?.toString().trim() ??
-            'Pending';
-        if (status.isNotEmpty) {
-          status = status[0].toUpperCase() + status.substring(1).toLowerCase();
-        }
+          String dateStr =
+              (data['date'] ?? data['selectedDate'])?.toString() ?? '';
+          String timeStr =
+              (data['Time'] ?? data['selectedTimeSlot'])?.toString() ?? '';
 
-        String dateTimeDisplay =
-            timeStr.isNotEmpty ? "$dateStr\n$timeStr" : dateStr;
-        if (dateTimeDisplay.trim().isEmpty && parsedTimestamp != null) {
-          dateTimeDisplay = DateFormat(
-            'MMM d, yyyy\nh:mm a',
-          ).format(parsedTimestamp);
-        }
+          if (parsedTimestamp == null &&
+              dateStr.isNotEmpty &&
+              timeStr.isNotEmpty) {
+            try {
+              final dateParts = dateStr.split('-');
+              if (dateParts.length == 3) {
+                final year = int.parse(dateParts[2]);
+                final month = int.parse(dateParts[1]);
+                final day = int.parse(dateParts[0]);
+                final timeParsed = DateFormat(
+                  'hh:mm a',
+                ).parse(timeStr.trim().toUpperCase());
+                parsedTimestamp = DateTime(
+                  year,
+                  month,
+                  day,
+                  timeParsed.hour,
+                  timeParsed.minute,
+                );
+              }
+            } catch (_) {}
+          }
 
-        allBookingsList.add({
-          'id': doc.id.substring(0, 8).toUpperCase(),
-          'customer':
-              data['customer_name']?.toString() ??
-              data['customerName']?.toString() ??
-              'Unknown',
-          'service':
-              data['serviceName']?.toString() ??
-              data['serviceTitle']?.toString() ??
-              cat,
-          'serviceImage':
-              data['serviceImage']?.toString() ??
-              data['imageUrl']?.toString() ??
-              data['image']?.toString() ??
-              '',
-          'dateTime': dateTimeDisplay,
-          'status': status,
-          'amount':
-              data['amount']?.toString() ??
-              data['total_amount']?.toString() ??
-              data['price']?.toString() ??
-              '₹0',
-          'parsedDate': parsedTimestamp ?? DateTime.now(),
-        });
+          if (parsedTimestamp != null) {
+            final dayStr = dayFormatter.format(parsedTimestamp);
+            if (dailyBookingCounts.containsKey(dayStr)) {
+              dailyBookingCounts[dayStr] = dailyBookingCounts[dayStr]! + 1;
+            }
+          }
 
-        String workStatus = data['work_status']?.toString().trim() ?? 'Pending';
-        if (workStatus.isNotEmpty) {
-          workStatus =
-              workStatus[0].toUpperCase() +
-              workStatus.substring(1).toLowerCase();
-        }
+          String status =
+              (data['booking_status'] ?? data['status'])?.toString().trim() ??
+              'Pending';
+          if (status.isNotEmpty) {
+            status =
+                status[0].toUpperCase() + status.substring(1).toLowerCase();
+          }
 
-        String completedStatus =
-            data['completed_status']?.toString().trim() ?? '';
-        if (completedStatus.isNotEmpty) {
-          completedStatus =
-              completedStatus[0].toUpperCase() +
-              completedStatus.substring(1).toLowerCase();
-        }
+          String dateTimeDisplay =
+              timeStr.isNotEmpty ? "$dateStr\n$timeStr" : dateStr;
+          if (dateTimeDisplay.trim().isEmpty && parsedTimestamp != null) {
+            dateTimeDisplay = DateFormat(
+              'MMM d, yyyy\nh:mm a',
+            ).format(parsedTimestamp);
+          }
 
-        if (status == 'Confirmed' &&
-            workStatus == 'Pending' &&
-            completedStatus != 'Ongoing') {
-          pendingCount++;
-        }
+          allBookingsList.add({
+            'id': doc.id.substring(0, 8).toUpperCase(),
+            'customer':
+                data['customer_name']?.toString() ??
+                data['customerName']?.toString() ??
+                'Unknown',
+            'service':
+                data['serviceName']?.toString() ??
+                data['serviceTitle']?.toString() ??
+                cat,
+            'serviceImage':
+                data['serviceImage']?.toString() ??
+                data['imageUrl']?.toString() ??
+                data['image']?.toString() ??
+                '',
+            'dateTime': dateTimeDisplay,
+            'status': status,
+            'amount':
+                data['amount']?.toString() ??
+                data['total_amount']?.toString() ??
+                data['price']?.toString() ??
+                '₹0',
+            'parsedDate': parsedTimestamp ?? DateTime.now(),
+          });
 
-        if (status == 'Completed' || completedStatus == 'Completed') {
-          completedCount++;
+          String workStatus =
+              data['work_status']?.toString().trim() ?? 'Pending';
+          if (workStatus.isNotEmpty) {
+            workStatus =
+                workStatus[0].toUpperCase() +
+                workStatus.substring(1).toLowerCase();
+          }
 
-          if (_selectedDateRange != null) {
-            final timestampStr = data['timestamp']?.toString() ?? '';
-            if (timestampStr.isNotEmpty) {
-              final timestamp = DateTime.tryParse(timestampStr);
-              if (timestamp != null) {
-                if (startOfThisPeriod != null && endOfThisPeriod != null) {
-                  if ((timestamp.isAfter(startOfThisPeriod) ||
-                          timestamp.isAtSameMomentAs(startOfThisPeriod)) &&
-                      timestamp.isBefore(endOfThisPeriod)) {
-                    completedThisCount++;
+          String completedStatus =
+              data['completed_status']?.toString().trim() ?? '';
+          if (completedStatus.isNotEmpty) {
+            completedStatus =
+                completedStatus[0].toUpperCase() +
+                completedStatus.substring(1).toLowerCase();
+          }
+
+          if (status == 'Confirmed' &&
+              workStatus == 'Pending' &&
+              completedStatus != 'Ongoing') {
+            pendingCount++;
+          }
+
+          if (status == 'Completed' || completedStatus == 'Completed') {
+            completedCount++;
+
+            if (_selectedDateRange != null) {
+              final timestampStr = data['timestamp']?.toString() ?? '';
+              if (timestampStr.isNotEmpty) {
+                final timestamp = DateTime.tryParse(timestampStr);
+                if (timestamp != null) {
+                  if (startOfThisPeriod != null && endOfThisPeriod != null) {
+                    if ((timestamp.isAfter(startOfThisPeriod) ||
+                            timestamp.isAtSameMomentAs(startOfThisPeriod)) &&
+                        timestamp.isBefore(endOfThisPeriod)) {
+                      completedThisCount++;
+                    }
+                  }
+                  if (startOfPreviousPeriod != null &&
+                      startOfThisPeriod != null) {
+                    if ((timestamp.isAfter(startOfPreviousPeriod) ||
+                            timestamp.isAtSameMomentAs(
+                              startOfPreviousPeriod,
+                            )) &&
+                        timestamp.isBefore(startOfThisPeriod)) {
+                      completedPrevCount++;
+                    }
                   }
                 }
-                if (startOfPreviousPeriod != null &&
-                    startOfThisPeriod != null) {
-                  if ((timestamp.isAfter(startOfPreviousPeriod) ||
-                          timestamp.isAtSameMomentAs(startOfPreviousPeriod)) &&
-                      timestamp.isBefore(startOfThisPeriod)) {
-                    completedPrevCount++;
+              }
+            }
+          }
+
+          if (status == 'Cancelled') {
+            cancelledCount++;
+
+            if (_selectedDateRange != null) {
+              final timestampStr = data['timestamp']?.toString() ?? '';
+              if (timestampStr.isNotEmpty) {
+                final timestamp = DateTime.tryParse(timestampStr);
+                if (timestamp != null) {
+                  if (startOfThisPeriod != null && endOfThisPeriod != null) {
+                    if ((timestamp.isAfter(startOfThisPeriod) ||
+                            timestamp.isAtSameMomentAs(startOfThisPeriod)) &&
+                        timestamp.isBefore(endOfThisPeriod)) {
+                      cancelledThisCount++;
+                    }
+                  }
+                  if (startOfPreviousPeriod != null &&
+                      startOfThisPeriod != null) {
+                    if ((timestamp.isAfter(startOfPreviousPeriod) ||
+                            timestamp.isAtSameMomentAs(
+                              startOfPreviousPeriod,
+                            )) &&
+                        timestamp.isBefore(startOfThisPeriod)) {
+                      cancelledPrevCount++;
+                    }
                   }
                 }
               }
             }
           }
         }
-
-        if (status == 'Cancelled') {
-          cancelledCount++;
-
-          if (_selectedDateRange != null) {
-            final timestampStr = data['timestamp']?.toString() ?? '';
-            if (timestampStr.isNotEmpty) {
-              final timestamp = DateTime.tryParse(timestampStr);
-              if (timestamp != null) {
-                if (startOfThisPeriod != null && endOfThisPeriod != null) {
-                  if ((timestamp.isAfter(startOfThisPeriod) ||
-                          timestamp.isAtSameMomentAs(startOfThisPeriod)) &&
-                      timestamp.isBefore(endOfThisPeriod)) {
-                    cancelledThisCount++;
-                  }
-                }
-                if (startOfPreviousPeriod != null &&
-                    startOfThisPeriod != null) {
-                  if ((timestamp.isAfter(startOfPreviousPeriod) ||
-                          timestamp.isAtSameMomentAs(startOfPreviousPeriod)) &&
-                      timestamp.isBefore(startOfThisPeriod)) {
-                    cancelledPrevCount++;
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
+      } // end if (allBookingsQuery != null)
 
       // Wait for all aggregation queries
       final results = await Future.wait([
@@ -789,6 +861,7 @@ class _DashboardState extends State<Dashboard> {
       // Fetch Products (Safely process all)
       List<Map<String, dynamic>> fetchedProducts = [];
       try {
+        if (!canViewProducts) throw Exception("Skip");
         final productsQuery = await db.collection('products').get();
         List<Map<String, dynamic>> allProducts = [];
         for (var doc in productsQuery.docs) {
@@ -820,6 +893,7 @@ class _DashboardState extends State<Dashboard> {
       // Fetch Recent Activities (Users + Bookings)
       List<Map<String, dynamic>> fetchedActivities = [];
       try {
+        if (!canViewUsers) throw Exception("Skip");
         final usersQuery =
             await db
                 .collection('users')
@@ -1012,6 +1086,13 @@ class _DashboardState extends State<Dashboard> {
 
   @override
   Widget build(BuildContext context) {
+    if (!_session.hasPermission(Modules.dashboard, Perms.view)) {
+      return const Scaffold(
+        body: Center(
+          child: Text("You do not have permission to view the dashboard."),
+        ),
+      );
+    }
     if (_isLoading) {
       return const Scaffold(
         body: Center(
@@ -1245,6 +1326,226 @@ class _DashboardState extends State<Dashboard> {
   }
 
   Widget _buildStatsGrid(double width) {
+    if (!_session.hasPermission(Modules.dashboard, 'view_analytics_cards')) {
+      return const SizedBox.shrink();
+    }
+    List<Widget> cards = [];
+    final formatter = NumberFormat('#,##0');
+
+    String formatTrend(double trend) {
+      if (trend == 100.0) return "New";
+      if (trend == 0.0) return "0.0%";
+      return "${trend.abs().toStringAsFixed(1)}%";
+    }
+
+    if (_session.hasPermission(Modules.userManagement, Perms.view)) {
+      cards.add(
+        StatsCard(
+          title: "Total Users",
+          value: formatter.format(_totalUsers),
+          trendPercentage: formatTrend(_usersTrend),
+          trendPeriod: "from last week",
+          isPositiveTrend: _usersTrendPositive,
+          icon: Icons.people_alt_rounded,
+          iconColor: const Color(0xFF6366F1),
+          iconBgColor: const Color(0xFFEEF2FF),
+        ),
+      );
+    }
+
+    if (_session.hasPermission(Modules.workerManagement, Perms.view)) {
+      cards.add(
+        StatsCard(
+          title: "Total Workers",
+          value: formatter.format(_totalWorkers),
+          trendPercentage: formatTrend(_workersTrend),
+          trendPeriod: "from last week",
+          isPositiveTrend: _workersTrendPositive,
+          icon: Icons.engineering_rounded,
+          iconColor: const Color(0xFF10B981),
+          iconBgColor: const Color(0xFFECFDF5),
+        ),
+      );
+      cards.add(
+        StatsCard(
+          title: "Pending Approvals",
+          value: formatter.format(_pendingApprovals),
+          trendPercentage: formatTrend(_pendingTrend),
+          trendPeriod: "from last week",
+          isPositiveTrend: _pendingTrendPositive,
+          icon: Icons.pending_actions_rounded,
+          iconColor: const Color(0xFFF59E0B),
+          iconBgColor: const Color(0xFFFEF3C7),
+        ),
+      );
+    }
+
+    if (_session.hasPermission(Modules.bookings, Perms.view)) {
+      cards.add(
+        StatsCard(
+          title: "Pending Bookings",
+          value: formatter.format(_pendingBookings),
+          trendPercentage: formatTrend(_pendingBookingsTrend),
+          trendPeriod: "currently pending",
+          isPositiveTrend: _pendingBookingsTrendPositive,
+          icon: Icons.hourglass_empty_rounded,
+          iconColor: const Color(0xFF3B82F6),
+          iconBgColor: const Color(0xFFEFF6FF),
+        ),
+      );
+      cards.add(
+        StatsCard(
+          title: "Completed Bookings",
+          value: formatter.format(_completedBookings),
+          trendPercentage: formatTrend(_completedBookingsTrend),
+          trendPeriod: "from last week",
+          isPositiveTrend: _completedBookingsTrendPositive,
+          icon: Icons.check_circle_outline_rounded,
+          iconColor: const Color(0xFF10B981),
+          iconBgColor: const Color(0xFFECFDF5),
+        ),
+      );
+      cards.add(
+        StatsCard(
+          title: "Cancelled Bookings",
+          value: formatter.format(_cancelledBookings),
+          trendPercentage: formatTrend(_cancelledBookingsTrend),
+          trendPeriod: "from last week",
+          isPositiveTrend: _cancelledBookingsTrendPositive,
+          icon: Icons.cancel_outlined,
+          iconColor: const Color(0xFFEF4444),
+          iconBgColor: const Color(0xFFFEF2F2),
+        ),
+      );
+    }
+
+    if (_session.hasPermission(Modules.payments, Perms.view)) {
+      cards.add(
+        StatsCard(
+          title: "Paid Total Amount",
+          value: "₹${formatter.format(_revenue)}",
+          trendPercentage: formatTrend(_revenueTrend),
+          trendPeriod: "from last week",
+          isPositiveTrend: _revenueTrendPositive,
+          icon: Icons.payments_rounded,
+          iconColor: const Color(0xFF8B5CF6),
+          iconBgColor: const Color(0xFFF5F3FF),
+        ),
+      );
+    }
+
+    if (_session.hasPermission(Modules.storeProducts, Perms.view)) {
+      cards.add(
+        StatsCard(
+          title: "Products",
+          value: formatter.format(_totalProducts),
+          trendPercentage: formatTrend(_productsTrend),
+          trendPeriod: "from last week",
+          isPositiveTrend: _productsTrendPositive,
+          icon: Icons.shopping_bag_rounded,
+          iconColor: const Color(0xFF2563EB),
+          iconBgColor: const Color(0xFFEFF6FF),
+        ),
+      );
+    }
+
+    if (_session.hasPermission(Modules.storeOrders, Perms.view)) {
+      cards.add(
+        StatsCard(
+          title: "Orders (This Week)",
+          value: formatter.format(_totalOrders),
+          trendPercentage: formatTrend(_ordersTrend),
+          trendPeriod: "from last week",
+          isPositiveTrend: _ordersTrendPositive,
+          icon: Icons.shopping_cart_rounded,
+          iconColor: const Color(0xFFEA580C),
+          iconBgColor: const Color(0xFFFFF7ED),
+        ),
+      );
+    }
+
+    if (_session.hasPermission(Modules.advertisement, Perms.view)) {
+      cards.add(
+        StatsCard(
+          title: "Advertisements",
+          value: formatter.format(_totalAdvertisements),
+          trendPercentage: formatTrend(_advertisementsTrend),
+          trendPeriod: "from last week",
+          isPositiveTrend: _advertisementsTrendPositive,
+          icon: Icons.campaign_rounded,
+          iconColor: const Color(0xFFEC4899),
+          iconBgColor: const Color(0xFFFDF2F8),
+        ),
+      );
+    }
+
+    if (_session.hasPermission(Modules.bus, Perms.view)) {
+      cards.add(
+        StatsCard(
+          title: "Bus Routes",
+          value: formatter.format(_totalBusRoutes),
+          extraInfo:
+              "Active: ${formatter.format(_totalActiveBuses)} | Districts: ${formatter.format(_totalBusDistricts)}",
+          trendPercentage: formatTrend(_busRoutesTrend),
+          trendPeriod: "from last week",
+          isPositiveTrend: _busRoutesTrendPositive,
+          icon: Icons.directions_bus_rounded,
+          iconColor: const Color(0xFF0284C7),
+          iconBgColor: const Color(0xFFF0F9FF),
+        ),
+      );
+    }
+
+    if (_session.hasPermission(Modules.taxi, Perms.view)) {
+      cards.add(
+        StatsCard(
+          title: "Active Taxi Drivers",
+          value: formatter.format(_totalTaxiDrivers),
+          trendPercentage: formatTrend(_taxiDriversTrend),
+          trendPeriod: "from last week",
+          isPositiveTrend: _taxiDriversTrendPositive,
+          icon: Icons.local_taxi_rounded,
+          iconColor: const Color(0xFFEAB308),
+          iconBgColor: const Color(0xFFFEFCE8),
+        ),
+      );
+    }
+
+    if (cards.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 48),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.dashboard_customize_rounded,
+                size: 64,
+                color: Colors.grey.shade400,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                "No dashboard data available",
+                style: GoogleFonts.inter(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                "You do not have permission to view any dashboard statistics.",
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  color: Colors.grey.shade500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     int crossAxisCount = 6;
     if (width < 650) {
       crossAxisCount = 2;
@@ -1262,7 +1563,7 @@ class _DashboardState extends State<Dashboard> {
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      itemCount: 12,
+      itemCount: cards.length,
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: crossAxisCount,
         crossAxisSpacing: 16,
@@ -1270,172 +1571,40 @@ class _DashboardState extends State<Dashboard> {
         childAspectRatio: aspectRatio > 0 ? aspectRatio : 1.5,
       ),
       itemBuilder: (context, index) {
-        return _getStatsCard(index);
+        return cards[index];
       },
     );
   }
 
-  Widget _getStatsCard(int index) {
-    final formatter = NumberFormat('#,##0');
-
-    String formatTrend(double trend) {
-      if (trend == 100.0) return "New";
-      if (trend == 0.0) return "0.0%";
-      return "${trend.abs().toStringAsFixed(1)}%";
-    }
-
-    switch (index) {
-      case 0:
-        return StatsCard(
-          title: "Total Users",
-          value: formatter.format(_totalUsers),
-          trendPercentage: formatTrend(_usersTrend),
-          trendPeriod: "from last week",
-          isPositiveTrend: _usersTrendPositive,
-          icon: Icons.people_alt_rounded,
-          iconColor: const Color(0xFF6366F1),
-          iconBgColor: const Color(0xFFEEF2FF),
-        );
-      case 1:
-        return StatsCard(
-          title: "Total Workers",
-          value: formatter.format(_totalWorkers),
-          trendPercentage: formatTrend(_workersTrend),
-          trendPeriod: "from last week",
-          isPositiveTrend: _workersTrendPositive,
-          icon: Icons.engineering_rounded,
-          iconColor: const Color(0xFF10B981),
-          iconBgColor: const Color(0xFFECFDF5),
-        );
-      case 2:
-        return StatsCard(
-          title: "Pending Approvals",
-          value: formatter.format(_pendingApprovals),
-          trendPercentage: formatTrend(_pendingTrend),
-          trendPeriod: "from last week",
-          isPositiveTrend: _pendingTrendPositive,
-          icon: Icons.pending_actions_rounded,
-          iconColor: const Color(0xFFF59E0B),
-          iconBgColor: const Color(0xFFFEF3C7),
-        );
-      case 3:
-        return StatsCard(
-          title: "Pending Bookings",
-          value: formatter.format(_pendingBookings),
-          trendPercentage: formatTrend(_pendingBookingsTrend),
-          trendPeriod: "currently pending",
-          isPositiveTrend: _pendingBookingsTrendPositive,
-          icon: Icons.hourglass_empty_rounded,
-          iconColor: const Color(0xFF3B82F6),
-          iconBgColor: const Color(0xFFEFF6FF),
-        );
-      case 4:
-        return StatsCard(
-          title: "Completed Bookings",
-          value: formatter.format(_completedBookings),
-          trendPercentage: formatTrend(_completedBookingsTrend),
-          trendPeriod: "from last week",
-          isPositiveTrend: _completedBookingsTrendPositive,
-          icon: Icons.check_circle_outline_rounded,
-          iconColor: const Color(0xFF10B981),
-          iconBgColor: const Color(0xFFECFDF5),
-        );
-      case 5:
-        return StatsCard(
-          title: "Cancelled Bookings",
-          value: formatter.format(_cancelledBookings),
-          trendPercentage: formatTrend(_cancelledBookingsTrend),
-          trendPeriod: "from last week",
-          isPositiveTrend: _cancelledBookingsTrendPositive,
-          icon: Icons.cancel_outlined,
-          iconColor: const Color(0xFFEF4444),
-          iconBgColor: const Color(0xFFFEF2F2),
-        );
-      case 6:
-        return StatsCard(
-          title: "Paid Total Amount",
-          value: "₹${formatter.format(_revenue)}",
-          trendPercentage: formatTrend(_revenueTrend),
-          trendPeriod: "from last week",
-          isPositiveTrend: _revenueTrendPositive,
-          icon: Icons.payments_rounded,
-          iconColor: const Color(0xFF8B5CF6),
-          iconBgColor: const Color(0xFFF5F3FF),
-        );
-      case 7:
-        return StatsCard(
-          title: "Products",
-          value: formatter.format(_totalProducts),
-          trendPercentage: formatTrend(_productsTrend),
-          trendPeriod: "from last week",
-          isPositiveTrend: _productsTrendPositive,
-          icon: Icons.shopping_bag_rounded,
-          iconColor: const Color(0xFF2563EB),
-          iconBgColor: const Color(0xFFEFF6FF),
-        );
-      case 8:
-        return StatsCard(
-          title: "Orders (This Week)",
-          value: formatter.format(_totalOrders),
-          trendPercentage: formatTrend(_ordersTrend),
-          trendPeriod: "from last week",
-          isPositiveTrend: _ordersTrendPositive,
-          icon: Icons.shopping_cart_rounded,
-          iconColor: const Color(0xFFEA580C),
-          iconBgColor: const Color(0xFFFFF7ED),
-        );
-      case 9:
-        return StatsCard(
-          title: "Advertisements",
-          value: formatter.format(_totalAdvertisements),
-          trendPercentage: formatTrend(_advertisementsTrend),
-          trendPeriod: "from last week",
-          isPositiveTrend: _advertisementsTrendPositive,
-          icon: Icons.campaign_rounded,
-          iconColor: const Color(0xFFEC4899),
-          iconBgColor: const Color(0xFFFDF2F8),
-        );
-      case 10:
-        return StatsCard(
-          title: "Bus Routes",
-          value: formatter.format(_totalBusRoutes),
-          extraInfo:
-              "Active: ${formatter.format(_totalActiveBuses)} | Districts: ${formatter.format(_totalBusDistricts)}",
-          trendPercentage: formatTrend(_busRoutesTrend),
-          trendPeriod: "from last week",
-          isPositiveTrend: _busRoutesTrendPositive,
-          icon: Icons.directions_bus_rounded,
-          iconColor: const Color(0xFF0284C7),
-          iconBgColor: const Color(0xFFF0F9FF),
-        );
-      case 11:
-        return StatsCard(
-          title: "Active Taxi Drivers",
-          value: formatter.format(_totalTaxiDrivers),
-          trendPercentage: formatTrend(_taxiDriversTrend),
-          trendPeriod: "from last week",
-          isPositiveTrend: _taxiDriversTrendPositive,
-          icon: Icons.local_taxi_rounded,
-          iconColor: const Color(0xFFEAB308),
-          iconBgColor: const Color(0xFFFEFCE8),
-        );
-      default:
-        return const SizedBox.shrink();
-    }
-  }
-
   Widget _buildMiddleSection(bool isLargeScreen, double width) {
+    bool canViewBookings = _session.hasPermission(
+      Modules.dashboard,
+      'view_statistics',
+    );
+    bool canViewActivities = _session.hasPermission(
+      Modules.dashboard,
+      'view_recent_activity',
+    );
+
+    if (!canViewBookings && !canViewActivities) return const SizedBox.shrink();
+
     if (isLargeScreen) {
-      return Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+      List<Widget> rowChildren = [];
+      if (canViewBookings) {
+        rowChildren.add(
           Expanded(flex: 4, child: BookingTrendsChart(data: _bookingTrends)),
-          SizedBox(width: 24),
+        );
+        rowChildren.add(const SizedBox(width: 24));
+        rowChildren.add(
           Expanded(
             flex: 3,
             child: ServiceCategoryChart(categoryCounts: _serviceCategoryCounts),
           ),
-          SizedBox(width: 24),
+        );
+      }
+      if (canViewActivities) {
+        if (rowChildren.isNotEmpty) rowChildren.add(const SizedBox(width: 24));
+        rowChildren.add(
           Expanded(
             flex: 3,
             child: RecentActivitiesList(
@@ -1447,90 +1616,136 @@ class _DashboardState extends State<Dashboard> {
               },
             ),
           ),
-        ],
+        );
+      }
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: rowChildren,
       );
     } else {
-      return Column(
-        children: [
-          BookingTrendsChart(data: _bookingTrends),
-          const SizedBox(height: 24),
-          if (width > 750)
+      List<Widget> colChildren = [];
+      if (canViewBookings) {
+        colChildren.add(BookingTrendsChart(data: _bookingTrends));
+        colChildren.add(const SizedBox(height: 24));
+        if (width > 750) {
+          List<Widget> innerRow = [];
+          innerRow.add(
+            Expanded(
+              child: ServiceCategoryChart(
+                categoryCounts: _serviceCategoryCounts,
+              ),
+            ),
+          );
+          if (canViewActivities) {
+            innerRow.add(const SizedBox(width: 24));
+            innerRow.add(
+              Expanded(
+                child: RecentActivitiesList(
+                  activitiesData: _recentActivities,
+                  onViewAll: () {
+                    if (widget.onNavigate != null)
+                      widget.onNavigate!("Recent Activity");
+                  },
+                ),
+              ),
+            );
+          }
+          colChildren.add(
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: ServiceCategoryChart(
-                    categoryCounts: _serviceCategoryCounts,
-                  ),
-                ),
-                const SizedBox(width: 24),
-                Expanded(
-                  child: RecentActivitiesList(
-                    activitiesData: _recentActivities,
-                    onViewAll: () {
-                      if (widget.onNavigate != null) {
-                        widget.onNavigate!("Recent Activity");
-                      }
-                    },
-                  ),
-                ),
-              ],
-            )
-          else ...[
-            ServiceCategoryChart(categoryCounts: _serviceCategoryCounts),
-            const SizedBox(height: 24),
-            RecentActivitiesList(
-              activitiesData: _recentActivities,
-              onViewAll: () {
-                if (widget.onNavigate != null) {
-                  widget.onNavigate!("Recent Activity");
-                }
-              },
+              children: innerRow,
             ),
-          ],
-        ],
-      );
+          );
+        } else {
+          colChildren.add(
+            ServiceCategoryChart(categoryCounts: _serviceCategoryCounts),
+          );
+          if (canViewActivities) {
+            colChildren.add(const SizedBox(height: 24));
+            colChildren.add(
+              RecentActivitiesList(
+                activitiesData: _recentActivities,
+                onViewAll: () {
+                  if (widget.onNavigate != null)
+                    widget.onNavigate!("Recent Activity");
+                },
+              ),
+            );
+          }
+        }
+      } else if (canViewActivities) {
+        colChildren.add(
+          RecentActivitiesList(
+            activitiesData: _recentActivities,
+            onViewAll: () {
+              if (widget.onNavigate != null)
+                widget.onNavigate!("Recent Activity");
+            },
+          ),
+        );
+      }
+      return Column(children: colChildren);
     }
   }
 
   Widget _buildBottomSection(bool isLargeScreen) {
+    bool canViewBookings = _session.hasPermission(
+      Modules.dashboard,
+      'view_statistics',
+    );
+    bool canViewProducts = _session.hasPermission(
+      Modules.dashboard,
+      'view_statistics',
+    );
+
+    if (!canViewBookings && !canViewProducts) return const SizedBox.shrink();
+
     if (isLargeScreen) {
-      return Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+      List<Widget> rowChildren = [];
+      if (canViewBookings) {
+        rowChildren.add(
           Expanded(
             flex: 13,
             child: LatestBookingsTable(
               bookingsData: _latestBookings,
               onViewAll: () {
-                if (widget.onNavigate != null) {
+                if (widget.onNavigate != null)
                   widget.onNavigate!("All Bookings");
-                }
               },
             ),
           ),
-          SizedBox(width: 24),
+        );
+      }
+      if (canViewProducts) {
+        if (rowChildren.isNotEmpty) rowChildren.add(const SizedBox(width: 24));
+        rowChildren.add(
           Expanded(
             flex: 7,
             child: TopSellingProducts(productsData: _topProducts),
           ),
-        ],
+        );
+      }
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: rowChildren,
       );
     } else {
-      return Column(
-        children: [
+      List<Widget> colChildren = [];
+      if (canViewBookings) {
+        colChildren.add(
           LatestBookingsTable(
             bookingsData: _latestBookings,
             onViewAll: () {
-              if (widget.onNavigate != null) {
-                widget.onNavigate!("All Bookings");
-              }
+              if (widget.onNavigate != null) widget.onNavigate!("All Bookings");
             },
           ),
-          SizedBox(height: 24),
-          TopSellingProducts(productsData: _topProducts),
-        ],
-      );
+        );
+      }
+      if (canViewProducts) {
+        if (colChildren.isNotEmpty) colChildren.add(const SizedBox(height: 24));
+        colChildren.add(TopSellingProducts(productsData: _topProducts));
+      }
+      return Column(children: colChildren);
     }
   }
 }

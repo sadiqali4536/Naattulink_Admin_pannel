@@ -84,7 +84,8 @@ class _ServicesState extends State<Services> {
   @override
   void initState() {
     super.initState();
-    _servicesStream = FirebaseFirestore.instance.collection('services').snapshots();
+    _servicesStream =
+        FirebaseFirestore.instance.collection('services').snapshots();
     _fetchCategories();
   }
 
@@ -1369,7 +1370,8 @@ class _ServicesState extends State<Services> {
         StreamBuilder<QuerySnapshot>(
           stream: _servicesStream,
           builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+            if (snapshot.connectionState == ConnectionState.waiting &&
+                !snapshot.hasData) {
               return const Center(
                 child: CircularProgressIndicator(
                   color: const Color(0xFFFFC107),
@@ -1822,7 +1824,10 @@ class _ServicesState extends State<Services> {
           const SizedBox(height: 16),
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
-            children: [exportButton],
+            children: [
+              if (RbacSession().hasPermission(Modules.services, 'export'))
+                exportButton,
+            ],
           ),
         ],
       );
@@ -1843,7 +1848,8 @@ class _ServicesState extends State<Services> {
           const SizedBox(width: 12),
           statusDropdown,
           const Spacer(),
-          exportButton,
+          if (RbacSession().hasPermission(Modules.services, 'export'))
+            exportButton,
         ],
       ),
     );
@@ -2505,6 +2511,17 @@ class _ServicesState extends State<Services> {
   }
 
   Future<void> _exportToPdf(List<ServiceModel> filteredList) async {
+    if (!RbacSession().hasPermission(Modules.services, 'export')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "Access Denied: You do not have permission to export services.",
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text("Preparing export... Please wait.")),
     );

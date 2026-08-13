@@ -602,6 +602,7 @@ class _AllWorkersPageState extends State<AllWorkersPage> {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text(msg)));
+        _refreshData();
       }
     } catch (e) {
       if (mounted) {
@@ -2349,9 +2350,12 @@ class _AllWorkersPageState extends State<AllWorkersPage> {
                       ),
                     ),
                     if (RbacSession().hasPermission(
-                      Modules.workerManagement,
-                      Perms.edit,
-                    ))
+                          Modules.workerManagement,
+                          'create',
+                        ) &&
+                        (_selectedTabIndex == 0 ||
+                            _selectedTabIndex == 1 ||
+                            _selectedTabIndex == 2))
                       ElevatedButton.icon(
                         onPressed: () => _showAddWorkerDialog(),
                         icon: const Icon(Icons.add, size: 14),
@@ -2502,11 +2506,6 @@ class _AllWorkersPageState extends State<AllWorkersPage> {
     }
 
     if (cards.isEmpty) return const SizedBox.shrink();
-
-    // Adjust cross axis count if cards are fewer than default
-    if (cards.length < crossAxisCount) {
-      crossAxisCount = cards.length;
-    }
 
     return GridView.count(
       shrinkWrap: true,
@@ -2690,10 +2689,7 @@ class _AllWorkersPageState extends State<AllWorkersPage> {
             ],
           ),
           const SizedBox(height: 16),
-          if (RbacSession().hasPermission(
-            Modules.workerManagement,
-            'export_worker',
-          ))
+          if (RbacSession().hasPermission(Modules.workerManagement, 'export'))
             Align(alignment: Alignment.centerRight, child: exportButton),
         ],
       );
@@ -2706,10 +2702,7 @@ class _AllWorkersPageState extends State<AllWorkersPage> {
           const SizedBox(width: 12),
           ratingDropdown,
           const Spacer(),
-          if (RbacSession().hasPermission(
-            Modules.workerManagement,
-            'export_worker',
-          ))
+          if (RbacSession().hasPermission(Modules.workerManagement, 'export'))
             exportButton,
         ],
       );
@@ -2717,10 +2710,7 @@ class _AllWorkersPageState extends State<AllWorkersPage> {
   }
 
   Future<void> _exportToPdf() async {
-    if (!RbacSession().hasPermission(
-      Modules.workerManagement,
-      'export_worker',
-    )) {
+    if (!RbacSession().hasPermission(Modules.workerManagement, 'export')) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(

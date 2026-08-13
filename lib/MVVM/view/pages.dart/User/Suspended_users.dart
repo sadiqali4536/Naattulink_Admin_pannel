@@ -812,7 +812,12 @@ class _SuspendedUsersPageState extends State<SuspendedUsersPage> {
       ),
     );
 
-    final exportButton = ElevatedButton.icon(
+    final hasExport = RbacSession().hasPermission(
+      'user_management',
+      'export',
+    );
+
+    final exportButton = hasExport ? ElevatedButton.icon(
       onPressed: () {
         // ignore: argument_type_not_assignable
         printSuspendedUsersList(filteredUsers);
@@ -830,7 +835,7 @@ class _SuspendedUsersPageState extends State<SuspendedUsersPage> {
         side: const BorderSide(color: Color(0xFFE2E8F0)),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
-    );
+    ) : const SizedBox.shrink();
 
     if (isSmall) {
       return Column(

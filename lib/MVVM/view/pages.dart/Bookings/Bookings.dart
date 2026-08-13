@@ -867,21 +867,35 @@ class _BookingsState extends State<Bookings> {
 
     final filterButton = const SizedBox.shrink();
 
-    final exportButton = ElevatedButton.icon(
-      onPressed: _exportToPdf,
-      icon: const Icon(Icons.download_rounded, size: 14),
-      label: Text(
-        "Export",
-        style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 12),
-      ),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.white,
-        foregroundColor: const Color(0xFF475569),
-        side: const BorderSide(color: Color(0xFFE2E8F0)),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      ),
-    );
+    final _session = RbacSession();
+    final bool canExport = _session.hasPermission(Modules.bookings, 'export');
+
+    final Widget exportButton =
+        canExport
+            ? ElevatedButton.icon(
+              onPressed: _exportToPdf,
+              icon: const Icon(Icons.download_rounded, size: 14),
+              label: Text(
+                "Export",
+                style: GoogleFonts.inter(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: const Color(0xFF475569),
+                side: const BorderSide(color: Color(0xFFE2E8F0)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
+              ),
+            )
+            : const SizedBox.shrink();
 
     if (isSmall) {
       return Column(

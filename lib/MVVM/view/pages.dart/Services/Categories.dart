@@ -86,7 +86,9 @@ class _ServiceCategoriesPageState extends State<ServiceCategoriesPage> {
     if (!RbacSession().hasPermission(Modules.services, 'manage_categories')) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("Access Denied: You do not have permission to manage categories."),
+          content: Text(
+            "Access Denied: You do not have permission to manage categories.",
+          ),
           backgroundColor: Colors.red,
         ),
       );
@@ -474,7 +476,10 @@ class _ServiceCategoriesPageState extends State<ServiceCategoriesPage> {
             icon: const Icon(Icons.add, size: 16),
             label: Text(
               "Add New Category",
-              style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13),
+              style: GoogleFonts.inter(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+              ),
             ),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF047857),
@@ -680,7 +685,10 @@ class _ServiceCategoriesPageState extends State<ServiceCategoriesPage> {
           const SizedBox(height: 16),
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
-            children: [exportButton],
+            children: [
+              if (RbacSession().hasPermission(Modules.services, 'export'))
+                exportButton,
+            ],
           ),
         ],
       );
@@ -693,7 +701,14 @@ class _ServiceCategoriesPageState extends State<ServiceCategoriesPage> {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
-      child: Row(children: [searchField, const Spacer(), exportButton]),
+      child: Row(
+        children: [
+          searchField,
+          const Spacer(),
+          if (RbacSession().hasPermission(Modules.services, 'export'))
+            exportButton,
+        ],
+      ),
     );
   }
 
@@ -1019,7 +1034,9 @@ class _ServiceCategoriesPageState extends State<ServiceCategoriesPage> {
     if (!RbacSession().hasPermission(Modules.services, 'manage_categories')) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("Access Denied: You do not have permission to delete categories."),
+          content: Text(
+            "Access Denied: You do not have permission to delete categories.",
+          ),
           backgroundColor: Colors.red,
         ),
       );
@@ -1087,6 +1104,17 @@ class _ServiceCategoriesPageState extends State<ServiceCategoriesPage> {
   }
 
   Future<void> _exportToPdf(List<CategoryModel> filteredList) async {
+    if (!RbacSession().hasPermission(Modules.services, 'export')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "Access Denied: You do not have permission to export categories.",
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text("Preparing export... Please wait.")),
     );

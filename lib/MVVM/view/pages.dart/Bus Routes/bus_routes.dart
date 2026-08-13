@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:swiftclean_admin/MVVM/utils/printer_helper.dart';
 import 'package:swiftclean_admin/MVVM/view/widgets/custom_dropdown.dart';
+import 'package:swiftclean_admin/MVVM/model/models/admin_model.dart';
+import 'package:swiftclean_admin/MVVM/utils/rbac_session.dart';
 
 class BusRoutesPage extends StatefulWidget {
   const BusRoutesPage({super.key});
@@ -13,6 +15,7 @@ class BusRoutesPage extends StatefulWidget {
 }
 
 class _BusRoutesPageState extends State<BusRoutesPage> {
+  final _session = RbacSession();
   final ScrollController _verticalScrollController = ScrollController();
   final ScrollController _horizontalScrollController = ScrollController();
   String _selectedStatus = 'All Status';
@@ -202,6 +205,18 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (!_session.hasPermission(Modules.bus, 'view')) {
+      return const Scaffold(
+        backgroundColor: Color(0xFFF8F9FA),
+        body: Center(
+          child: Text(
+            "You do not have permission to view this module.",
+            style: TextStyle(fontSize: 16, color: Colors.black54),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
       body: Scrollbar(
@@ -454,22 +469,23 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
         ),
         Row(
           children: [
-            OutlinedButton.icon(
-              onPressed: () => _exportToPdf(docs),
-              icon: const Icon(
-                Icons.download_rounded,
-                color: Colors.black87,
-                size: 20,
-              ),
-              label: const Text(
-                'Export',
-                style: TextStyle(color: Colors.black87),
-              ),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 16,
+            if (_session.hasPermission(Modules.bus, 'export'))
+              OutlinedButton.icon(
+                onPressed: () => _exportToPdf(docs),
+                icon: const Icon(
+                  Icons.download_rounded,
+                  color: Colors.black87,
+                  size: 20,
                 ),
+                label: const Text(
+                  'Export',
+                  style: TextStyle(color: Colors.black87),
+                ),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 16,
+                  ),
                 side: const BorderSide(color: Colors.black12),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -477,28 +493,29 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
               ),
             ),
             const SizedBox(width: 16),
-            ElevatedButton.icon(
-              onPressed: () => _showBusDialog(),
-              icon: const Icon(Icons.add, color: Colors.black87, size: 20),
-              label: const Text(
-                'Add Bus Route',
-                style: TextStyle(
-                  color: Colors.black87,
-                  fontWeight: FontWeight.w600,
+            if (_session.hasPermission(Modules.bus, 'create'))
+              ElevatedButton.icon(
+                onPressed: () => _showBusDialog(),
+                icon: const Icon(Icons.add, color: Colors.black87, size: 20),
+                label: const Text(
+                  'Add Bus Route',
+                  style: TextStyle(
+                    color: Colors.black87,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFFFC107),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 16,
+                  ),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
               ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFFFC107),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 16,
-                ),
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-            ),
           ],
         ),
       ],
@@ -1009,49 +1026,60 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Transform.scale(
-                            scale: 0.8,
-                            child: Switch(
-                              value:
-                                  data['status'] == 'active' ||
-                                  data['status'] == true,
-                              onChanged: (bool value) async {
-                                final isBoolStatus = data['status'] is bool;
-                                final dynamic newStatus =
-                                    isBoolStatus
-                                        ? value
-                                        : (value ? 'active' : 'inactive');
-                                await doc.reference.update({
-                                  'status': newStatus,
-                                });
-                              },
-                              activeColor: Colors.green,
-                              inactiveThumbColor: Colors.red,
-                              inactiveTrackColor: Colors.red.shade200,
+                          if (_session.hasPermission(
+                            Modules.bus,
+                            'active_inactive',
+                          ))
+                            Transform.scale(
+                              scale: 0.8,
+                              child: Switch(
+                                value:
+                                    data['status'] == 'active' ||
+                                    data['status'] == true,
+                                onChanged: (bool value) async {
+                                  final isBoolStatus = data['status'] is bool;
+                                  final dynamic newStatus =
+                                      isBoolStatus
+                                          ? value
+                                          : (value ? 'active' : 'inactive');
+                                  await doc.reference.update({
+                                    'status': newStatus,
+                                  });
+                                },
+                                activeColor: Colors.green,
+                                inactiveThumbColor: Colors.red,
+                                inactiveTrackColor: Colors.red.shade200,
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          IconButton(
-                            icon: const Icon(
-                              Icons.edit_outlined,
-                              size: 20,
-                              color: Colors.black54,
+                          if (_session.hasPermission(Modules.bus, 'edit')) ...[
+                            const SizedBox(width: 8),
+                            IconButton(
+                              icon: const Icon(
+                                Icons.edit_outlined,
+                                size: 20,
+                                color: Colors.black54,
+                              ),
+                              onPressed: () => _showBusDialog(document: doc),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
                             ),
-                            onPressed: () => _showBusDialog(document: doc),
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                          ),
-                          const SizedBox(width: 8),
-                          IconButton(
-                            icon: const Icon(
-                              Icons.delete_outline,
-                              size: 20,
-                              color: Colors.redAccent,
+                          ],
+                          if (_session.hasPermission(
+                            Modules.bus,
+                            'delete',
+                          )) ...[
+                            const SizedBox(width: 8),
+                            IconButton(
+                              icon: const Icon(
+                                Icons.delete_outline,
+                                size: 20,
+                                color: Colors.redAccent,
+                              ),
+                              onPressed: () => _showDeleteDialog(doc),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
                             ),
-                            onPressed: () => _showDeleteDialog(doc),
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                          ),
+                          ],
                         ],
                       ),
                     ),

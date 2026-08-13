@@ -175,10 +175,7 @@ class _TabletScaffoldState extends State<TabletScaffold> {
   String _getFirstPermittedTile() {
     if (_can(Modules.dashboard, Perms.view)) return "Dashboard";
     if (_can(Modules.userManagement, Perms.view)) return "User Profile";
-    if (_can(Modules.roles, Perms.view) ||
-        _can(Modules.userManagement, 'assign_role'))
-      return "User Roles";
-    if (_can(Modules.grantAccess, Perms.view)) return "Grant Access";
+
     if (_can(Modules.workerManagement, Perms.view)) return "All Workers";
     if (_can(Modules.bookings, Perms.view)) return "All Bookings";
     if (_can(Modules.services, Perms.view)) return "All Services";
@@ -235,7 +232,9 @@ class _TabletScaffoldState extends State<TabletScaffold> {
                       .toString()
                       .trim()
                       .toLowerCase();
-              if (bookingStatus == 'confirmed' && workStatus == 'pending' && completedStatus != 'ongoing') {
+              if (bookingStatus == 'confirmed' &&
+                  workStatus == 'pending' &&
+                  completedStatus != 'ongoing') {
                 pCount++;
               }
               if (completedStatus == 'ongoing') {
@@ -645,8 +644,6 @@ class _TabletScaffoldState extends State<TabletScaffold> {
                         },
                       ),
                     if (_can(Modules.userManagement, Perms.view) ||
-                        _can(Modules.roles, Perms.view) ||
-                        _can(Modules.userManagement, 'assign_role') ||
                         _can(Modules.grantAccess, Perms.view))
                       SidebarExpansionTile(
                         title: "User Management",
@@ -669,8 +666,7 @@ class _TabletScaffoldState extends State<TabletScaffold> {
                                 _scaffoldKey.currentState?.closeDrawer();
                               },
                             ),
-                          if (_can(Modules.roles, Perms.view) ||
-                              _can(Modules.userManagement, 'assign_role'))
+                          if (_can(Modules.userManagement, 'assign_role'))
                             SidebarTile(
                               title: "User Roles",
                               icon: Icons.shield_outlined,
@@ -914,58 +910,63 @@ class _TabletScaffoldState extends State<TabletScaffold> {
                               ),
                             ),
                           ),
-                          SidebarTile(
-                            title: "On Going Works",
-                            icon: Icons.play_circle_outline_rounded,
-                            isSelected: selectedTile == "On Going Works",
-                            onTap: () {
-                              setState(() => selectedTile = "On Going Works");
-                              _scaffoldKey.currentState?.closeDrawer();
-                            },
-                            trailing:
-                                ongoingBookingsCount > 0
-                                    ? Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 6,
-                                        vertical: 2,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFF8B5CF6),
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                      child: Text(
-                                        ongoingBookingsCount.toString(),
-                                        style: GoogleFonts.inter(
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.white,
+                          if (_can(Modules.bookings, 'view_ongoing'))
+                            SidebarTile(
+                              title: "On Going Works",
+                              icon: Icons.play_circle_outline_rounded,
+                              isSelected: selectedTile == "On Going Works",
+                              onTap: () {
+                                setState(() => selectedTile = "On Going Works");
+                                _scaffoldKey.currentState?.closeDrawer();
+                              },
+                              trailing:
+                                  ongoingBookingsCount > 0
+                                      ? Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 2,
                                         ),
-                                      ),
-                                    )
-                                    : null,
-                          ),
-                          SidebarTile(
-                            title: "Completed Bookings",
-                            icon: Icons.assignment_turned_in_outlined,
-                            isSelected: selectedTile == "Completed Bookings",
-                            onTap: () {
-                              setState(
-                                () => selectedTile = "Completed Bookings",
-                              );
-                              _scaffoldKey.currentState?.closeDrawer();
-                            },
-                          ),
-                          SidebarTile(
-                            title: "Cancelled Bookings",
-                            icon: Icons.cancel_outlined,
-                            isSelected: selectedTile == "Cancelled Bookings",
-                            onTap: () {
-                              setState(
-                                () => selectedTile = "Cancelled Bookings",
-                              );
-                              _scaffoldKey.currentState?.closeDrawer();
-                            },
-                          ),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFF8B5CF6),
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          ongoingBookingsCount.toString(),
+                                          style: GoogleFonts.inter(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      )
+                                      : null,
+                            ),
+                          if (_can(Modules.bookings, 'view_completed'))
+                            SidebarTile(
+                              title: "Completed Bookings",
+                              icon: Icons.assignment_turned_in_outlined,
+                              isSelected: selectedTile == "Completed Bookings",
+                              onTap: () {
+                                setState(
+                                  () => selectedTile = "Completed Bookings",
+                                );
+                                _scaffoldKey.currentState?.closeDrawer();
+                              },
+                            ),
+                          if (_can(Modules.bookings, 'view_cancelled'))
+                            SidebarTile(
+                              title: "Cancelled Bookings",
+                              icon: Icons.cancel_outlined,
+                              isSelected: selectedTile == "Cancelled Bookings",
+                              onTap: () {
+                                setState(
+                                  () => selectedTile = "Cancelled Bookings",
+                                );
+                                _scaffoldKey.currentState?.closeDrawer();
+                              },
+                            ),
                         ],
                       ),
                     if (_can(Modules.services, Perms.view))
@@ -997,28 +998,39 @@ class _TabletScaffoldState extends State<TabletScaffold> {
                               _scaffoldKey.currentState?.closeDrawer();
                             },
                           ),
-                          SidebarTile(
-                            title: "Service Reviews",
-                            icon: Icons.rate_review_rounded,
-                            isSelected: selectedTile == "Service Reviews",
-                            onTap: () {
-                              setState(() => selectedTile = "Service Reviews");
-                              _scaffoldKey.currentState?.closeDrawer();
-                            },
-                          ),
+                          if (_session.hasPermission(
+                            Modules.services,
+                            'service_reviews',
+                          ))
+                            SidebarTile(
+                              title: "Service Reviews",
+                              icon: Icons.rate_review_rounded,
+                              isSelected: selectedTile == "Service Reviews",
+                              onTap: () {
+                                setState(
+                                  () => selectedTile = "Service Reviews",
+                                );
+                                _scaffoldKey.currentState?.closeDrawer();
+                              },
+                            ),
                         ],
                       ),
-                    if (_can(Modules.storeProducts, Perms.view) || _can(Modules.storeOrders, Perms.view))
+                    if (_can(Modules.storeProducts, Perms.view) ||
+                        _can(Modules.storeOrders, Perms.view))
                       SidebarExpansionTile(
                         title: "Online Store",
                         icon: Icons.storefront_rounded,
                         isInitiallyExpanded:
                             selectedTile == "Store Products" ||
                             selectedTile == "Store Orders",
-                        onTap: () => setState(() =>
-                            selectedTile = _can(Modules.storeProducts, Perms.view)
-                                ? "Store Products"
-                                : "Store Orders"),
+                        onTap:
+                            () => setState(
+                              () =>
+                                  selectedTile =
+                                      _can(Modules.storeProducts, Perms.view)
+                                          ? "Store Products"
+                                          : "Store Orders",
+                            ),
                         children: [
                           if (_can(Modules.storeProducts, Perms.view))
                             SidebarTile(

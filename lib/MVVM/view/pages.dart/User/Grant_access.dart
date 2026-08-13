@@ -738,6 +738,33 @@ class _GrantAccessPageState extends State<GrantAccessPage> {
   // ---------------------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
+    if (!_session.hasPermission(Modules.grantAccess, Perms.view)) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFF8FAFC),
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.lock_outline_rounded, size: 64, color: Color(0xFF94A3B8)),
+              const SizedBox(height: 16),
+              Text(
+                'Access Denied',
+                style: GoogleFonts.inter(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF1E293B),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'You do not have permission to access Grant Access.',
+                style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF64748B)),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       body: Column(
@@ -1448,7 +1475,8 @@ class _GrantAccessPageState extends State<GrantAccessPage> {
               ),
             ),
           )
-        else
+        else if ((_existingRecord == null && _session.hasPermission(Modules.grantAccess, Perms.create)) ||
+                 (_existingRecord != null && _session.hasPermission(Modules.grantAccess, Perms.edit)))
           ElevatedButton.icon(
             onPressed: _isSubmitting ? null : _submit,
             icon:
@@ -2382,37 +2410,39 @@ class _PasswordDeliverySectionState extends State<_PasswordDeliverySection> {
                     : 'Generate a secure web-panel password and copy it to share with the user securely.',
             trailingWidget:
                 _generatedPassword == null
-                    ? ElevatedButton.icon(
-                      onPressed: () {
-                        final pass = _generateSecurePassword();
-                        setState(() {
-                          _generatedPassword = pass;
-                          _passwordCopied = false;
-                        });
-                        // Notify parent so it can pass password to _submit()
-                        widget.onPasswordGenerated(pass);
-                      },
-                      icon: const Icon(Icons.auto_fix_high_rounded, size: 14),
-                      label: Text(
-                        'Generate',
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF059669),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 10,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        elevation: 0,
-                      ),
-                    )
+                    ? (RbacSession().hasPermission(Modules.grantAccess, 'generate_password') 
+                      ? ElevatedButton.icon(
+                          onPressed: () {
+                            final pass = _generateSecurePassword();
+                            setState(() {
+                              _generatedPassword = pass;
+                              _passwordCopied = false;
+                            });
+                            // Notify parent so it can pass password to _submit()
+                            widget.onPasswordGenerated(pass);
+                          },
+                          icon: const Icon(Icons.auto_fix_high_rounded, size: 14),
+                          label: Text(
+                            'Generate',
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF059669),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 10,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            elevation: 0,
+                          ),
+                        )
+                      : const SizedBox.shrink())
                     : const SizedBox.shrink(),
           ),
 

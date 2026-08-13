@@ -962,24 +962,37 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
       ),
     );
 
-    final exportButton = ElevatedButton.icon(
-      onPressed: () {
-        // TODO: Implement export functionality
-      },
-      icon: const Icon(Icons.download_rounded, size: 14),
-      label: Text(
-        "Export",
-        style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 12),
-      ),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.white,
-        foregroundColor: const Color(0xFF475569),
-        elevation: 0,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        side: const BorderSide(color: Color(0xFFE2E8F0)),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      ),
-    );
+    final hasExport = RbacSession().hasPermission('user_management', 'export');
+
+    final exportButton =
+        hasExport
+            ? ElevatedButton.icon(
+              onPressed: () {
+                // TODO: Implement export functionality
+              },
+              icon: const Icon(Icons.download_rounded, size: 14),
+              label: Text(
+                "Export",
+                style: GoogleFonts.inter(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: const Color(0xFF475569),
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
+                side: const BorderSide(color: Color(0xFFE2E8F0)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            )
+            : const SizedBox.shrink();
 
     if (isSmall) {
       return Column(

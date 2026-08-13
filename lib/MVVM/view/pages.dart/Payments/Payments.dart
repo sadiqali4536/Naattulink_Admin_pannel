@@ -3,6 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:swiftclean_admin/MVVM/utils/printer_helper.dart';
+import 'package:swiftclean_admin/MVVM/model/models/admin_model.dart';
+import 'package:swiftclean_admin/MVVM/utils/rbac_session.dart';
 
 class PaymentPage extends StatefulWidget {
   PaymentPage({super.key});
@@ -12,6 +14,8 @@ class PaymentPage extends StatefulWidget {
 }
 
 class _PaymentPageState extends State<PaymentPage> {
+  final _session = RbacSession();
+
   static final String _dateString =
       "${DateTime.now().year}${DateTime.now().month.toString().padLeft(2, '0')}${DateTime.now().day.toString().padLeft(2, '0')}";
 
@@ -75,6 +79,120 @@ class _PaymentPageState extends State<PaymentPage> {
         context,
       ).showSnackBar(SnackBar(content: Text("Error exporting: $e")));
     }
+  }
+
+  void _showChangeStatusDialog(Map<String, String> tx) {
+    String selectedStatus = tx['status']!;
+    if (selectedStatus != 'Paid' && selectedStatus != 'Refund') {
+      selectedStatus = 'Paid';
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              title: Text(
+                "Update Payment Status",
+                style: GoogleFonts.inter(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                ),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Select new status:",
+                    style: GoogleFonts.inter(fontSize: 14),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    value: selectedStatus,
+                    items: const [
+                      DropdownMenuItem(value: 'Paid', child: Text('Paid')),
+                      DropdownMenuItem(value: 'Refund', child: Text('Refund')),
+                    ],
+                    onChanged: (val) {
+                      if (val != null) {
+                        setDialogState(() => selectedStatus = val);
+                      }
+                    },
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: const Color(0xFFF8FAFC),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text(
+                    "Cancel",
+                    style: GoogleFonts.inter(
+                      color: Colors.grey[600],
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    try {
+                      await FirebaseFirestore.instance
+                          .collection('payments')
+                          .doc(tx['id'])
+                          .update({'status': selectedStatus});
+                      if (mounted) {
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              "Payment status updated successfully",
+                            ),
+                          ),
+                        );
+                      }
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text("Error updating status: $e")),
+                        );
+                      }
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF6366F1),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: Text(
+                    "Update",
+                    style: GoogleFonts.inter(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   void _showCreatePaymentDialog(BuildContext context) {
@@ -678,6 +796,7 @@ class _PaymentPageState extends State<PaymentPage> {
                 }
 
                 return {
+                  'id': doc.id,
                   'transactionId': data['transactionId']?.toString() ?? '',
                   'itemName': data['itemName']?.toString() ?? '',
                   'amount': data['amount']?.toString() ?? '',
@@ -713,34 +832,38 @@ class _PaymentPageState extends State<PaymentPage> {
                           color: const Color(0xFF0F172A),
                         ),
                       ),
-                      ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF10B981),
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                      if (_session.hasPermission(
+                        Modules.payments,
+                        'create_payment',
+                      ))
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF10B981),
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
                           ),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
-                        ),
-                        icon: const Icon(
-                          Icons.add,
-                          size: 18,
-                          color: Colors.white,
-                        ),
-                        label: Text(
-                          'Create Payment',
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
+                          icon: const Icon(
+                            Icons.add,
+                            size: 18,
                             color: Colors.white,
                           ),
+                          label: Text(
+                            'Create Payment',
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.white,
+                            ),
+                          ),
+                          onPressed: () => _showCreatePaymentDialog(context),
                         ),
-                        onPressed: () => _showCreatePaymentDialog(context),
-                      ),
                     ],
                   ),
                   const SizedBox(height: 24),
@@ -970,35 +1093,39 @@ class _PaymentPageState extends State<PaymentPage> {
                               ),
                             ),
                             const SizedBox(width: 12),
-                            ElevatedButton.icon(
-                              onPressed:
-                                  () => _exportToPdf(filteredTransactions),
-                              icon: const Icon(
-                                Icons.download_rounded,
-                                size: 14,
-                              ),
-                              label: Text(
-                                "Export",
-                                style: GoogleFonts.inter(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 12,
+                            if (_session.hasPermission(
+                              Modules.payments,
+                              'export',
+                            ))
+                              ElevatedButton.icon(
+                                onPressed:
+                                    () => _exportToPdf(filteredTransactions),
+                                icon: const Icon(
+                                  Icons.download_rounded,
+                                  size: 14,
+                                ),
+                                label: Text(
+                                  "Export",
+                                  style: GoogleFonts.inter(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.white,
+                                  foregroundColor: const Color(0xFF475569),
+                                  side: const BorderSide(
+                                    color: Color(0xFFE2E8F0),
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 10,
+                                  ),
                                 ),
                               ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.white,
-                                foregroundColor: const Color(0xFF475569),
-                                side: const BorderSide(
-                                  color: Color(0xFFE2E8F0),
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 10,
-                                ),
-                              ),
-                            ),
                           ],
                         ),
                       ],
@@ -1025,16 +1152,23 @@ class _PaymentPageState extends State<PaymentPage> {
                               width:
                                   1400, // Fixed width to enable horizontal scrolling
                               child: Table(
-                                columnWidths: const {
-                                  0: FlexColumnWidth(0.7), // No.
-                                  1: FlexColumnWidth(1.8), // Transaction ID
-                                  2: FlexColumnWidth(1.5), // Item Name
-                                  3: FlexColumnWidth(1.0), // Amount
-                                  4: FlexColumnWidth(1.2), // Booking ID
-                                  5: FlexColumnWidth(1.2), // Payment Mode
-                                  6: FlexColumnWidth(1.0), // Status
-                                  7: FlexColumnWidth(1.2), // Date
-                                  8: FlexColumnWidth(1.2), // Time
+                                columnWidths: {
+                                  0: const FlexColumnWidth(0.7), // No.
+                                  1: const FlexColumnWidth(
+                                    1.8,
+                                  ), // Transaction ID
+                                  2: const FlexColumnWidth(1.5), // Item Name
+                                  3: const FlexColumnWidth(1.0), // Amount
+                                  4: const FlexColumnWidth(1.2), // Booking ID
+                                  5: const FlexColumnWidth(1.2), // Payment Mode
+                                  6: const FlexColumnWidth(1.0), // Status
+                                  7: const FlexColumnWidth(1.2), // Date
+                                  8: const FlexColumnWidth(1.2), // Time
+                                  if (_session.hasPermission(
+                                    Modules.payments,
+                                    'payment_status',
+                                  ))
+                                    9: const FlexColumnWidth(1.4), // Action
                                 },
                                 defaultVerticalAlignment:
                                     TableCellVerticalAlignment.middle,
@@ -1060,6 +1194,11 @@ class _PaymentPageState extends State<PaymentPage> {
                                       _buildHeaderCell("Status"),
                                       _buildHeaderCell("Date"),
                                       _buildHeaderCell("Time"),
+                                      if (_session.hasPermission(
+                                        Modules.payments,
+                                        'payment_status',
+                                      ))
+                                        _buildHeaderCell("Action"),
                                     ],
                                   ),
 
@@ -1289,6 +1428,52 @@ class _PaymentPageState extends State<PaymentPage> {
                                             ),
                                           ),
                                         ),
+                                        if (_session.hasPermission(
+                                          Modules.payments,
+                                          'payment_status',
+                                        ))
+                                          Padding(
+                                            padding: const EdgeInsets.symmetric(
+                                              vertical: 12.0,
+                                              horizontal: 8.0,
+                                            ),
+                                            child: ElevatedButton(
+                                              onPressed:
+                                                  () => _showChangeStatusDialog(
+                                                    tx,
+                                                  ),
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor:
+                                                    const Color.fromARGB(
+                                                      255,
+                                                      18,
+                                                      74,
+                                                      163,
+                                                    ),
+                                                foregroundColor: Colors.white,
+                                                elevation: 0,
+                                                side: BorderSide.none,
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 8,
+                                                      vertical: 8,
+                                                    ),
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(6),
+                                                ),
+                                              ),
+                                              child: Text(
+                                                "Update Status",
+                                                style: GoogleFonts.inter(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                                maxLines: 1,
+                                                softWrap: false,
+                                              ),
+                                            ),
+                                          ),
                                       ],
                                     );
                                   }),

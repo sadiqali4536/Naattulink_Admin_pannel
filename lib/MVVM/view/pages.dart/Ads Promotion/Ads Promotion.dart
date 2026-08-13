@@ -402,9 +402,28 @@ class _AdspromotionState extends State<Adspromotion> {
           if (status == 'Expired') expiredCount++;
         }
 
+        final canViewInactive = RbacSession().hasPermission(
+          Modules.advertisement,
+          'unpublish_ad',
+        );
+
+        final canViewActive = RbacSession().hasPermission(
+          Modules.advertisement,
+          'publish_ad',
+        );
+
         // Apply filters
         var filteredBanners =
             allBanners.where((banner) {
+              // Hide inactive banners if user lacks unpublish_ad permission
+              if (!banner.isActive && !canViewInactive) {
+                return false;
+              }
+              // Hide active banners if user lacks publish_ad permission
+              if (banner.isActive && !canViewActive) {
+                return false;
+              }
+
               // Search query matching title, advertiser name, category
               final query = _searchQuery.toLowerCase();
               final matchesSearch =
@@ -1370,9 +1389,13 @@ class _AdspromotionState extends State<Adspromotion> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           if (RbacSession().hasPermission(
-                            Modules.advertisement,
-                            Perms.edit,
-                          ))
+                                Modules.advertisement,
+                                'publish_ad',
+                              ) ||
+                              RbacSession().hasPermission(
+                                Modules.advertisement,
+                                'unpublish_ad',
+                              ))
                             Transform.scale(
                               scale: 0.7,
                               child: Switch(
@@ -3621,32 +3644,37 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    ElevatedButton(
-                      onPressed:
-                          _isOptimizingImage ? null : () => _saveForm(false),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: _AdspromotionState.primaryNavy,
-                        elevation: 0,
-                        side: const BorderSide(
-                          color: _AdspromotionState.borderLight,
+                    if (RbacSession().hasPermission(
+                      Modules.advertisement,
+                      'save_draft',
+                    )) ...[
+                      const SizedBox(width: 12),
+                      ElevatedButton(
+                        onPressed:
+                            _isOptimizingImage ? null : () => _saveForm(false),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: _AdspromotionState.primaryNavy,
+                          elevation: 0,
+                          side: const BorderSide(
+                            color: _AdspromotionState.borderLight,
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 16,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
                         ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 16,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
+                        child: Text(
+                          "Save Draft",
+                          style: GoogleFonts.plusJakartaSans(
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
-                      child: Text(
-                        "Save Draft",
-                        style: GoogleFonts.plusJakartaSans(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
+                    ],
                     const SizedBox(width: 12),
                     ElevatedButton(
                       onPressed:
@@ -4882,26 +4910,28 @@ class _BannerFormDialogState extends State<BannerFormDialog> {
       children: [
         _buildSectionHeader("Ads Support"),
         const SizedBox(height: 16),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: Text(
-            "Status",
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
+        if (RbacSession().hasPermission(Modules.advertisement, 'publish_ad') ||
+            RbacSession().hasPermission(Modules.advertisement, 'unpublish_ad'))
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(
+              "Status",
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+              ),
             ),
-          ),
-          subtitle: Text(
-            "active",
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 11,
-              color: _AdspromotionState.textGrey,
+            subtitle: Text(
+              "active",
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 11,
+                color: _AdspromotionState.textGrey,
+              ),
             ),
+            value: _isActive,
+            activeThumbColor: _AdspromotionState.primaryNavy,
+            onChanged: (val) => setState(() => _isActive = val),
           ),
-          value: _isActive,
-          activeThumbColor: _AdspromotionState.primaryNavy,
-          onChanged: (val) => setState(() => _isActive = val),
-        ),
       ],
     );
   }

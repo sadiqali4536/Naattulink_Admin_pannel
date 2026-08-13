@@ -3,6 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_rating_stars/flutter_rating_stars.dart';
 import 'package:swiftclean_admin/MVVM/utils/printer_helper.dart';
+import 'package:swiftclean_admin/MVVM/utils/rbac_session.dart';
+import 'package:swiftclean_admin/MVVM/model/models/admin_model.dart';
 
 class ServiceReviewsPage extends StatefulWidget {
   const ServiceReviewsPage({super.key});
@@ -39,6 +41,9 @@ class _ServiceReviewsPageState extends State<ServiceReviewsPage> {
     _searchFocusNode.dispose();
     super.dispose();
   }
+
+  bool _can(String action) =>
+      RbacSession().hasPermission(Modules.serviceReviews, action);
 
   @override
   Widget build(BuildContext context) {
@@ -193,22 +198,26 @@ class _ServiceReviewsPageState extends State<ServiceReviewsPage> {
             ),
           ],
         ),
-        ElevatedButton.icon(
-          onPressed: _showAddReviewDialog,
-          icon: const Icon(Icons.add, size: 16),
-          label: Text(
-            "Add Review",
-            style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13),
-          ),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF047857),
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
+        if (_can('create'))
+          ElevatedButton.icon(
+            onPressed: _showAddReviewDialog,
+            icon: const Icon(Icons.add, size: 16),
+            label: Text(
+              "Add Review",
+              style: GoogleFonts.inter(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+              ),
             ),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF047857),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            ),
           ),
-        ),
       ],
     );
   }
@@ -352,26 +361,30 @@ class _ServiceReviewsPageState extends State<ServiceReviewsPage> {
             ),
           ),
           const Spacer(),
-          ElevatedButton.icon(
-            onPressed: () => _exportReviews(filteredDocs),
-            icon: const Icon(Icons.download_rounded, size: 14),
-            label: Text(
-              "Export",
-              style: GoogleFonts.inter(
-                fontWeight: FontWeight.bold,
-                fontSize: 12,
+          if (RbacSession().hasPermission(Modules.services, 'export'))
+            ElevatedButton.icon(
+              onPressed: () => _exportReviews(filteredDocs),
+              icon: const Icon(Icons.download_rounded, size: 14),
+              label: Text(
+                "Export",
+                style: GoogleFonts.inter(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: const Color(0xFF475569),
+                side: const BorderSide(color: Color(0xFFE2E8F0)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
               ),
             ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.white,
-              foregroundColor: const Color(0xFF475569),
-              side: const BorderSide(color: Color(0xFFE2E8F0)),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            ),
-          ),
         ],
       ),
     );
@@ -783,26 +796,32 @@ class _ServiceReviewsPageState extends State<ServiceReviewsPage> {
                           SizedBox(
                             width: 60,
                             child: Center(
-                              child: Container(
-                                width: 32,
-                                height: 32,
-                                decoration: BoxDecoration(
-                                  color: Colors.grey.shade100,
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: IconButton(
-                                  padding: EdgeInsets.zero,
-                                  constraints: const BoxConstraints(),
-                                  icon: const Icon(
-                                    Icons.remove_red_eye,
-                                    size: 16,
-                                  ),
-                                  color: Colors.grey.shade700,
-                                  onPressed:
-                                      () => _showViewReviewDialog(review),
-                                  splashRadius: 16,
-                                ),
-                              ),
+                              child:
+                                  _can('view')
+                                      ? Container(
+                                        width: 32,
+                                        height: 32,
+                                        decoration: BoxDecoration(
+                                          color: Colors.grey.shade100,
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                        ),
+                                        child: IconButton(
+                                          padding: EdgeInsets.zero,
+                                          constraints: const BoxConstraints(),
+                                          icon: const Icon(
+                                            Icons.remove_red_eye,
+                                            size: 16,
+                                          ),
+                                          color: Colors.grey.shade700,
+                                          onPressed:
+                                              () =>
+                                                  _showViewReviewDialog(review),
+                                          splashRadius: 16,
+                                        ),
+                                      )
+                                      : const SizedBox.shrink(),
                             ),
                           ),
                         ),
@@ -1459,6 +1478,17 @@ class _ServiceReviewsPageState extends State<ServiceReviewsPage> {
   }
 
   Future<void> _exportReviews(List<QueryDocumentSnapshot> docs) async {
+    if (!RbacSession().hasPermission(Modules.services, 'export')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "Access Denied: You do not have permission to export reviews.",
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text("Preparing export... Please wait.")),
     );

@@ -21,6 +21,7 @@ class Modules {
   static const String auditLogs = 'audit_logs';
   static const String dashboard = 'dashboard';
   static const String services = 'services';
+  static const String serviceReviews = 'service_reviews';
   static const String truck = 'truck';
   static const String healthcare = 'healthcare';
   static const String business = 'business';
@@ -146,101 +147,193 @@ class ModuleDefinition {
 /// Built-in fallback module registry (used when Firestore `modules/` is unavailable).
 class AppModules {
   static const List<ModuleDefinition> builtin = [
-    ModuleDefinition(
-      id: Modules.userManagement,
-      displayName: 'User Management',
-      actions: [Perms.view, Perms.create, Perms.edit, Perms.delete],
-      isSystem: true,
-    ),
-    ModuleDefinition(
-      id: Modules.workerManagement,
-      displayName: 'Worker Management',
-      actions: [Perms.view, Perms.approve, Perms.reject, Perms.edit],
-    ),
-    ModuleDefinition(
-      id: Modules.advertisement,
-      displayName: 'Advertisement',
-      actions: [Perms.view, Perms.create, Perms.edit, Perms.delete],
-    ),
-    ModuleDefinition(
-      id: Modules.bus,
-      displayName: 'Bus',
-      actions: [Perms.view, Perms.create, Perms.edit],
-    ),
-    ModuleDefinition(
-      id: Modules.taxi,
-      displayName: 'Taxi',
-      actions: [Perms.view, Perms.create, Perms.edit],
-    ),
-    ModuleDefinition(
-      id: Modules.bookings,
-      displayName: 'Bookings',
-      actions: [Perms.view, Perms.approve, Perms.cancel],
-    ),
-    ModuleDefinition(
-      id: Modules.payments,
-      displayName: 'Payments',
-      actions: [Perms.view, Perms.export],
-    ),
-    ModuleDefinition(
-      id: Modules.reports,
-      displayName: 'Reports',
-      actions: [Perms.view, Perms.export],
-    ),
-    ModuleDefinition(
-      id: Modules.notifications,
-      displayName: 'Notifications',
-      actions: [Perms.view, Perms.create],
-    ),
-    ModuleDefinition(
-      id: Modules.settings,
-      displayName: 'Settings',
-      actions: [Perms.view, Perms.manage],
-      isSystem: true,
-    ),
-    ModuleDefinition(
-      id: Modules.grantAccess,
-      displayName: 'Grant Access',
-      actions: [Perms.view, Perms.create],
-      isSystem: true,
-    ),
-    ModuleDefinition(
-      id: Modules.roles,
-      displayName: 'Role Management',
-      actions: [Perms.view, Perms.create, Perms.edit, Perms.delete],
-      isSystem: true,
-    ),
-    ModuleDefinition(
-      id: Modules.auditLogs,
-      displayName: 'Audit Logs',
-      actions: [Perms.view, Perms.export],
-      isSystem: true,
-    ),
+    // ── Dashboard ─────────────────────────────────────────────────────────
     ModuleDefinition(
       id: Modules.dashboard,
       displayName: 'Dashboard',
-      actions: [Perms.view],
+      actions: [
+        'view',
+        'view_analytics_cards',
+        'view_recent_activity',
+        'view_statistics',
+      ],
       isSystem: true,
     ),
+    // ── User Management ───────────────────────────────────────────────────
+    ModuleDefinition(
+      id: Modules.userManagement,
+      displayName: 'User Management',
+      actions: [
+        'view',
+        'create',
+        'edit',
+        'delete',
+        'suspend_user',
+        'ban_user',
+        'assign_role',
+        'export',
+      ],
+      isSystem: true,
+    ),
+
+    // ── Worker Management ─────────────────────────────────────────────────
+    ModuleDefinition(
+      id: Modules.workerManagement,
+      displayName: 'Worker Management',
+      actions: [
+        'view',
+        'create',
+        'edit',
+        'delete',
+        'approve_worker',
+        'reject_worker',
+        'suspend_worker',
+        'export',
+      ],
+    ),
+    // ── Services ──────────────────────────────────────────────────────────
     ModuleDefinition(
       id: Modules.services,
       displayName: 'Services',
-      actions: [Perms.view, Perms.create, Perms.edit, Perms.delete],
+      actions: [
+        'view',
+        'create',
+        'edit',
+        'delete',
+        'export',
+        'manage_categories',
+        'service_reviews',
+      ],
     ),
+
+    // ── Advertisements ────────────────────────────────────────────────────
+    ModuleDefinition(
+      id: Modules.advertisement,
+      displayName: 'Advertisements',
+      actions: [
+        'view',
+        'create',
+        'edit',
+        'delete',
+        'publish_ad',
+        'unpublish_ad',
+        'save_draft',
+      ],
+    ),
+    // ── Bookings ──────────────────────────────────────────────────────────
+    ModuleDefinition(
+      id: Modules.bookings,
+      displayName: 'Bookings',
+      actions: [
+        'view',
+        'edit',
+        'delete',
+        'update_payment',
+        'export',
+        'view_ongoing',
+        'view_completed',
+        'view_cancelled',
+      ],
+    ),
+    // ── Payments ──────────────────────────────────────────────────────────
+    ModuleDefinition(
+      id: Modules.payments,
+      displayName: 'Payments',
+      actions: ['view', 'create_payment', 'export', 'payment_status'],
+    ),
+    // ── Bus Routes ────────────────────────────────────────────────────────
+    ModuleDefinition(
+      id: Modules.bus,
+      displayName: 'Bus Routes',
+      actions: [
+        'view',
+        'create',
+        'edit',
+        'delete',
+        'active_inactive',
+        'export',
+      ],
+    ),
+    ModuleDefinition(
+      id: Modules.taxi,
+      displayName: 'Taxi Drivers',
+      actions: [
+        'view',
+        'create',
+        'edit',
+        'delete',
+        'active_inactive',
+        'export',
+      ],
+    ),
+    // ── Truck & JCB ───────────────────────────────────────────────────────
     ModuleDefinition(
       id: Modules.truck,
       displayName: 'Truck & JCB',
-      actions: [Perms.view, Perms.create, Perms.edit],
+      actions: ['view', 'create', 'edit', 'delete', 'approve_listing'],
     ),
+    // ── Healthcare ────────────────────────────────────────────────────────
     ModuleDefinition(
       id: Modules.healthcare,
       displayName: 'Healthcare',
-      actions: [Perms.view, Perms.create, Perms.edit],
+      actions: ['view', 'create', 'edit', 'delete', 'verify_listing'],
     ),
+    // ── Businesses ────────────────────────────────────────────────────────
     ModuleDefinition(
       id: Modules.business,
       displayName: 'Businesses',
-      actions: [Perms.view, Perms.create, Perms.edit],
+      actions: [
+        'view',
+        'approve_business',
+        'reject_business',
+        'edit',
+        'delete',
+      ],
+    ),
+    // ── Store Products ────────────────────────────────────────────────────
+    ModuleDefinition(
+      id: Modules.storeProducts,
+      displayName: 'Store Products',
+      actions: [
+        'view',
+        'create',
+        'edit',
+        'delete',
+        'manage_categories',
+        'upload_image',
+      ],
+    ),
+    // ── Store Orders ──────────────────────────────────────────────────────
+    ModuleDefinition(
+      id: Modules.storeOrders,
+      displayName: 'Store Orders',
+      actions: ['view', 'edit', 'view_details'],
+    ),
+    // ── Notifications ─────────────────────────────────────────────────────
+    ModuleDefinition(
+      id: Modules.notifications,
+      displayName: 'Notifications',
+      actions: ['view', 'send', 'create'],
+    ),
+    // ── Reports & Analytics ───────────────────────────────────────────────
+    ModuleDefinition(
+      id: Modules.reports,
+      displayName: 'Reports & Analytics',
+      actions: ['view', 'export', 'download'],
+    ),
+    // ── Settings ──────────────────────────────────────────────────────────
+    ModuleDefinition(
+      id: Modules.settings,
+      displayName: 'Settings',
+      actions: ['view', 'edit'],
+      isSystem: true,
+    ),
+    // ── Audit Logs ────────────────────────────────────────────────────────
+    ModuleDefinition(
+      id: Modules.auditLogs,
+      displayName: 'Audit Logs',
+      actions: ['view', 'export'],
+      isSystem: true,
     ),
   ];
 }
