@@ -745,7 +745,11 @@ class _GrantAccessPageState extends State<GrantAccessPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.lock_outline_rounded, size: 64, color: Color(0xFF94A3B8)),
+              const Icon(
+                Icons.lock_outline_rounded,
+                size: 64,
+                color: Color(0xFF94A3B8),
+              ),
               const SizedBox(height: 16),
               Text(
                 'Access Denied',
@@ -758,7 +762,10 @@ class _GrantAccessPageState extends State<GrantAccessPage> {
               const SizedBox(height: 8),
               Text(
                 'You do not have permission to access Grant Access.',
-                style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF64748B)),
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  color: const Color(0xFF64748B),
+                ),
               ),
             ],
           ),
@@ -992,7 +999,9 @@ class _GrantAccessPageState extends State<GrantAccessPage> {
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(
-                  child: CircularProgressIndicator(color: const Color(0xFFFFC107)),
+                  child: CircularProgressIndicator(
+                    color: const Color(0xFFFFC107),
+                  ),
                 );
               }
               final users = snapshot.data ?? [];
@@ -1089,7 +1098,9 @@ class _GrantAccessPageState extends State<GrantAccessPage> {
       child:
           _loadingRoles
               ? const Center(
-                child: CircularProgressIndicator(color: const Color(0xFFFFC107)),
+                child: CircularProgressIndicator(
+                  color: const Color(0xFFFFC107),
+                ),
               )
               : Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1317,11 +1328,12 @@ class _GrantAccessPageState extends State<GrantAccessPage> {
               runSpacing: 8,
               children:
                   _selectedPermissions.entries
+                      .where((e) => e.value.isNotEmpty)
                       .map(
                         (e) => Chip(
                           label: Text(
                             '${e.key.split("_").map((w) => "${w[0].toUpperCase()}${w.substring(1)}").join(" ")} '
-                            '(${e.value.join(", ")})',
+                            '(${e.value.length})',
                             style: GoogleFonts.inter(fontSize: 11),
                           ),
                           backgroundColor: const Color(0xFFF0FDF4),
@@ -1475,8 +1487,10 @@ class _GrantAccessPageState extends State<GrantAccessPage> {
               ),
             ),
           )
-        else if ((_existingRecord == null && _session.hasPermission(Modules.grantAccess, Perms.create)) ||
-                 (_existingRecord != null && _session.hasPermission(Modules.grantAccess, Perms.edit)))
+        else if ((_existingRecord == null &&
+                _session.hasPermission(Modules.grantAccess, Perms.create)) ||
+            (_existingRecord != null &&
+                _session.hasPermission(Modules.grantAccess, Perms.edit)))
           ElevatedButton.icon(
             onPressed: _isSubmitting ? null : _submit,
             icon:
@@ -2410,8 +2424,11 @@ class _PasswordDeliverySectionState extends State<_PasswordDeliverySection> {
                     : 'Generate a secure web-panel password and copy it to share with the user securely.',
             trailingWidget:
                 _generatedPassword == null
-                    ? (RbacSession().hasPermission(Modules.grantAccess, 'generate_password') 
-                      ? ElevatedButton.icon(
+                    ? (RbacSession().hasPermission(
+                          Modules.grantAccess,
+                          'generate_password',
+                        )
+                        ? ElevatedButton.icon(
                           onPressed: () {
                             final pass = _generateSecurePassword();
                             setState(() {
@@ -2421,7 +2438,10 @@ class _PasswordDeliverySectionState extends State<_PasswordDeliverySection> {
                             // Notify parent so it can pass password to _submit()
                             widget.onPasswordGenerated(pass);
                           },
-                          icon: const Icon(Icons.auto_fix_high_rounded, size: 14),
+                          icon: const Icon(
+                            Icons.auto_fix_high_rounded,
+                            size: 14,
+                          ),
                           label: Text(
                             'Generate',
                             style: GoogleFonts.inter(
@@ -2442,7 +2462,7 @@ class _PasswordDeliverySectionState extends State<_PasswordDeliverySection> {
                             elevation: 0,
                           ),
                         )
-                      : const SizedBox.shrink())
+                        : const SizedBox.shrink())
                     : const SizedBox.shrink(),
           ),
 

@@ -389,12 +389,12 @@ class _DashboardState extends State<Dashboard> {
       // 8. Products
       final productsFuture =
           canViewProducts
-              ? db.collection('products').count().get()
+              ? db.collection('store_products').count().get()
               : Future.value(null);
       final productsThis =
           (canViewProducts && _selectedDateRange != null)
               ? db
-                  .collection('products')
+                  .collection('store_products')
                   .where(
                     'createdAt',
                     isGreaterThanOrEqualTo: startOfThisPeriod!,
@@ -406,7 +406,7 @@ class _DashboardState extends State<Dashboard> {
       final productsPrev =
           (canViewProducts && _selectedDateRange != null)
               ? db
-                  .collection('products')
+                  .collection('store_products')
                   .where(
                     'createdAt',
                     isGreaterThanOrEqualTo: startOfPreviousPeriod!,
@@ -419,12 +419,12 @@ class _DashboardState extends State<Dashboard> {
       // 9. Orders
       final ordersFuture =
           canViewOrders
-              ? db.collection('orders').count().get()
+              ? db.collection('store_orders').count().get()
               : Future.value(null);
       final ordersThis =
           (canViewOrders && _selectedDateRange != null)
               ? db
-                  .collection('orders')
+                  .collection('store_orders')
                   .where(
                     'createdAt',
                     isGreaterThanOrEqualTo: startOfThisPeriod!,
@@ -436,7 +436,7 @@ class _DashboardState extends State<Dashboard> {
       final ordersPrev =
           (canViewOrders && _selectedDateRange != null)
               ? db
-                  .collection('orders')
+                  .collection('store_orders')
                   .where(
                     'createdAt',
                     isGreaterThanOrEqualTo: startOfPreviousPeriod!,
@@ -862,7 +862,7 @@ class _DashboardState extends State<Dashboard> {
       List<Map<String, dynamic>> fetchedProducts = [];
       try {
         if (!canViewProducts) throw Exception("Skip");
-        final productsQuery = await db.collection('products').get();
+        final productsQuery = await db.collection('store_products').get();
         List<Map<String, dynamic>> allProducts = [];
         for (var doc in productsQuery.docs) {
           final data = doc.data();
@@ -885,7 +885,7 @@ class _DashboardState extends State<Dashboard> {
         allProducts.sort(
           (a, b) => (b['sales'] as int).compareTo(a['sales'] as int),
         );
-        for (int i = 0; i < allProducts.length && i < 5; i++) {
+        for (int i = 0; i < allProducts.length && i < 1; i++) {
           fetchedProducts.add(allProducts[i]);
         }
       } catch (e) {}
@@ -1437,7 +1437,7 @@ class _DashboardState extends State<Dashboard> {
     if (_session.hasPermission(Modules.storeProducts, Perms.view)) {
       cards.add(
         StatsCard(
-          title: "Products",
+          title: "Store Products",
           value: formatter.format(_totalProducts),
           trendPercentage: formatTrend(_productsTrend),
           trendPeriod: "from last week",
@@ -1721,7 +1721,10 @@ class _DashboardState extends State<Dashboard> {
         rowChildren.add(
           Expanded(
             flex: 7,
-            child: TopSellingProducts(productsData: _topProducts),
+            child: TopSellingProducts(
+              productsData: _topProducts,
+              onNavigate: widget.onNavigate,
+            ),
           ),
         );
       }
@@ -1743,7 +1746,12 @@ class _DashboardState extends State<Dashboard> {
       }
       if (canViewProducts) {
         if (colChildren.isNotEmpty) colChildren.add(const SizedBox(height: 24));
-        colChildren.add(TopSellingProducts(productsData: _topProducts));
+        colChildren.add(
+          TopSellingProducts(
+            productsData: _topProducts,
+            onNavigate: widget.onNavigate,
+          ),
+        );
       }
       return Column(children: colChildren);
     }
@@ -2834,7 +2842,12 @@ class _BookingRow {
 
 class TopSellingProducts extends StatelessWidget {
   final List<Map<String, dynamic>> productsData;
-  const TopSellingProducts({super.key, required this.productsData});
+  final void Function(String)? onNavigate;
+  const TopSellingProducts({
+    super.key,
+    required this.productsData,
+    this.onNavigate,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -2855,9 +2868,7 @@ class TopSellingProducts extends StatelessWidget {
       );
     });
     if (products.isEmpty) {
-      products.add(
-        _ProductItem("No products found", 0, "₹0", Colors.grey[50]!),
-      );
+      return const SizedBox.shrink();
     }
 
     return Container(
@@ -2882,7 +2893,11 @@ class TopSellingProducts extends StatelessWidget {
                 ),
               ),
               TextButton(
-                onPressed: () {},
+                onPressed: () {
+                  if (onNavigate != null) {
+                    onNavigate!("Store Products");
+                  }
+                },
                 style: TextButton.styleFrom(
                   padding: EdgeInsets.zero,
                   minimumSize: Size.zero,

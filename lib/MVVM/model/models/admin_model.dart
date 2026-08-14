@@ -26,7 +26,6 @@ class Modules {
   static const String business = 'business';
   static const String storeProducts = 'store_products';
   static const String storeOrders = 'store_orders';
-  static const String auditLogs = 'audit_logs';
 }
 
 /// Permission action constants.
@@ -43,23 +42,7 @@ class Perms {
   static const String manage = 'manage';
 }
 
-class AuditActions {
-  static const String login = 'Login';
-  static const String logout = 'Logout';
-  static const String failedLogin = 'Failed Login';
-  static const String passwordReset = 'Password Reset';
-  static const String grantedAccess = 'Granted Access';
-  static const String revokedAccess = 'Revoked Access';
-  static const String updatedPermissions = 'Updated Permissions';
-  static const String changedRole = 'Changed Role';
-  static const String updatedStatus = 'Updated Status';
-  static const String createdRole = 'Created Role';
-  static const String updatedRole = 'Updated Role';
-  static const String disabledRole = 'Disabled Role';
 
-  /// Fired whenever an admin generates / resets a web-panel password.
-  static const String webPasswordSet = 'Web Password Set';
-}
 
 // ===========================================================================
 // SECTION 2: Role Hierarchy
@@ -335,13 +318,6 @@ class AppModules {
       actions: ['view', 'edit'],
       isSystem: true,
     ),
-    // ── Audit Logs ────────────────────────────────────────────────────────
-    ModuleDefinition(
-      id: Modules.auditLogs,
-      displayName: 'Audit Logs',
-      actions: ['view', 'export'],
-      isSystem: true,
-    ),
   ];
 }
 
@@ -559,110 +535,3 @@ class RoleDefinition {
   bool get isActive => status == 'Active';
 }
 
-// ===========================================================================
-// SECTION 6: AuditLogModel
-// Stored in audit_logs/{id} — append-only, never deleted.
-// ===========================================================================
-
-class AuditLogModel {
-  final String action; // Use AuditActions constants
-  final String performedBy; // uid
-  final String performedByName;
-  final String performedTo; // uid (same as performedBy for auth events)
-  final String performedToName;
-  final AuditDetails details;
-  final DateTime timestamp;
-
-  const AuditLogModel({
-    required this.action,
-    required this.performedBy,
-    required this.performedByName,
-    required this.performedTo,
-    required this.performedToName,
-    required this.details,
-    required this.timestamp,
-  });
-
-  Map<String, dynamic> toFirestore() => {
-    'action': action,
-    'performedBy': performedBy,
-    'performedByName': performedByName,
-    'performedTo': performedTo,
-    'performedToName': performedToName,
-    'details': details.toMap(),
-    'timestamp': Timestamp.fromDate(timestamp),
-  };
-
-  factory AuditLogModel.fromFirestore(DocumentSnapshot doc) {
-    final d = doc.data() as Map<String, dynamic>? ?? {};
-    return AuditLogModel(
-      action: d['action'] as String? ?? '',
-      performedBy: d['performedBy'] as String? ?? '',
-      performedByName: d['performedByName'] as String? ?? '',
-      performedTo: d['performedTo'] as String? ?? '',
-      performedToName: d['performedToName'] as String? ?? '',
-      details: AuditDetails.fromMap(
-        d['details'] as Map<String, dynamic>? ?? {},
-      ),
-      timestamp: (d['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
-    );
-  }
-}
-
-/// Rich details captured with every audit event.
-class AuditDetails {
-  final String? oldRole;
-  final String? newRole;
-  final Map<String, List<String>>? oldPermissions;
-  final Map<String, List<String>>? newPermissions;
-  final String? oldStatus;
-  final String? newStatus;
-  final String? platform; // 'web' | 'android' | 'ios' | 'desktop'
-  final String? appVersion;
-  final String? extra; // any freeform note
-
-  const AuditDetails({
-    this.oldRole,
-    this.newRole,
-    this.oldPermissions,
-    this.newPermissions,
-    this.oldStatus,
-    this.newStatus,
-    this.platform,
-    this.appVersion,
-    this.extra,
-  });
-
-  Map<String, dynamic> toMap() => {
-    if (oldRole != null) 'oldRole': oldRole,
-    if (newRole != null) 'newRole': newRole,
-    if (oldPermissions != null) 'oldPermissions': oldPermissions,
-    if (newPermissions != null) 'newPermissions': newPermissions,
-    if (oldStatus != null) 'oldStatus': oldStatus,
-    if (newStatus != null) 'newStatus': newStatus,
-    if (platform != null) 'platform': platform,
-    if (appVersion != null) 'appVersion': appVersion,
-    if (extra != null) 'extra': extra,
-  };
-
-  factory AuditDetails.fromMap(Map<String, dynamic> m) => AuditDetails(
-    oldRole: m['oldRole'] as String?,
-    newRole: m['newRole'] as String?,
-    oldPermissions: _castMap(m['oldPermissions']),
-    newPermissions: _castMap(m['newPermissions']),
-    oldStatus: m['oldStatus'] as String?,
-    newStatus: m['newStatus'] as String?,
-    platform: m['platform'] as String?,
-    appVersion: m['appVersion'] as String?,
-    extra: m['extra'] as String?,
-  );
-
-  static Map<String, List<String>>? _castMap(dynamic raw) {
-    if (raw == null) return null;
-    final m = raw as Map<String, dynamic>;
-    return m.map(
-      (k, v) =>
-          MapEntry(k, (v as List<dynamic>).map((e) => e.toString()).toList()),
-    );
-  }
-}

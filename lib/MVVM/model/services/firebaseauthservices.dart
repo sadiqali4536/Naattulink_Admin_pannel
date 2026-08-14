@@ -160,7 +160,6 @@ class FirebaseAuthService {
       if (trimmedUser.contains('@')) {
         email = trimmedUser;
       } else {
-        await _writeFailedLoginLog(username);
         print('[LOGIN] Failed: No account found with username "$username"');
         throw 'No account found with username "$username".';
       }
@@ -180,7 +179,6 @@ class FirebaseAuthService {
         print('[LOGIN] Firebase Authentication: SUCCESS (Super Admin)');
         print('[LOGIN] Web Auth UID: ${_auth.currentUser?.uid}');
       } on FirebaseAuthException catch (e) {
-        await _writeFailedLoginLog(username);
         print('[LOGIN] Super Admin login failed: ${e.message}');
         rethrow;
       }
@@ -205,7 +203,6 @@ class FirebaseAuthService {
       print(
         '[LOGIN] Failed: No active role document found in admin_users for UID: $uid',
       );
-      await _writeFailedLoginLog(username);
       await _auth.signOut();
 
       // Check if they previously had their role removed
@@ -238,7 +235,6 @@ class FirebaseAuthService {
     print('[LOGIN] Web email resolved: $webEmail');
 
     if (webEmail == null || webEmail.isEmpty) {
-      await _writeFailedLoginLog(username);
       print('[LOGIN] Failed: No web admin account set up for UID: $uid');
       throw 'No web admin account has been set up for this user.\n'
           'Please contact your Super Admin to set up web panel access.';
@@ -254,7 +250,6 @@ class FirebaseAuthService {
       print('[LOGIN] Firebase Authentication: SUCCESS');
       print('[LOGIN] Web Auth UID: ${_auth.currentUser?.uid}');
     } on FirebaseAuthException catch (e) {
-      await _writeFailedLoginLog(username);
       print(
         '[LOGIN] Firebase Authentication: FAILED. Firebase Auth error: ${e.code}',
       );
@@ -286,15 +281,6 @@ class FirebaseAuthService {
       throw 'Your account access has been ${RbacSession().status.toLowerCase()}. '
           'Please contact your administrator.';
     }
-
-    await _writeAuditLog(
-      action: AuditActions.login,
-      performedByUid: RbacSession().uid ?? '',
-      performedByName: RbacSession().fullName ?? username,
-      performedToUid: RbacSession().uid ?? '',
-      performedToName: RbacSession().fullName ?? username,
-      details: AuditDetails(platform: kIsWeb ? 'web' : 'app'),
-    );
   }
 
   // ---------------------------------------------------------------------------
@@ -469,18 +455,6 @@ class FirebaseAuthService {
       }
     }
 
-    await _writeAuditLog(
-      action: AuditActions.webPasswordSet,
-      performedByUid: session.uid!,
-      performedByName: session.fullName ?? '',
-      performedToUid: targetUid,
-      performedToName: targetDisplayName,
-      details: AuditDetails(
-        extra: 'Web admin account created: $finalWebEmail',
-        platform: kIsWeb ? 'web' : 'app',
-      ),
-    );
-
     print('[RBAC CREATE] createWebAdminAccount finished successfully.');
     return webAuthUid;
   }
@@ -579,24 +553,6 @@ class FirebaseAuthService {
         .collection('admin_users')
         .doc(targetUid)
         .set(newRecord.toFirestore());
-
-    await _writeAuditLog(
-      action:
-          existingRecord != null
-              ? AuditActions.updatedPermissions
-              : AuditActions.grantedAccess,
-      performedByUid: session.uid!,
-      performedByName: session.fullName ?? '',
-      performedToUid: targetUid,
-      performedToName: targetDisplayName,
-      details: AuditDetails(
-        oldRole: existingRecord?.roleId,
-        newRole: roleId,
-        oldPermissions: existingRecord?.permissionOverridesAdded,
-        newPermissions: permissionsAdded,
-        platform: kIsWeb ? 'web' : 'app',
-      ),
-    );
   }
 
   // ---------------------------------------------------------------------------
@@ -634,19 +590,6 @@ class FirebaseAuthService {
       'updatedAt': FieldValue.serverTimestamp(),
       'updatedBy': session.uid,
     });
-
-    await _writeAuditLog(
-      action: AuditActions.updatedStatus,
-      performedByUid: session.uid!,
-      performedByName: session.fullName ?? '',
-      performedToUid: targetUid,
-      performedToName: targetDisplayName,
-      details: AuditDetails(
-        oldStatus: oldStatus,
-        newStatus: newStatus,
-        platform: kIsWeb ? 'web' : 'app',
-      ),
-    );
   }
 
   Future<void> deleteAdminAccess({
@@ -745,17 +688,6 @@ class FirebaseAuthService {
     print('[RBAC DELETE] Admin access successfully deleted and archived.');
 
     // 4. Audit Log
-    await _writeAuditLog(
-      action: 'Deleted Admin Access',
-      performedByUid: session.uid!,
-      performedByName: session.fullName ?? '',
-      performedToUid: targetUid,
-      performedToName: targetDisplayName,
-      details: AuditDetails(
-        platform: kIsWeb ? 'web' : 'app',
-        extra: 'Deleted role assignment: $assignedRole',
-      ),
-    );
   }
 
   // ---------------------------------------------------------------------------
@@ -769,17 +701,6 @@ class FirebaseAuthService {
     await _auth.sendPasswordResetEmail(email: email);
 
     final session = RbacSession();
-    await _writeAuditLog(
-      action: AuditActions.passwordReset,
-      performedByUid: session.uid ?? '',
-      performedByName: session.fullName ?? '',
-      performedToUid: '',
-      performedToName: email,
-      details: AuditDetails(
-        extra: 'Password reset email sent to $email',
-        platform: kIsWeb ? 'web' : 'app',
-      ),
-    );
   }
 
   // ---------------------------------------------------------------------------
@@ -790,15 +711,6 @@ class FirebaseAuthService {
     final session = RbacSession();
     final uid = session.uid ?? '';
     final name = session.fullName ?? '';
-
-    await _writeAuditLog(
-      action: AuditActions.logout,
-      performedByUid: uid,
-      performedByName: name,
-      performedToUid: uid,
-      performedToName: name,
-      details: AuditDetails(platform: kIsWeb ? 'web' : 'app'),
-    );
 
     session.clear();
     await _auth.signOut();
@@ -896,58 +808,5 @@ class FirebaseAuthService {
         .where('status', whereNotIn: ['Deleted'])
         .orderBy('createdAt', descending: true)
         .snapshots();
-  }
-
-  Stream<QuerySnapshot> streamAuditLogs({int limit = 50}) {
-    return _db
-        .collection('audit_logs')
-        .orderBy('timestamp', descending: true)
-        .limit(limit)
-        .snapshots();
-  }
-
-  // ---------------------------------------------------------------------------
-  // Audit log writer
-  // ---------------------------------------------------------------------------
-  Future<void> _writeAuditLog({
-    required String action,
-    required String performedByUid,
-    required String performedByName,
-    required String performedToUid,
-    required String performedToName,
-    required AuditDetails details,
-  }) async {
-    try {
-      final log = AuditLogModel(
-        action: action,
-        performedBy: performedByUid,
-        performedByName: performedByName,
-        performedTo: performedToUid,
-        performedToName: performedToName,
-        details: details,
-        timestamp: DateTime.now(),
-      );
-      await _db.collection('audit_logs').add(log.toFirestore());
-    } catch (_) {
-      // Audit log failures must never block the main operation
-    }
-  }
-
-  Future<void> _writeFailedLoginLog(String username) async {
-    try {
-      final log = AuditLogModel(
-        action: AuditActions.failedLogin,
-        performedBy: '',
-        performedByName: username,
-        performedTo: '',
-        performedToName: username,
-        details: AuditDetails(
-          extra: 'Failed login attempt for username: $username',
-          platform: kIsWeb ? 'web' : 'app',
-        ),
-        timestamp: DateTime.now(),
-      );
-      await _db.collection('audit_logs').add(log.toFirestore());
-    } catch (_) {}
   }
 }

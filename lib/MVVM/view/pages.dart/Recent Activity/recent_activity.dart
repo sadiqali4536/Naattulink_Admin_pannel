@@ -168,33 +168,6 @@ class _RecentActivityPageState extends State<RecentActivityPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (!RbacSession().hasPermission(Modules.auditLogs, Perms.view)) {
-      return Container(
-        color: const Color(0xFFF1F5F9),
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.lock_outline_rounded, size: 64, color: Color(0xFF94A3B8)),
-              const SizedBox(height: 16),
-              Text(
-                'Access Denied',
-                style: GoogleFonts.inter(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: const Color(0xFF1E293B),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'You do not have permission to view Audit Logs.',
-                style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF64748B)),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
     return Container(
       color: const Color(0xFFF1F5F9),
       padding: const EdgeInsets.all(24.0),
