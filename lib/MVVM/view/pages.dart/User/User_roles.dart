@@ -5840,70 +5840,12 @@ class _AssignedUserCardState extends State<_AssignedUserCard> {
     return "${dt.day} ${months[dt.month - 1]} $hour:$min $period";
   }
 
-  void _showRemoveRoleConfirm() {
-    final canonicalRoleId = widget.adminData.roleId;
-    showDialog(
-      context: context,
-      builder:
-          (dialogContext) => AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            title: Text(
-              'Remove Role',
-              style: GoogleFonts.inter(fontWeight: FontWeight.bold),
-            ),
-            content: Text(
-              'Are you sure you want to remove the role "${widget.adminData.roleDisplayName}" from this user?',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext),
-                child: Text(
-                  'Cancel',
-                  style: GoogleFonts.inter(color: const Color(0xFF64748B)),
-                ),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(dialogContext);
-                  final newRoles = List<String>.from(widget.adminData.roleIds)
-                    ..remove(canonicalRoleId);
-                  if (newRoles.isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          "A user must have at least one role assigned. Use 'Remove User' to revoke all access.",
-                        ),
-                        backgroundColor: Colors.orange,
-                      ),
-                    );
-                  } else {
-                    widget.onUpdateRoles(newRoles);
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: Text(
-                  'Remove',
-                  style: GoogleFonts.inter(fontWeight: FontWeight.bold),
-                ),
-              ),
-            ],
-          ),
-    );
-  }
-
   void _showRemoveUserConfirm() {
     showDialog(
       context: context,
       builder:
           (dialogContext) => AlertDialog(
+            backgroundColor: Colors.white,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
             ),
@@ -6322,6 +6264,8 @@ class _AssignedUserCardState extends State<_AssignedUserCard> {
                     ),
                     const SizedBox(width: 8),
                     PopupMenuButton<String>(
+                      color: Colors.white,
+                      surfaceTintColor: Colors.white,
                       icon: const Icon(
                         Icons.more_vert_rounded,
                         color: Color(0xFF64748B),
@@ -6332,73 +6276,12 @@ class _AssignedUserCardState extends State<_AssignedUserCard> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                       onSelected: (value) async {
-                        if (value == 'edit' || value == 'perms') {
-                          setState(() {
-                            _isExpanded = true;
-                          });
-                        } else if (value == 'remove_role') {
-                          _showRemoveRoleConfirm();
-                        } else if (value == 'remove_user') {
+                        if (value == 'remove_user') {
                           _showRemoveUserConfirm();
                         }
                       },
                       itemBuilder:
                           (context) => [
-                            PopupMenuItem(
-                              value: 'edit',
-                              child: Row(
-                                children: [
-                                  const Icon(
-                                    Icons.edit_outlined,
-                                    size: 16,
-                                    color: Color(0xFF64748B),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    'Edit Roles',
-                                    style: GoogleFonts.inter(fontSize: 12),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            PopupMenuItem(
-                              value: 'perms',
-                              child: Row(
-                                children: [
-                                  const Icon(
-                                    Icons.tune_rounded,
-                                    size: 16,
-                                    color: Color(0xFF64748B),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    'Change Permissions',
-                                    style: GoogleFonts.inter(fontSize: 12),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const PopupMenuDivider(height: 1),
-                            PopupMenuItem(
-                              value: 'remove_role',
-                              child: Row(
-                                children: [
-                                  const Icon(
-                                    Icons.no_accounts_outlined,
-                                    size: 16,
-                                    color: Colors.orange,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    'Remove Role',
-                                    style: GoogleFonts.inter(
-                                      fontSize: 12,
-                                      color: Colors.orange,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
                             PopupMenuItem(
                               value: 'remove_user',
                               child: Row(
@@ -6441,89 +6324,54 @@ class _AssignedUserCardState extends State<_AssignedUserCard> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            "Allocate / Deallocate Roles",
+                            "Allocate / Deallocate Role",
                             style: GoogleFonts.inter(
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
                               color: const Color(0xFF475569),
                             ),
                           ),
+                          const SizedBox(height: 16),
+                          Text(
+                            _localRoleIds.length > 1
+                                ? "Current Roles"
+                                : "Current Role",
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFF64748B),
+                            ),
+                          ),
                           const SizedBox(height: 8),
-                          Wrap(
-                            spacing: 12,
-                            runSpacing: 8,
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children:
-                                widget.allRoles.map((roleDef) {
-                                  final canonicalId = roleDef.name
-                                      .toLowerCase()
-                                      .replaceAll(' ', '_');
-                                  final isSelected =
-                                      _localRoleIds.contains(roleDef.id) ||
-                                      _localRoleIds.contains(canonicalId);
-                                  return Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Transform.scale(
-                                        scale: 0.9,
-                                        child: Checkbox(
-                                          value: isSelected,
-                                          activeColor: const Color(0xFF10B981),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              4,
-                                            ),
+                                widget.allRoles
+                                    .where((roleDef) {
+                                      final canonicalId = roleDef.name
+                                          .toLowerCase()
+                                          .replaceAll(' ', '_');
+                                      return _localRoleIds.contains(
+                                            roleDef.id,
+                                          ) ||
+                                          _localRoleIds.contains(canonicalId);
+                                    })
+                                    .map(
+                                      (roleDef) => Padding(
+                                        padding: const EdgeInsets.only(
+                                          bottom: 4,
+                                        ),
+                                        child: Text(
+                                          roleDef.name,
+                                          style: GoogleFonts.inter(
+                                            fontSize: 13,
+                                            color: const Color(0xFF1E293B),
+                                            fontWeight: FontWeight.w500,
                                           ),
-                                          side: const BorderSide(
-                                            color: Color(0xFFCBD5E1),
-                                            width: 1.5,
-                                          ),
-                                          onChanged:
-                                              widget.isSuperAdmin
-                                                  ? (val) {
-                                                    setState(() {
-                                                      final canonicalId =
-                                                          roleDef.name
-                                                              .toLowerCase()
-                                                              .replaceAll(
-                                                                ' ',
-                                                                '_',
-                                                              );
-                                                      if (val == true) {
-                                                        _localRoleIds.add(
-                                                          canonicalId,
-                                                        );
-                                                      } else {
-                                                        _localRoleIds.remove(
-                                                          canonicalId,
-                                                        );
-                                                        _localRoleIds.remove(
-                                                          roleDef.id,
-                                                        );
-                                                      }
-                                                    });
-                                                    _checkIfDirty();
-                                                  }
-                                                  : null,
                                         ),
                                       ),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        roleDef.name,
-                                        style: GoogleFonts.inter(
-                                          fontSize: 12,
-                                          color:
-                                              isSelected
-                                                  ? const Color(0xFF1E293B)
-                                                  : const Color(0xFF64748B),
-                                          fontWeight:
-                                              isSelected
-                                                  ? FontWeight.w500
-                                                  : FontWeight.normal,
-                                        ),
-                                      ),
-                                    ],
-                                  );
-                                }).toList(),
+                                    )
+                                    .toList(),
                           ),
                           const SizedBox(height: 16),
                           const Divider(color: Color(0xFFE2E8F0)),
