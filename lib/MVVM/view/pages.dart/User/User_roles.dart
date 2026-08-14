@@ -272,7 +272,10 @@ final List<ModulePermission> modulePermissionsList = [
       ActionPermission(apiKey: 'create', displayName: 'Add Taxi Driver'),
       ActionPermission(apiKey: 'edit', displayName: 'Edit Taxi Driver'),
       ActionPermission(apiKey: 'delete', displayName: 'Delete Taxi Driver'),
-      ActionPermission(apiKey: 'active_inactive', displayName: 'Active / Inactive'),
+      ActionPermission(
+        apiKey: 'active_inactive',
+        displayName: 'Active / Inactive',
+      ),
       ActionPermission(apiKey: 'export', displayName: 'Export Taxi Drivers'),
     ],
   ),
@@ -287,8 +290,12 @@ final List<ModulePermission> modulePermissionsList = [
       ActionPermission(apiKey: 'edit', displayName: 'Edit Vehicle'),
       ActionPermission(apiKey: 'delete', displayName: 'Delete Vehicle'),
       ActionPermission(
-        apiKey: 'approve_listing',
-        displayName: 'Approve Listing',
+        apiKey: 'active_inactive',
+        displayName: 'Active / Inactive',
+      ),
+      ActionPermission(
+        apiKey: 'export',
+        displayName: 'Export Vehicle',
       ),
     ],
   ),
@@ -299,10 +306,17 @@ final List<ModulePermission> modulePermissionsList = [
     moduleName: 'Healthcare',
     actions: [
       ActionPermission(apiKey: 'view', displayName: 'View Healthcare'),
-      ActionPermission(apiKey: 'create', displayName: 'Add Hospital'),
-      ActionPermission(apiKey: 'edit', displayName: 'Edit Hospital'),
-      ActionPermission(apiKey: 'delete', displayName: 'Delete Hospital'),
-      ActionPermission(apiKey: 'verify_listing', displayName: 'Verify Listing'),
+      ActionPermission(apiKey: 'create', displayName: 'Add Healthcare'),
+      ActionPermission(apiKey: 'edit', displayName: 'Edit Healthcare'),
+      ActionPermission(apiKey: 'delete', displayName: 'Delete Healthcare'),
+      ActionPermission(
+        apiKey: 'active_inactive',
+        displayName: 'Active / Inactive',
+      ),
+      ActionPermission(
+        apiKey: 'export',
+        displayName: 'Export Healthcare',
+      ),
     ],
   ),
 
@@ -388,16 +402,6 @@ final List<ModulePermission> modulePermissionsList = [
     actions: [
       ActionPermission(apiKey: 'view', displayName: 'View Settings'),
       ActionPermission(apiKey: 'edit', displayName: 'Edit Settings'),
-    ],
-  ),
-
-  // ── Audit Logs ────────────────────────────────────────────────────────────
-  ModulePermission(
-    moduleId: 'audit_logs',
-    moduleName: 'Audit Logs',
-    actions: [
-      ActionPermission(apiKey: 'view', displayName: 'View Audit Logs'),
-      ActionPermission(apiKey: 'export', displayName: 'Export Audit Logs'),
     ],
   ),
 ];
@@ -5801,14 +5805,13 @@ class _AssignedUserCardState extends State<_AssignedUserCard> {
       'Payments',
       'Bus Routes',
       'Taxi Drivers',
-      'Trucks & JCB',
-      'Health Care Business',
-      'Store Product',
-      'Store Order',
-      'Notification',
-      'Reports & Analysis',
+      'Truck & JCB',
+      'Healthcare',
+      'Store Products',
+      'Store Orders',
+      'Notifications',
+      'Reports & Analytics',
       'Settings',
-      'Audit Logs',
     ];
     final actionsList =
         widget.allActions ??

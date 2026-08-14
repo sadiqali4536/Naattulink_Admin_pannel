@@ -5,6 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:swiftclean_admin/MVVM/utils/printer_helper.dart';
+import 'package:swiftclean_admin/MVVM/utils/rbac_session.dart';
+import 'package:swiftclean_admin/MVVM/model/models/admin_model.dart';
 
 class HealthcarePage extends StatefulWidget {
   const HealthcarePage({super.key});
@@ -151,41 +153,51 @@ class _HealthcarePageState extends State<HealthcarePage> {
             ),
           ),
           const Spacer(),
-          ElevatedButton.icon(
-            onPressed:
-                () => _showBulkConfirmDialog('Mark Active', filteredDocs),
-            icon: const Icon(Icons.check_circle_outline, size: 18),
-            label: const Text('Mark Active'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green,
-              foregroundColor: Colors.white,
-              elevation: 0,
+          if (RbacSession().hasPermission(
+            Modules.healthcare,
+            'active_inactive',
+          )) ...[
+            ElevatedButton.icon(
+              onPressed:
+                  () => _showBulkConfirmDialog('Mark Active', filteredDocs),
+              icon: const Icon(Icons.check_circle_outline, size: 18),
+              label: const Text('Mark Active'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+                elevation: 0,
+              ),
             ),
-          ),
-          const SizedBox(width: 12),
-          ElevatedButton.icon(
-            onPressed:
-                () => _showBulkConfirmDialog('Mark Inactive', filteredDocs),
-            icon: const Icon(Icons.pause_circle_outline, size: 18),
-            label: const Text('Mark Inactive'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.orange,
-              foregroundColor: Colors.white,
-              elevation: 0,
+            const SizedBox(width: 12),
+            ElevatedButton.icon(
+              onPressed:
+                  () => _showBulkConfirmDialog('Mark Inactive', filteredDocs),
+              icon: const Icon(Icons.pause_circle_outline, size: 18),
+              label: const Text('Mark Inactive'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                foregroundColor: Colors.white,
+                elevation: 0,
+              ),
             ),
-          ),
-          const SizedBox(width: 12),
-          ElevatedButton.icon(
-            onPressed: () => _showBulkConfirmDialog('Delete', filteredDocs),
-            icon: const Icon(Icons.delete_outline, size: 18),
-            label: const Text('Delete'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.redAccent,
-              foregroundColor: Colors.white,
-              elevation: 0,
+            const SizedBox(width: 12),
+          ],
+          if (RbacSession().hasPermission(
+            Modules.healthcare,
+            Perms.delete,
+          )) ...[
+            ElevatedButton.icon(
+              onPressed: () => _showBulkConfirmDialog('Delete', filteredDocs),
+              icon: const Icon(Icons.delete_outline, size: 18),
+              label: const Text('Delete'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.redAccent,
+                foregroundColor: Colors.white,
+                elevation: 0,
+              ),
             ),
-          ),
-          const SizedBox(width: 24),
+            const SizedBox(width: 24),
+          ],
           IconButton(
             onPressed: () {
               setState(() {
@@ -321,7 +333,11 @@ class _HealthcarePageState extends State<HealthcarePage> {
                   const SizedBox(height: 24),
                   _buildFilters(docs),
                   const SizedBox(height: 24),
-                  _buildBulkActionToolbar(filteredDocs),
+                  if (RbacSession().hasPermission(
+                    Modules.healthcare,
+                    Perms.view,
+                  ))
+                    _buildBulkActionToolbar(filteredDocs),
                   Container(
                     decoration: BoxDecoration(
                       color: Colors.white,
@@ -367,10 +383,24 @@ class _HealthcarePageState extends State<HealthcarePage> {
                                     .add(doc);
                               }
                             }
-                            return _buildDataTable(
-                              filteredDocs,
-                              providerFields,
-                            );
+                            if (RbacSession().hasPermission(
+                              Modules.healthcare,
+                              Perms.view,
+                            )) {
+                              return _buildDataTable(
+                                filteredDocs,
+                                providerFields,
+                              );
+                            } else {
+                              return const Padding(
+                                padding: EdgeInsets.all(32.0),
+                                child: Center(
+                                  child: Text(
+                                    "You do not have permission to view healthcare data.",
+                                  ),
+                                ),
+                              );
+                            }
                           },
                         ),
                       ],
@@ -417,57 +447,70 @@ class _HealthcarePageState extends State<HealthcarePage> {
             ),
             Row(
               children: [
-                OutlinedButton.icon(
-                  onPressed: () {
-                    final listToExport =
-                        docs
-                            .map((d) => d.data() as Map<String, dynamic>)
-                            .toList();
-                    printHealthcareList(listToExport);
-                  },
-                  icon: const Icon(
-                    Icons.download_rounded,
-                    color: Colors.black87,
-                    size: 20,
-                  ),
-                  label: const Text(
-                    'Export',
-                    style: TextStyle(color: Colors.black87),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 16,
-                    ),
-                    side: const BorderSide(color: Colors.black12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                ElevatedButton.icon(
-                  onPressed: () => _showHealthcareDialog(),
-                  icon: const Icon(Icons.add, color: Colors.black87, size: 20),
-                  label: const Text(
-                    'Add Healthcare',
-                    style: TextStyle(
+                if (RbacSession().hasPermission(
+                  Modules.healthcare,
+                  'export',
+                )) ...[
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      final listToExport =
+                          docs
+                              .map((d) => d.data() as Map<String, dynamic>)
+                              .toList();
+                      printHealthcareList(listToExport);
+                    },
+                    icon: const Icon(
+                      Icons.download_rounded,
                       color: Colors.black87,
-                      fontWeight: FontWeight.w600,
+                      size: 20,
+                    ),
+                    label: const Text(
+                      'Export',
+                      style: TextStyle(color: Colors.black87),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 16,
+                      ),
+                      side: const BorderSide(color: Colors.black12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
                   ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFFFC107),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 16,
+                  const SizedBox(width: 16),
+                ],
+                if (RbacSession().hasPermission(
+                  Modules.healthcare,
+                  Perms.create,
+                ))
+                  ElevatedButton.icon(
+                    onPressed: () => _showHealthcareDialog(),
+                    icon: const Icon(
+                      Icons.add,
+                      color: Colors.black87,
+                      size: 20,
                     ),
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                    label: const Text(
+                      'Add Healthcare',
+                      style: TextStyle(
+                        color: Colors.black87,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFFFC107),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 16,
+                      ),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
                   ),
-                ),
               ],
             ),
           ],
@@ -755,7 +798,10 @@ class _HealthcarePageState extends State<HealthcarePage> {
       final hasFields =
           providerFields.containsKey(doc.id) &&
           providerFields[doc.id]!.isNotEmpty;
-      final showExpandIcon = true; // Always show to allow adding new fields
+      final showExpandIcon = RbacSession().hasPermission(
+        Modules.healthcare,
+        Perms.create,
+      ); // Controlled by Add Healthcare
 
       allRows.add(
         DataRow(
@@ -904,33 +950,47 @@ class _HealthcarePageState extends State<HealthcarePage> {
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Transform.scale(
-                    scale: 0.8,
-                    child: Switch(
-                      value:
-                          data['status']?.toString().toLowerCase() == 'active',
-                      onChanged: (val) {
-                        FirebaseFirestore.instance
-                            .collection('healthcare')
-                            .doc(doc.id)
-                            .update({'status': val ? 'active' : 'inactive'});
-                      },
-                      activeColor: Colors.green,
+                  if (RbacSession().hasPermission(
+                    Modules.healthcare,
+                    'active_inactive',
+                  )) ...[
+                    Transform.scale(
+                      scale: 0.8,
+                      child: Switch(
+                        value:
+                            data['status']?.toString().toLowerCase() ==
+                            'active',
+                        onChanged: (val) {
+                          FirebaseFirestore.instance
+                              .collection('healthcare')
+                              .doc(doc.id)
+                              .update({'status': val ? 'active' : 'inactive'});
+                        },
+                        activeColor: Colors.green,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 4),
-                  IconButton(
-                    icon: const Icon(Icons.edit_outlined, size: 20),
-                    onPressed: () => _showHealthcareDialog(document: doc),
-                    color: Colors.grey.shade600,
-                    tooltip: 'Edit',
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.delete_outline, size: 20),
-                    onPressed: () => _deleteHealthcare(doc.id),
-                    color: Colors.red.shade400,
-                    tooltip: 'Delete',
-                  ),
+                    const SizedBox(width: 4),
+                  ],
+                  if (RbacSession().hasPermission(
+                    Modules.healthcare,
+                    Perms.edit,
+                  ))
+                    IconButton(
+                      icon: const Icon(Icons.edit_outlined, size: 20),
+                      onPressed: () => _showHealthcareDialog(document: doc),
+                      color: Colors.grey.shade600,
+                      tooltip: 'Edit',
+                    ),
+                  if (RbacSession().hasPermission(
+                    Modules.healthcare,
+                    Perms.delete,
+                  ))
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline, size: 20),
+                      onPressed: () => _deleteHealthcare(doc.id),
+                      color: Colors.red.shade400,
+                      tooltip: 'Delete',
+                    ),
                 ],
               ),
             ),
@@ -1012,21 +1072,26 @@ class _HealthcarePageState extends State<HealthcarePage> {
                           ),
                         ),
                         const SizedBox(width: 8),
-                        InkWell(
-                          onTap: () => _showAddFieldDialog(doc.id, childDoc.id),
-                          child: Container(
-                            padding: const EdgeInsets.all(2),
-                            decoration: BoxDecoration(
-                              border: Border.all(color: Colors.blue.shade200),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Icon(
-                              Icons.add,
-                              size: 12,
-                              color: Colors.blue.shade700,
+                        if (RbacSession().hasPermission(
+                          Modules.healthcare,
+                          Perms.create,
+                        ))
+                          InkWell(
+                            onTap:
+                                () => _showAddFieldDialog(doc.id, childDoc.id),
+                            child: Container(
+                              padding: const EdgeInsets.all(2),
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Colors.blue.shade200),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Icon(
+                                Icons.add,
+                                size: 12,
+                                color: Colors.blue.shade700,
+                              ),
                             ),
                           ),
-                        ),
                       ],
                     ),
                   ),
@@ -1090,18 +1155,20 @@ class _HealthcarePageState extends State<HealthcarePage> {
             cells: [
               const DataCell(SizedBox.shrink()),
               DataCell(
-                Padding(
-                  padding: const EdgeInsets.only(left: 48.0),
-                  child: TextButton.icon(
-                    onPressed: () => _showAddFieldDialog(doc.id, null),
-                    icon: const Icon(Icons.add, size: 16),
-                    label: const Text('Add New Field'),
-                    style: TextButton.styleFrom(
-                      foregroundColor: Colors.blue.shade700,
-                      padding: EdgeInsets.zero,
-                    ),
-                  ),
-                ),
+                RbacSession().hasPermission(Modules.healthcare, Perms.create)
+                    ? Padding(
+                      padding: const EdgeInsets.only(left: 48.0),
+                      child: TextButton.icon(
+                        onPressed: () => _showAddFieldDialog(doc.id, null),
+                        icon: const Icon(Icons.add, size: 16),
+                        label: const Text('Add New Field'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.blue.shade700,
+                          padding: EdgeInsets.zero,
+                        ),
+                      ),
+                    )
+                    : const SizedBox.shrink(),
               ),
               const DataCell(SizedBox.shrink()),
               const DataCell(SizedBox.shrink()),

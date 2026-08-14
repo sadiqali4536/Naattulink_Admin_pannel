@@ -33,6 +33,7 @@ import 'package:swiftclean_admin/MVVM/utils/rbac_session.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/Recent Activity/recent_activity.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/Online Store/store_products.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/Online Store/store_orders.dart';
+import 'package:swiftclean_admin/MVVM/view/pages.dart/Online Store/store_categories.dart';
 
 class NotificationItem {
   final String message;
@@ -460,6 +461,12 @@ class _MobileScaffoldState extends State<MobileScaffold> {
           module: Modules.storeProducts,
           action: Perms.view,
           child: const StoreProductsPage(),
+        );
+      case "Manage Category":
+        return PermissionGuard(
+          module: Modules.storeProducts,
+          action: Perms.view,
+          child: const StoreCategoriesPage(),
         );
       case "Store Orders":
         return PermissionGuard(
@@ -1019,6 +1026,7 @@ class _MobileScaffoldState extends State<MobileScaffold> {
                         icon: Icons.storefront_rounded,
                         isInitiallyExpanded:
                             selectedTile == "Store Products" ||
+                            selectedTile == "Manage Category" ||
                             selectedTile == "Store Orders",
                         onTap:
                             () => setState(
@@ -1036,6 +1044,16 @@ class _MobileScaffoldState extends State<MobileScaffold> {
                               isSelected: selectedTile == "Store Products",
                               onTap: () {
                                 setState(() => selectedTile = "Store Products");
+                                _scaffoldKey.currentState?.closeDrawer();
+                              },
+                            ),
+                          if (_can(Modules.storeProducts, Perms.view))
+                            SidebarTile(
+                              title: "Manage Category",
+                              icon: Icons.category_rounded,
+                              isSelected: selectedTile == "Manage Category",
+                              onTap: () {
+                                setState(() => selectedTile = "Manage Category");
                                 _scaffoldKey.currentState?.closeDrawer();
                               },
                             ),

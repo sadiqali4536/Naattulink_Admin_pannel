@@ -34,6 +34,7 @@ import 'package:swiftclean_admin/MVVM/view/loginpage.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/Recent Activity/recent_activity.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/Online Store/store_products.dart';
 import 'package:swiftclean_admin/MVVM/view/pages.dart/Online Store/store_orders.dart';
+import 'package:swiftclean_admin/MVVM/view/pages.dart/Online Store/store_categories.dart';
 
 class NotificationItem {
   final String message;
@@ -524,6 +525,12 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
           module: Modules.storeProducts,
           action: Perms.view,
           child: const StoreProductsPage(),
+        );
+      case "Manage Category":
+        return PermissionGuard(
+          module: Modules.storeProducts,
+          action: Perms.view,
+          child: const StoreCategoriesPage(),
         );
       case "Store Orders":
         return PermissionGuard(
@@ -1032,6 +1039,7 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
                               icon: Icons.storefront_rounded,
                               isInitiallyExpanded:
                                   selectedTile == "Store Products" ||
+                                  selectedTile == "Manage Category" ||
                                   selectedTile == "Store Orders",
                               onTap:
                                   () => setState(
@@ -1054,6 +1062,16 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
                                     onTap:
                                         () => setState(
                                           () => selectedTile = "Store Products",
+                                        ),
+                                  ),
+                                if (_can(Modules.storeProducts, Perms.view))
+                                  SidebarTile(
+                                    title: "Manage Category",
+                                    icon: Icons.category_rounded,
+                                    isSelected: selectedTile == "Manage Category",
+                                    onTap:
+                                        () => setState(
+                                          () => selectedTile = "Manage Category",
                                         ),
                                   ),
                                 if (_can(Modules.storeOrders, Perms.view))

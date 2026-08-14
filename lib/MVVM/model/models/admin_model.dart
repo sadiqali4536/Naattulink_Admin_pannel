@@ -18,7 +18,6 @@ class Modules {
   static const String settings = 'settings';
   static const String grantAccess = 'grant_access';
   static const String roles = 'roles';
-  static const String auditLogs = 'audit_logs';
   static const String dashboard = 'dashboard';
   static const String services = 'services';
   static const String serviceReviews = 'service_reviews';
@@ -27,6 +26,7 @@ class Modules {
   static const String business = 'business';
   static const String storeProducts = 'store_products';
   static const String storeOrders = 'store_orders';
+  static const String auditLogs = 'audit_logs';
 }
 
 /// Permission action constants.
@@ -270,13 +270,13 @@ class AppModules {
     ModuleDefinition(
       id: Modules.truck,
       displayName: 'Truck & JCB',
-      actions: ['view', 'create', 'edit', 'delete', 'approve_listing'],
+      actions: ['view', 'create', 'edit', 'delete', 'active_inactive', 'export'],
     ),
     // ── Healthcare ────────────────────────────────────────────────────────
     ModuleDefinition(
       id: Modules.healthcare,
       displayName: 'Healthcare',
-      actions: ['view', 'create', 'edit', 'delete', 'verify_listing'],
+      actions: ['view', 'create', 'edit', 'delete', 'active_inactive', 'export'],
     ),
     // ── Businesses ────────────────────────────────────────────────────────
     ModuleDefinition(

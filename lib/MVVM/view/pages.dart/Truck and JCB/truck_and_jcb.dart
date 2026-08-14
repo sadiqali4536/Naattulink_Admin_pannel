@@ -4,6 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:swiftclean_admin/MVVM/utils/printer_helper.dart';
+import 'package:swiftclean_admin/MVVM/utils/rbac_session.dart';
+import 'package:swiftclean_admin/MVVM/model/models/admin_model.dart';
 
 class TruckAndJcbPage extends StatefulWidget {
   const TruckAndJcbPage({super.key});
@@ -149,41 +151,48 @@ class _TruckAndJcbPageState extends State<TruckAndJcbPage> {
             ),
           ),
           const Spacer(),
-          ElevatedButton.icon(
-            onPressed:
-                () => _showBulkConfirmDialog('Mark Active', filteredDocs),
-            icon: const Icon(Icons.check_circle_outline, size: 18),
-            label: const Text('Mark Active'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green,
-              foregroundColor: Colors.white,
-              elevation: 0,
+          if (RbacSession().hasPermission(
+            Modules.truck,
+            'active_inactive',
+          )) ...[
+            ElevatedButton.icon(
+              onPressed:
+                  () => _showBulkConfirmDialog('Mark Active', filteredDocs),
+              icon: const Icon(Icons.check_circle_outline, size: 18),
+              label: const Text('Mark Active'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+                elevation: 0,
+              ),
             ),
-          ),
-          const SizedBox(width: 12),
-          ElevatedButton.icon(
-            onPressed:
-                () => _showBulkConfirmDialog('Mark Inactive', filteredDocs),
-            icon: const Icon(Icons.pause_circle_outline, size: 18),
-            label: const Text('Mark Inactive'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.orange,
-              foregroundColor: Colors.white,
-              elevation: 0,
+            const SizedBox(width: 12),
+            ElevatedButton.icon(
+              onPressed:
+                  () => _showBulkConfirmDialog('Mark Inactive', filteredDocs),
+              icon: const Icon(Icons.pause_circle_outline, size: 18),
+              label: const Text('Mark Inactive'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                foregroundColor: Colors.white,
+                elevation: 0,
+              ),
             ),
-          ),
-          const SizedBox(width: 12),
-          ElevatedButton.icon(
-            onPressed: () => _showBulkConfirmDialog('Delete', filteredDocs),
-            icon: const Icon(Icons.delete_outline, size: 18),
-            label: const Text('Delete'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.redAccent,
-              foregroundColor: Colors.white,
-              elevation: 0,
+            const SizedBox(width: 12),
+          ],
+          if (RbacSession().hasPermission(Modules.truck, Perms.delete)) ...[
+            ElevatedButton.icon(
+              onPressed: () => _showBulkConfirmDialog('Delete', filteredDocs),
+              icon: const Icon(Icons.delete_outline, size: 18),
+              label: const Text('Delete'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.redAccent,
+                foregroundColor: Colors.white,
+                elevation: 0,
+              ),
             ),
-          ),
-          const SizedBox(width: 24),
+            const SizedBox(width: 24),
+          ],
           IconButton(
             onPressed: () {
               setState(() {
@@ -323,7 +332,17 @@ class _TruckAndJcbPageState extends State<TruckAndJcbPage> {
                   ),
                   const SizedBox(height: 24),
                   _buildBulkActionToolbar(filteredDocs),
-                  _buildTableSection(filteredDocs),
+                  if (RbacSession().hasPermission(Modules.truck, Perms.view))
+                    _buildTableSection(filteredDocs)
+                  else
+                    const Padding(
+                      padding: EdgeInsets.all(32.0),
+                      child: Center(
+                        child: Text(
+                          "You do not have permission to view vehicles.",
+                        ),
+                      ),
+                    ),
                 ],
               );
             },
@@ -358,55 +377,60 @@ class _TruckAndJcbPageState extends State<TruckAndJcbPage> {
         ),
         Row(
           children: [
-            OutlinedButton.icon(
-              onPressed: () {
-                final listToExport =
-                    docs.map((d) => d.data() as Map<String, dynamic>).toList();
-                printTruckJcbList(listToExport);
-              },
-              icon: const Icon(
-                Icons.download_rounded,
-                color: Colors.black87,
-                size: 20,
-              ),
-              label: const Text(
-                'Export',
-                style: TextStyle(color: Colors.black87),
-              ),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 16,
-                ),
-                side: const BorderSide(color: Colors.black12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-            ),
-            const SizedBox(width: 16),
-            ElevatedButton.icon(
-              onPressed: () => _showTruckJcbDialog(),
-              icon: const Icon(Icons.add, color: Colors.black87, size: 20),
-              label: const Text(
-                'Add Truck/JCB',
-                style: TextStyle(
+            if (RbacSession().hasPermission(Modules.truck, 'export')) ...[
+              OutlinedButton.icon(
+                onPressed: () {
+                  final listToExport =
+                      docs
+                          .map((d) => d.data() as Map<String, dynamic>)
+                          .toList();
+                  printTruckJcbList(listToExport);
+                },
+                icon: const Icon(
+                  Icons.download_rounded,
                   color: Colors.black87,
-                  fontWeight: FontWeight.w600,
+                  size: 20,
+                ),
+                label: const Text(
+                  'Export',
+                  style: TextStyle(color: Colors.black87),
+                ),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 16,
+                  ),
+                  side: const BorderSide(color: Colors.black12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
               ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFFFC107),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 16,
+              const SizedBox(width: 16),
+            ],
+            if (RbacSession().hasPermission(Modules.truck, Perms.create))
+              ElevatedButton.icon(
+                onPressed: () => _showTruckJcbDialog(),
+                icon: const Icon(Icons.add, color: Colors.black87, size: 20),
+                label: const Text(
+                  'Add Truck/JCB',
+                  style: TextStyle(
+                    color: Colors.black87,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFFFC107),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 16,
+                  ),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
               ),
-            ),
           ],
         ),
       ],
@@ -566,7 +590,11 @@ class _TruckAndJcbPageState extends State<TruckAndJcbPage> {
                 fillColor: Colors.white,
                 hintText: 'Search by name, phone or license number...',
                 hintStyle: const TextStyle(color: Colors.black38, fontSize: 14),
-                prefixIcon: const Icon(Icons.search, color: Colors.black38, size: 20),
+                prefixIcon: const Icon(
+                  Icons.search,
+                  color: Colors.black38,
+                  size: 20,
+                ),
                 isDense: true,
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 12,
@@ -987,42 +1015,58 @@ class _TruckAndJcbPageState extends State<TruckAndJcbPage> {
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Transform.scale(
-                            scale: 0.8,
-                            child: Switch(
-                              value: data['status'] == 'active',
-                              onChanged: (bool value) async {
-                                final newStatus = value ? 'active' : 'inactive';
-                                await FirebaseFirestore.instance
-                                    .collection('transports')
-                                    .doc(doc.id)
-                                    .update({'status': newStatus});
-                              },
-                              activeColor: Colors.green,
+                          if (RbacSession().hasPermission(
+                            Modules.truck,
+                            'active_inactive',
+                          )) ...[
+                            Transform.scale(
+                              scale: 0.8,
+                              child: Switch(
+                                value: data['status'] == 'active',
+                                onChanged: (bool value) async {
+                                  final newStatus =
+                                      value ? 'active' : 'inactive';
+                                  await FirebaseFirestore.instance
+                                      .collection('transports')
+                                      .doc(doc.id)
+                                      .update({'status': newStatus});
+                                },
+                                activeColor: Colors.green,
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          IconButton(
-                            icon: const Icon(
-                              Icons.edit_outlined,
-                              size: 20,
-                              color: Colors.black54,
+                            const SizedBox(width: 8),
+                          ],
+                          if (RbacSession().hasPermission(
+                            Modules.truck,
+                            Perms.edit,
+                          )) ...[
+                            IconButton(
+                              icon: const Icon(
+                                Icons.edit_outlined,
+                                size: 20,
+                                color: Colors.black54,
+                              ),
+                              onPressed:
+                                  () => _showTruckJcbDialog(document: doc),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
                             ),
-                            onPressed: () => _showTruckJcbDialog(document: doc),
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                          ),
-                          const SizedBox(width: 8),
-                          IconButton(
-                            icon: const Icon(
-                              Icons.delete_outline,
-                              size: 20,
-                              color: Colors.redAccent,
+                            const SizedBox(width: 8),
+                          ],
+                          if (RbacSession().hasPermission(
+                            Modules.truck,
+                            Perms.delete,
+                          ))
+                            IconButton(
+                              icon: const Icon(
+                                Icons.delete_outline,
+                                size: 20,
+                                color: Colors.redAccent,
+                              ),
+                              onPressed: () => _deleteTruckJcb(doc.id),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
                             ),
-                            onPressed: () => _deleteTruckJcb(doc.id),
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                          ),
                         ],
                       ),
                     ),
