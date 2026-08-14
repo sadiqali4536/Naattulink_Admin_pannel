@@ -3,8 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'package:swiftclean_admin/MVVM/model/models/admin_model.dart';
 // ignore: avoid_web_libraries_in_flutter
 import 'dart:html' as html;
+
+import 'package:swiftclean_admin/MVVM/utils/rbac_session.dart';
 
 class ReportsOverviewPage extends StatefulWidget {
   const ReportsOverviewPage({super.key});
@@ -14,6 +17,12 @@ class ReportsOverviewPage extends StatefulWidget {
 }
 
 class _ReportsOverviewPageState extends State<ReportsOverviewPage> {
+  final _session = RbacSession();
+
+  bool _can(String action) {
+    return _session.hasPermission(Modules.reports, action);
+  }
+
   Stream<QuerySnapshot>? _reportsStream;
   String _searchQuery = '';
   String _trendDateRange = 'Last 7 Days';
@@ -34,6 +43,18 @@ class _ReportsOverviewPageState extends State<ReportsOverviewPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (!_can('view')) {
+      return const Scaffold(
+        backgroundColor: Color(0xFFF8F9FA),
+        body: Center(
+          child: Text(
+            'You do not have permission to view reports.',
+            style: TextStyle(color: Colors.grey, fontSize: 16),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
       body: LayoutBuilder(
@@ -293,30 +314,31 @@ class _ReportsOverviewPageState extends State<ReportsOverviewPage> {
               ),
             ),
             const SizedBox(width: 16),
-            OutlinedButton.icon(
-              onPressed: () {
-                _exportToCsv(docs);
-              },
-              icon: const Icon(
-                Icons.download_rounded,
-                color: Colors.green,
-                size: 20,
-              ),
-              label: const Text(
-                'Export Report',
-                style: TextStyle(color: Colors.green),
-              ),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 16,
+            if (_can('export'))
+              OutlinedButton.icon(
+                onPressed: () {
+                  _exportToCsv(docs);
+                },
+                icon: const Icon(
+                  Icons.download_rounded,
+                  color: Colors.green,
+                  size: 20,
                 ),
-                side: const BorderSide(color: Colors.green),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+                label: const Text(
+                  'Export Report',
+                  style: TextStyle(color: Colors.green),
+                ),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 16,
+                  ),
+                  side: const BorderSide(color: Colors.green),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
               ),
-            ),
           ],
         ),
       ],

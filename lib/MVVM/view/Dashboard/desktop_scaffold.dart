@@ -1064,7 +1064,7 @@ class _DesktopScaffoldState extends State<DesktopScaffold> {
                                           () => selectedTile = "Store Products",
                                         ),
                                   ),
-                                if (_can(Modules.storeProducts, Perms.view))
+                                if (_can(Modules.storeProducts, 'manage_categories'))
                                   SidebarTile(
                                     title: "Manage Category",
                                     icon: Icons.category_rounded,

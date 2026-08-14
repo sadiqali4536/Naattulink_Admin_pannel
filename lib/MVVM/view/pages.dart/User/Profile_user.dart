@@ -130,10 +130,11 @@ class _ProfileUserState extends State<ProfileUser> {
   // Pagination States
   int _currentPage = 1;
   int _pageSize = 10;
-
-  List<DocumentSnapshot> _allFetchedDocs = [];
-  bool _isFetching = false;
-  bool _hasMore = true;
+  List<DocumentSnapshot> _pageCursors = [];
+  DocumentSnapshot? _lastDocument;
+  bool _hasNextPage = true;
+  List<UserModel> _users = [];
+  bool _isFetching = true;
   int _totalCount = 0;
   int _statTotalUsers = 0;
   int _statActiveUsers = 0;
@@ -250,49 +251,27 @@ class _ProfileUserState extends State<ProfileUser> {
   }
 
   void _scrollListener() {
-    if (_scrollController.position.pixels >=
-        _scrollController.position.maxScrollExtent - 200) {
-      final totalLoadedPages = (_allFetchedDocs.length / _pageSize).ceil();
-      if (_currentPage == totalLoadedPages && _hasMore) {
-        _fetchNextBatch();
-      }
-    }
+    // Pagination handles scrolling now
   }
 
   Future<void> _refreshData() async {
     if (_isFetching) return;
-    _allFetchedDocs.clear();
-    _hasMore = true;
+    _pageCursors.clear();
     _currentPage = 1;
-    await Future.wait([_fetchNextBatch(), _fetchTotalCount(), _fetchStats()]);
+    await Future.wait([_fetchUsers(), _fetchTotalCount(), _fetchStats()]);
   }
 
   Future<void> _updateSingleUserLocally(String docId) async {
-    try {
-      final updatedDoc =
-          await FirebaseFirestore.instance.collection("users").doc(docId).get();
-      final index = _allFetchedDocs.indexWhere((doc) => doc.id == docId);
-      if (index != -1) {
-        setState(() {
-          _allFetchedDocs[index] = updatedDoc;
-        });
-      }
-    } catch (e) {
-      print("Error updating user locally: $e");
-    }
+    _refreshData();
   }
 
-  Future<void> _fetchNextBatch() async {
-    if (_isFetching || !_hasMore) return;
-    setState(() {
-      _isFetching = true;
-    });
-
+  Future<void> _fetchUsers({bool isNext = false, bool isPrev = false}) async {
+    if (!mounted) return;
+    setState(() => _isFetching = true);
     try {
-      Query query = FirebaseFirestore.instance.collection("users");
+      final db = FirebaseFirestore.instance;
+      Query query = db.collection("users").orderBy('createdAt', descending: true);
 
-      // Only apply status filter server-side (safe single-field filter, no composite index needed).
-      // All other filters (type, date range, search) are applied client-side in paginatedUsers.
       if (_selectedStatus != "All Status") {
         query = query.where(
           "status",
@@ -300,33 +279,153 @@ class _ProfileUserState extends State<ProfileUser> {
         );
       }
 
-      // Use orderBy only when no server-side filter is active (avoids composite index requirement).
-      if (_selectedStatus == "All Status") {
-        query = query.orderBy(FieldPath.documentId);
+      List<UserModel> loaded = [];
+
+      if (_searchQuery.isNotEmpty || _selectedType != "All Types" || _selectedDateRange != null) {
+        // Fetch all matching status and filter locally
+        final snapshot = await query.get();
+        List<UserModel> allMatches = [];
+        for (int i = 0; i < snapshot.docs.length; i++) {
+          final doc = snapshot.docs[i];
+          final data = doc.data() as Map<String, dynamic>;
+          final rawUser = UserModel.fromMap(data, doc.id, i);
+          
+          final role = _userRoles[rawUser.no];
+          final finalUserType = (role != null && role.isNotEmpty) ? role : "Customer";
+          
+          final user = UserModel(
+            no: rawUser.no,
+            name: rawUser.name,
+            phone: rawUser.phone,
+            email: rawUser.email,
+            address: rawUser.address,
+            userType: finalUserType,
+            status: rawUser.status,
+            joinedDate: rawUser.joinedDate,
+            points: rawUser.points,
+            userId: rawUser.userId,
+            role: rawUser.role,
+            createdAt: rawUser.createdAt,
+          );
+          allMatches.add(user);
+        }
+
+        final q = _searchQuery.trim().toLowerCase();
+
+        allMatches = allMatches.where((user) {
+          if (user.status.toLowerCase() == "banned") return false;
+          if (user.email.toLowerCase() == 'superadmin@naattulink.com') return false;
+          if (_userRoles.containsKey(user.no) || _superAdminUids.contains(user.no)) return false;
+
+          if (_selectedType != "All Types") {
+            if (user.userType != _selectedType) return false;
+          }
+
+          if (_selectedDateRange != null && user.createdAt != null) {
+            final docDate = user.createdAt!.toDate();
+            if (docDate.isBefore(_selectedDateRange!.start) ||
+                docDate.isAfter(_selectedDateRange!.end.add(const Duration(days: 1)))) {
+              return false;
+            }
+          }
+
+          if (q.isNotEmpty) {
+            return user.name.toLowerCase().contains(q) ||
+                   user.phone.toLowerCase().contains(q) ||
+                   user.email.toLowerCase().contains(q) ||
+                   user.userId.toLowerCase().contains(q);
+          }
+
+          return true;
+        }).toList();
+
+        if (isNext) {
+          _currentPage++;
+        } else if (isPrev && _currentPage > 1) {
+          _currentPage--;
+        } else if (!isNext && !isPrev) {
+          _currentPage = 1;
+        }
+
+        int startIndex = (_currentPage - 1) * _pageSize;
+        int endIndex = startIndex + _pageSize;
+
+        if (endIndex >= allMatches.length) {
+          endIndex = allMatches.length;
+          _hasNextPage = false;
+        } else {
+          _hasNextPage = true;
+        }
+
+        if (startIndex < allMatches.length) {
+          loaded = allMatches.sublist(startIndex, endIndex);
+        } else {
+          loaded = [];
+        }
+      } else {
+        if (isNext && _lastDocument != null) {
+          _pageCursors.add(_lastDocument!);
+          _currentPage++;
+          query = query.startAfterDocument(_lastDocument!);
+        } else if (isPrev && _currentPage > 1) {
+          _currentPage--;
+          _pageCursors.removeLast();
+          if (_pageCursors.isNotEmpty) {
+            query = query.startAfterDocument(_pageCursors.last);
+          }
+        } else if (!isNext && !isPrev) {
+          _currentPage = 1;
+          _pageCursors.clear();
+        }
+
+        query = query.limit(_pageSize);
+        final snapshot = await query.get();
+
+        _hasNextPage = snapshot.docs.length == _pageSize;
+        if (snapshot.docs.isNotEmpty) {
+          _lastDocument = snapshot.docs.last;
+        }
+
+        for (int i = 0; i < snapshot.docs.length; i++) {
+          final doc = snapshot.docs[i];
+          final data = doc.data() as Map<String, dynamic>;
+          final rawUser = UserModel.fromMap(data, doc.id, i);
+          
+          final role = _userRoles[rawUser.no];
+          final finalUserType = (role != null && role.isNotEmpty) ? role : "Customer";
+          
+          final user = UserModel(
+            no: rawUser.no,
+            name: rawUser.name,
+            phone: rawUser.phone,
+            email: rawUser.email,
+            address: rawUser.address,
+            userType: finalUserType,
+            status: rawUser.status,
+            joinedDate: rawUser.joinedDate,
+            points: rawUser.points,
+            userId: rawUser.userId,
+            role: rawUser.role,
+            createdAt: rawUser.createdAt,
+          );
+          
+          if (user.status.toLowerCase() == "banned") continue;
+          if (user.email.toLowerCase() == 'superadmin@naattulink.com') continue;
+          if (_userRoles.containsKey(user.no) || _superAdminUids.contains(user.no)) continue;
+          
+          loaded.add(user);
+        }
       }
 
-      if (_allFetchedDocs.isNotEmpty) {
-        query = query.startAfterDocument(_allFetchedDocs.last);
-      }
-
-      // Fetch a large batch so client-side filters still leave enough visible rows.
-      query = query.limit(200);
-
-      final snapshot = await query.get();
-      if (snapshot.docs.length < 200) {
-        _hasMore = false;
-      }
-      setState(() {
-        _allFetchedDocs.addAll(snapshot.docs);
-      });
-    } catch (e) {
-      print("Error fetching users batch: $e");
-    } finally {
       if (mounted) {
         setState(() {
+          _users = loaded;
           _isFetching = false;
         });
       }
+    } catch (e) {
+      print("Error fetching users: $e");
+      if (mounted) setState(() => _isFetching = false);
     }
   }
 
@@ -429,199 +528,6 @@ class _ProfileUserState extends State<ProfileUser> {
     } catch (e) {
       print("Error fetching stats: $e");
     }
-  }
-
-  void _changePage(int page) {
-    if (page < 1) return;
-
-    final totalLoadedPages = (_allFetchedDocs.length / _pageSize).ceil();
-    if (page > totalLoadedPages && _hasMore) {
-      _fetchNextBatch().then((_) {
-        setState(() {
-          _currentPage = page;
-        });
-      });
-    } else {
-      setState(() {
-        _currentPage = page;
-      });
-    }
-  }
-
-  List<UserModel> get paginatedUsers {
-    // ── Step 1: Map ALL fetched docs to UserModel with resolved role ───────────
-    final allUsers =
-        _allFetchedDocs.asMap().entries.map((entry) {
-          final doc = entry.value;
-          final data = doc.data() as Map<String, dynamic>;
-          final rawUser = UserModel.fromMap(data, doc.id, entry.key);
-          final role = _userRoles[rawUser.no];
-          final finalUserType =
-              (role != null && role.isNotEmpty) ? role : "Customer";
-          return UserModel(
-            no: rawUser.no,
-            name: rawUser.name,
-            phone: rawUser.phone,
-            email: rawUser.email,
-            address: rawUser.address,
-            userType: finalUserType,
-            status: rawUser.status,
-            joinedDate: rawUser.joinedDate,
-            points: rawUser.points,
-            userId: rawUser.userId,
-            role: rawUser.role,
-            createdAt: rawUser.createdAt,
-          );
-        }).toList();
-
-    // Sort by createdAt descending so new users appear at the top
-    allUsers.sort((a, b) {
-      if (a.createdAt == null && b.createdAt == null) return 0;
-      if (a.createdAt == null) return 1;
-      if (b.createdAt == null) return -1;
-      return b.createdAt!.compareTo(a.createdAt!);
-    });
-
-    // ── Step 2: Apply ALL client-side filters ────────────────────────────────
-    final q = _searchQuery.trim().toLowerCase();
-
-    final filtered =
-        allUsers.where((user) {
-          // Always exclude banned, super-admin, developer, admin accounts
-          if (user.status.toLowerCase() == "banned") return false;
-          // Exclude the single hardcoded Super Admin
-          if (user.email.toLowerCase() == 'superadmin@naattulink.com')
-            return false;
-          // Exclude any user who has an assigned admin role in Firestore
-          if (_userRoles.containsKey(user.no) ||
-              _superAdminUids.contains(user.no))
-            return false;
-
-          // Status filter
-          if (_selectedStatus != "All Status" &&
-              user.status.toLowerCase() != _selectedStatus.toLowerCase()) {
-            return false;
-          }
-
-          // Type filter (uses role-resolved userType)
-          if (_selectedType != "All Types" &&
-              user.userType.toLowerCase() != _selectedType.toLowerCase()) {
-            return false;
-          }
-
-          // Date range filter — compare joinedDate string by parsing it
-          if (_selectedDateRange != null) {
-            try {
-              // joinedDate is stored like "May 18, 2024" — parse it
-              final parts = user.joinedDate.replaceAll(',', '').split(' ');
-              if (parts.length >= 3) {
-                const months = {
-                  'Jan': 1,
-                  'Feb': 2,
-                  'Mar': 3,
-                  'Apr': 4,
-                  'May': 5,
-                  'Jun': 6,
-                  'Jul': 7,
-                  'Aug': 8,
-                  'Sep': 9,
-                  'Oct': 10,
-                  'Nov': 11,
-                  'Dec': 12,
-                };
-                final month = months[parts[0]];
-                final day = int.tryParse(parts[1]);
-                final year = int.tryParse(parts[2]);
-                if (month != null && day != null && year != null) {
-                  final joinedDateTime = DateTime(year, month, day);
-                  final rangeEnd = _selectedDateRange!.end.add(
-                    const Duration(days: 1),
-                  );
-                  if (joinedDateTime.isBefore(_selectedDateRange!.start) ||
-                      joinedDateTime.isAfter(rangeEnd)) {
-                    return false;
-                  }
-                }
-              }
-            } catch (_) {}
-          }
-
-          // Search filter — matches name, email, phone, or userId
-          if (q.isNotEmpty) {
-            final matchesName = user.name.toLowerCase().contains(q);
-            final matchesEmail = user.email.toLowerCase().contains(q);
-            final matchesPhone = user.phone.contains(q);
-            final matchesId = user.userId.toLowerCase().contains(q);
-            if (!matchesName && !matchesEmail && !matchesPhone && !matchesId) {
-              return false;
-            }
-          }
-
-          return true;
-        }).toList();
-
-    // ── Step 3: Paginate from the fully-filtered list ────────────────────────
-    final startIndex = (_currentPage - 1) * _pageSize;
-    if (startIndex >= filtered.length) return [];
-    final endIndex = (startIndex + _pageSize).clamp(0, filtered.length);
-
-    // Re-number the visible rows sequentially
-    return filtered.sublist(startIndex, endIndex).asMap().entries.map((e) {
-      final u = e.value;
-      return UserModel(
-        no: u.no,
-        name: u.name,
-        phone: u.phone,
-        email: u.email,
-        address: u.address,
-        userType: u.userType,
-        status: u.status,
-        joinedDate: u.joinedDate,
-        points: u.points,
-        userId: u.userId,
-        role: u.role,
-      );
-    }).toList();
-  }
-
-  /// Total number of rows after all client-side filters are applied.
-  /// Used by the table footer and pagination controls.
-  int get filteredUserCount {
-    final q = _searchQuery.trim().toLowerCase();
-    return _allFetchedDocs.where((doc) {
-      final data = doc.data() as Map<String, dynamic>;
-      final rawUser = UserModel.fromMap(data, doc.id, 0);
-      final role = _userRoles[rawUser.no];
-      final finalUserType =
-          (role != null && role.isNotEmpty) ? role : "Customer";
-
-      if (rawUser.status.toLowerCase() == "banned") return false;
-      // Exclude the single hardcoded Super Admin
-      if (rawUser.email.toLowerCase() == 'superadmin@naattulink.com')
-        return false;
-      // Exclude any user who has an assigned admin role in Firestore
-      if (_userRoles.containsKey(rawUser.no) ||
-          _superAdminUids.contains(rawUser.no))
-        return false;
-
-      if (_selectedStatus != "All Status" &&
-          rawUser.status.toLowerCase() != _selectedStatus.toLowerCase()) {
-        return false;
-      }
-      if (_selectedType != "All Types" &&
-          finalUserType.toLowerCase() != _selectedType.toLowerCase()) {
-        return false;
-      }
-      if (q.isNotEmpty) {
-        if (!rawUser.name.toLowerCase().contains(q) &&
-            !rawUser.email.toLowerCase().contains(q) &&
-            !rawUser.phone.contains(q) &&
-            !rawUser.userId.toLowerCase().contains(q)) {
-          return false;
-        }
-      }
-      return true;
-    }).length;
   }
 
   // No mock data - all users are loaded live from Firestore
@@ -2365,10 +2271,10 @@ class _ProfileUserState extends State<ProfileUser> {
       builder: (context, constraints) {
         final double width = constraints.maxWidth;
 
-        final List<UserModel> currentPageUsers = paginatedUsers;
-        final int totalItems = _totalCount;
-        final int startIndex = (_currentPage - 1) * _pageSize;
-        final int endIndex = startIndex + currentPageUsers.length;
+        final List<UserModel> currentPageUsers = _users;
+        
+        
+        
 
         return SingleChildScrollView(
           controller: _scrollController,
@@ -2409,7 +2315,7 @@ class _ProfileUserState extends State<ProfileUser> {
                 const SizedBox(height: 24),
 
                 // Users Table
-                _isFetching && _allFetchedDocs.isEmpty
+                _isFetching && _users.isEmpty
                     ? const Padding(
                       padding: EdgeInsets.symmetric(vertical: 60),
                       child: Center(
@@ -2422,9 +2328,9 @@ class _ProfileUserState extends State<ProfileUser> {
                 const SizedBox(height: 16),
 
                 // Pagination Footer
-                _buildPaginationFooter(totalItems, startIndex, endIndex),
+                if (!_isFetching && _users.isNotEmpty) _buildPaginationFooter(),
 
-                if (_isFetching && _allFetchedDocs.isNotEmpty)
+                if (_isFetching && _users.isNotEmpty)
                   const Padding(
                     padding: EdgeInsets.symmetric(vertical: 16),
                     child: Center(
@@ -3693,115 +3599,70 @@ class _ProfileUserState extends State<ProfileUser> {
     );
   }
 
-  Widget _buildPaginationFooter(int totalItems, int startIndex, int endIndex) {
-    final int totalPages = (totalItems / _pageSize).ceil();
-
-    return Row(
-      children: [
-        Text(
-          "Showing ${startIndex + 1} to $endIndex of $totalItems users",
-          style: GoogleFonts.inter(
-            fontSize: 12,
-            color: const Color(0xFF64748B),
-          ),
-        ),
-        const Spacer(),
-        // Pages
-        Row(
-          children: [
-            IconButton(
-              icon: const Icon(Icons.chevron_left_rounded, size: 18),
-              onPressed:
-                  _currentPage > 1 ? () => _changePage(_currentPage - 1) : null,
-            ),
-            ...List.generate(totalPages, (index) {
-              final int page = index + 1;
-              final bool isSelected = page == _currentPage;
-              return InkWell(
-                onTap: () => _changePage(page),
-                borderRadius: BorderRadius.circular(6),
-                child: Container(
-                  width: 28,
-                  height: 28,
-                  margin: const EdgeInsets.symmetric(horizontal: 2),
-                  decoration: BoxDecoration(
-                    color:
-                        isSelected
-                            ? const Color(0xFF10B981)
-                            : Colors.transparent,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Center(
-                    child: Text(
-                      page.toString(),
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        fontWeight:
-                            isSelected ? FontWeight.bold : FontWeight.w500,
-                        color:
-                            isSelected ? Colors.white : const Color(0xFF475569),
-                      ),
-                    ),
-                  ),
+  Widget _buildPaginationFooter() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Text(
+                "Rows per page: ",
+                style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF64748B)),
+              ),
+              const SizedBox(width: 8),
+              DropdownButtonHideUnderline(
+                child: DropdownButton<int>(
+                  value: _pageSize,
+                  items: [10, 20, 50].map((size) {
+                    return DropdownMenuItem<int>(
+                      value: size,
+                      child: Text(size.toString(), style: GoogleFonts.inter(fontSize: 14)),
+                    );
+                  }).toList(),
+                  onChanged: (val) {
+                    if (val != null) {
+                      setState(() {
+                        _pageSize = val;
+                        _currentPage = 1;
+                        _pageCursors.clear();
+                      });
+                      _refreshData();
+                    }
+                  },
                 ),
-              );
-            }),
-            IconButton(
-              icon: const Icon(Icons.chevron_right_rounded, size: 18),
-              onPressed:
-                  _currentPage < totalPages || _hasMore
-                      ? () => _changePage(_currentPage + 1)
-                      : null,
-            ),
-          ],
-        ),
-        const SizedBox(width: 16),
-        // Page Size
-        SizedBox(
-          width: 110,
-          height: 32,
-          child: DropdownButtonFormField<int>(
-            initialValue: _pageSize,
-            decoration: InputDecoration(
-              isDense: true,
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 8,
-                vertical: 4,
               ),
-              fillColor: Colors.white,
-              filled: true,
-              border: OutlineInputBorder(
-                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-                borderRadius: BorderRadius.circular(6),
-              ),
-            ),
-            style: GoogleFonts.inter(
-              color: const Color(0xFF1E293B),
-              fontSize: 11,
-            ),
-            items:
-                [10, 20, 50]
-                    .map(
-                      (size) => DropdownMenuItem(
-                        value: size,
-                        child: Text("$size / page"),
-                      ),
-                    )
-                    .toList(),
-            onChanged: (val) {
-              setState(() {
-                _pageSize = val!;
-                _currentPage = 1;
-              });
-              _refreshData();
-            },
+            ],
           ),
-        ),
-      ],
+          Row(
+            children: [
+              Text(
+                "Page $_currentPage",
+                style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF64748B)),
+              ),
+              const SizedBox(width: 16),
+              IconButton(
+                icon: const Icon(Icons.chevron_left_rounded),
+                onPressed: _currentPage > 1 && !_isFetching
+                    ? () => _fetchUsers(isPrev: true)
+                    : null,
+              ),
+              IconButton(
+                icon: const Icon(Icons.chevron_right_rounded),
+                onPressed: _hasNextPage && !_isFetching
+                    ? () => _fetchUsers(isNext: true)
+                    : null,
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 

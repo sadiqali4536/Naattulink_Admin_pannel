@@ -85,6 +85,12 @@ class _StoreOrdersPageState extends State<StoreOrdersPage> {
   String _selectedStatus = 'All Status';
   String _selectedPayment = 'All Payments';
   Timer? _searchDebounce;
+  
+  int _pageSize = 10;
+  int _currentPage = 1;
+  List<DocumentSnapshot> _pageCursors = [];
+  DocumentSnapshot? _lastDocument;
+  bool _hasNextPage = true;
 
   int _statTotal = 0;
   int _statPending = 0;
@@ -115,6 +121,7 @@ class _StoreOrdersPageState extends State<StoreOrdersPage> {
   void initState() {
     super.initState();
     _fetchOrders();
+    _fetchStats();
   }
 
   @override
@@ -132,18 +139,42 @@ class _StoreOrdersPageState extends State<StoreOrdersPage> {
   void _onSearchChanged(String val) {
     if (_searchDebounce?.isActive ?? false) _searchDebounce!.cancel();
     _searchDebounce = Timer(const Duration(milliseconds: 400), () {
-      setState(() => _searchQuery = val);
+      setState(() {
+        _searchQuery = val;
+        _currentPage = 1;
+        _pageCursors.clear();
+      });
       _fetchOrders();
     });
   }
 
-  Future<void> _fetchOrders() async {
+  Future<void> _fetchStats() async {
+    try {
+      final db = FirebaseFirestore.instance;
+      
+      final totalQuery = await db.collection('store_orders').count().get();
+      final pendingQuery = await db.collection('store_orders').where('orderStatus', isEqualTo: 'Pending').count().get();
+      final processingQuery = await db.collection('store_orders').where('orderStatus', whereIn: ['Processing', 'Confirmed']).count().get();
+      final deliveredQuery = await db.collection('store_orders').where('orderStatus', isEqualTo: 'Delivered').count().get();
+      
+      if (mounted) {
+        setState(() {
+          _statTotal = totalQuery.count ?? 0;
+          _statPending = pendingQuery.count ?? 0;
+          _statProcessing = processingQuery.count ?? 0;
+          _statDelivered = deliveredQuery.count ?? 0;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching stats: $e');
+    }
+  }
+
+  Future<void> _fetchOrders({bool isNext = false, bool isPrev = false}) async {
     setState(() => _isLoading = true);
     try {
       final db = FirebaseFirestore.instance;
-      Query query = db
-          .collection('store_orders')
-          .orderBy('createdAt', descending: true);
+      Query query = db.collection('store_orders').orderBy('createdAt', descending: true);
 
       if (_selectedStatus != 'All Status') {
         query = query.where('orderStatus', isEqualTo: _selectedStatus);
@@ -152,24 +183,68 @@ class _StoreOrdersPageState extends State<StoreOrdersPage> {
         query = query.where('paymentStatus', isEqualTo: _selectedPayment);
       }
 
-      final snapshot = await query.get();
-      List<StoreOrderModel> loaded =
-          snapshot.docs.map((d) => StoreOrderModel.fromFirestore(d)).toList();
+      List<StoreOrderModel> loaded = [];
 
       if (_searchQuery.isNotEmpty) {
+        final snapshot = await query.get();
+        List<StoreOrderModel> allMatches = snapshot.docs.map((d) => StoreOrderModel.fromFirestore(d)).toList();
         final q = _searchQuery.toLowerCase();
-        loaded =
-            loaded.where((o) {
-              return o.orderNumber.toLowerCase().contains(q) ||
-                  o.customerName.toLowerCase().contains(q) ||
-                  o.customerPhone.contains(q) ||
-                  o.customerEmail.toLowerCase().contains(q);
-            }).toList();
-      }
+        
+        allMatches = allMatches.where((o) {
+          return o.orderNumber.toLowerCase().contains(q) ||
+                 o.customerName.toLowerCase().contains(q) ||
+                 o.customerPhone.contains(q) ||
+                 o.customerEmail.toLowerCase().contains(q);
+        }).toList();
 
-      _calculateStats(
-        snapshot.docs.map((d) => StoreOrderModel.fromFirestore(d)).toList(),
-      );
+        if (isNext) {
+          _currentPage++;
+        } else if (isPrev && _currentPage > 1) {
+          _currentPage--;
+        } else if (!isNext && !isPrev) {
+          _currentPage = 1;
+        }
+
+        int startIndex = (_currentPage - 1) * _pageSize;
+        int endIndex = startIndex + _pageSize;
+
+        if (endIndex >= allMatches.length) {
+          endIndex = allMatches.length;
+          _hasNextPage = false;
+        } else {
+          _hasNextPage = true;
+        }
+
+        if (startIndex < allMatches.length) {
+          loaded = allMatches.sublist(startIndex, endIndex);
+        } else {
+          loaded = [];
+        }
+      } else {
+        if (isNext && _lastDocument != null) {
+          _pageCursors.add(_lastDocument!);
+          _currentPage++;
+          query = query.startAfterDocument(_lastDocument!);
+        } else if (isPrev && _currentPage > 1) {
+          _currentPage--;
+          _pageCursors.removeLast();
+          if (_pageCursors.isNotEmpty) {
+            query = query.startAfterDocument(_pageCursors.last);
+          }
+        } else if (!isNext && !isPrev) {
+          _currentPage = 1;
+          _pageCursors.clear();
+        }
+
+        query = query.limit(_pageSize);
+        final snapshot = await query.get();
+
+        _hasNextPage = snapshot.docs.length == _pageSize;
+        if (snapshot.docs.isNotEmpty) {
+          _lastDocument = snapshot.docs.last;
+        }
+        loaded = snapshot.docs.map((d) => StoreOrderModel.fromFirestore(d)).toList();
+      }
 
       if (mounted) {
         setState(() {
@@ -181,25 +256,6 @@ class _StoreOrdersPageState extends State<StoreOrdersPage> {
       debugPrint('Error fetching orders: $e');
       if (mounted) setState(() => _isLoading = false);
     }
-  }
-
-  void _calculateStats(List<StoreOrderModel> all) {
-    int pending = 0, processing = 0, delivered = 0;
-    double revenue = 0;
-    for (final o in all) {
-      if (o.orderStatus == 'Pending') pending++;
-      if (o.orderStatus == 'Processing' || o.orderStatus == 'Confirmed')
-        processing++;
-      if (o.orderStatus == 'Delivered') delivered++;
-      if (o.paymentStatus == 'Paid') revenue += o.totalAmount;
-    }
-    setState(() {
-      _statTotal = all.length;
-      _statPending = pending;
-      _statProcessing = processing;
-      _statDelivered = delivered;
-      _statRevenue = revenue;
-    });
   }
 
   Future<void> _updateOrderStatus(
@@ -222,6 +278,7 @@ class _StoreOrdersPageState extends State<StoreOrdersPage> {
           ),
         );
         _fetchOrders();
+        _fetchStats();
       }
     } catch (e) {
       if (mounted) {
@@ -373,6 +430,8 @@ class _StoreOrdersPageState extends State<StoreOrdersPage> {
                   _buildToolbar(),
                   const SizedBox(height: 16),
                   _buildOrdersTable(),
+                  const SizedBox(height: 16),
+                  if (!_isLoading && _orders.isNotEmpty) _buildPaginationFooter(),
                 ],
               ),
             ),
@@ -1115,6 +1174,74 @@ class _StoreOrdersPageState extends State<StoreOrdersPage> {
         return const Color(0xFFF1F5F9);
     }
   }
+
+  Widget _buildPaginationFooter() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Text(
+                "Rows per page: ",
+                style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF64748B)),
+              ),
+              const SizedBox(width: 8),
+              DropdownButtonHideUnderline(
+                child: DropdownButton<int>(
+                  value: _pageSize,
+                  items: [10, 20, 50].map((size) {
+                    return DropdownMenuItem<int>(
+                      value: size,
+                      child: Text(size.toString(), style: GoogleFonts.inter(fontSize: 14)),
+                    );
+                  }).toList(),
+                  onChanged: (val) {
+                    if (val != null) {
+                      setState(() {
+                        _pageSize = val;
+                        _currentPage = 1;
+                        _pageCursors.clear();
+                      });
+                      _fetchOrders();
+                    }
+                  },
+                ),
+              ),
+            ],
+          ),
+          Row(
+            children: [
+              Text(
+                "Page $_currentPage",
+                style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF64748B)),
+              ),
+              const SizedBox(width: 16),
+              IconButton(
+                icon: const Icon(Icons.chevron_left_rounded),
+                onPressed: _currentPage > 1 && !_isLoading
+                    ? () => _fetchOrders(isPrev: true)
+                    : null,
+              ),
+              IconButton(
+                icon: const Icon(Icons.chevron_right_rounded),
+                onPressed: _hasNextPage && !_isLoading
+                    ? () => _fetchOrders(isNext: true)
+                    : null,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
 }
 
 class _OrderDetailsDialog extends StatelessWidget {

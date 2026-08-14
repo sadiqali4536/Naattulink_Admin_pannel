@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:swiftclean_admin/MVVM/model/models/admin_model.dart';
+import 'package:swiftclean_admin/MVVM/utils/rbac_session.dart';
 
 class PreferencesSettingsPage extends StatefulWidget {
   const PreferencesSettingsPage({super.key});
@@ -12,6 +14,12 @@ class PreferencesSettingsPage extends StatefulWidget {
 }
 
 class _PreferencesSettingsPageState extends State<PreferencesSettingsPage> {
+  final _session = RbacSession();
+
+  bool _can(String action) {
+    return _session.hasPermission(Modules.settings, action);
+  }
+
   String selectedTab = "General";
   bool isLoading = true;
 
@@ -502,6 +510,7 @@ class _PreferencesSettingsPageState extends State<PreferencesSettingsPage> {
     String value,
     List<String> items, {
     void Function(String?)? onChanged,
+    bool disabled = false,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -518,6 +527,8 @@ class _PreferencesSettingsPageState extends State<PreferencesSettingsPage> {
         DropdownButtonFormField<String>(
           value: value,
           decoration: InputDecoration(
+            filled: disabled,
+            fillColor: disabled ? const Color(0xFFF8F9FA) : Colors.white,
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 16,
               vertical: 16,
@@ -538,10 +549,10 @@ class _PreferencesSettingsPageState extends State<PreferencesSettingsPage> {
               ),
             ),
           ),
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w500,
-            color: Color(0xFF0F172A),
+            color: disabled ? const Color(0xFF94A3B8) : const Color(0xFF0F172A),
           ),
           icon: const Icon(
             Icons.keyboard_arrow_down,
@@ -556,7 +567,7 @@ class _PreferencesSettingsPageState extends State<PreferencesSettingsPage> {
                   child: Text(item, style: const TextStyle(fontSize: 14)),
                 );
               }).toList(),
-          onChanged: (_) {},
+          onChanged: disabled ? null : (onChanged ?? (_) {}),
         ),
       ],
     );
@@ -596,6 +607,7 @@ class _PreferencesSettingsPageState extends State<PreferencesSettingsPage> {
                 child: _buildTextField(
                   'Support Email',
                   _supportEmailController,
+                  readOnly: !_can('edit'),
                 ),
               ),
               const SizedBox(width: 16),
@@ -603,6 +615,7 @@ class _PreferencesSettingsPageState extends State<PreferencesSettingsPage> {
                 child: _buildTextField(
                   'Support Phone',
                   _supportPhoneController,
+                  readOnly: !_can('edit'),
                 ),
               ),
             ],
@@ -615,14 +628,14 @@ class _PreferencesSettingsPageState extends State<PreferencesSettingsPage> {
                   'English',
                   'Malayalam',
                   'Hindi',
-                ]),
+                ], disabled: !_can('edit')),
               ),
               const SizedBox(width: 16),
               Expanded(
                 child: _buildDropdown('Timezone', 'Asia/Kolkata (GMT +05:30)', [
                   'Asia/Kolkata (GMT +05:30)',
                   'UTC',
-                ]),
+                ], disabled: !_can('edit')),
               ),
             ],
           ),
@@ -633,6 +646,7 @@ class _PreferencesSettingsPageState extends State<PreferencesSettingsPage> {
                 child: _buildTextField(
                   'Android App Version',
                   _appVersionController,
+                  readOnly: !_can('edit'),
                 ),
               ),
               const SizedBox(width: 16),
@@ -640,11 +654,12 @@ class _PreferencesSettingsPageState extends State<PreferencesSettingsPage> {
                 child: _buildTextField(
                   'iOS App Version',
                   _iosAppVersionController,
+                  readOnly: !_can('edit'),
                 ),
               ),
             ],
           ),
-          if (hasGeneralChanges) ...[
+          if (_can('edit') && hasGeneralChanges) ...[
             const SizedBox(height: 16),
             Align(
               alignment: Alignment.centerRight,

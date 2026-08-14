@@ -2,6 +2,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'package:swiftclean_admin/MVVM/model/models/admin_model.dart';
+import 'package:swiftclean_admin/MVVM/utils/rbac_session.dart';
 
 class Notifications extends StatefulWidget {
   const Notifications({super.key});
@@ -16,6 +18,11 @@ class _NotificationsState extends State<Notifications> {
   String? _filterChannel;
   Set<String> _selectedNotificationIds = {};
   late Stream<QuerySnapshot> _notificationsStream;
+  final _session = RbacSession();
+
+  bool _can(String action) {
+    return _session.hasPermission(Modules.notifications, action);
+  }
 
   @override
   void initState() {
@@ -141,51 +148,29 @@ class _NotificationsState extends State<Notifications> {
         ),
         Row(
           children: [
-            OutlinedButton.icon(
-              onPressed: () => _showNotificationDialog(initialTab: 1),
-              icon: const Icon(
-                Icons.send_outlined,
-                color: Colors.black87,
-                size: 20,
-              ),
-              label: const Text(
-                'Send Notification',
-                style: TextStyle(color: Colors.black87),
-              ),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 16,
+            if (_can('create'))
+              ElevatedButton.icon(
+                onPressed: () => _showNotificationDialog(initialTab: 0),
+                icon: const Icon(Icons.add, color: Colors.black87, size: 20),
+                label: const Text(
+                  'Create Notification',
+                  style: TextStyle(
+                    color: Colors.black87,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-                side: const BorderSide(color: Colors.black12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-            ),
-            const SizedBox(width: 16),
-            ElevatedButton.icon(
-              onPressed: () => _showNotificationDialog(initialTab: 0),
-              icon: const Icon(Icons.add, color: Colors.black87, size: 20),
-              label: const Text(
-                'Create Notification',
-                style: TextStyle(
-                  color: Colors.black87,
-                  fontWeight: FontWeight.w600,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFFFC107),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 16,
+                  ),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
               ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFFFC107),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 16,
-                ),
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-            ),
           ],
         ),
       ],
@@ -509,25 +494,27 @@ class _NotificationsState extends State<Notifications> {
             ),
           ),
           const Spacer(),
-          TextButton.icon(
-            onPressed: () {
-              for (var id in _selectedNotificationIds) {
-                FirebaseFirestore.instance
-                    .collection('notifications')
-                    .doc(id)
-                    .delete();
-              }
-              setState(() {
-                _selectedNotificationIds.clear();
-              });
-            },
-            icon: const Icon(Icons.delete, color: Colors.red),
-            label: const Text(
-              'Delete Selected',
-              style: TextStyle(color: Colors.red),
+          if (_can('delete')) ...[
+            TextButton.icon(
+              onPressed: () {
+                for (var id in _selectedNotificationIds) {
+                  FirebaseFirestore.instance
+                      .collection('notifications')
+                      .doc(id)
+                      .delete();
+                }
+                setState(() {
+                  _selectedNotificationIds.clear();
+                });
+              },
+              icon: const Icon(Icons.delete, color: Colors.red),
+              label: const Text(
+                'Delete Selected',
+                style: TextStyle(color: Colors.red),
+              ),
             ),
-          ),
-          const SizedBox(width: 8),
+            const SizedBox(width: 8),
+          ],
           IconButton(
             onPressed: () {
               setState(() {
@@ -711,33 +698,37 @@ class _NotificationsState extends State<Notifications> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            IconButton(
-                              icon: const Icon(
-                                Icons.edit_outlined,
-                                size: 20,
-                                color: Colors.blueAccent,
+                            if (_can('edit'))
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.edit_outlined,
+                                  size: 20,
+                                  color: Colors.blueAccent,
+                                ),
+                                onPressed:
+                                    () =>
+                                        _showNotificationDialog(document: doc),
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
                               ),
-                              onPressed:
-                                  () => _showNotificationDialog(document: doc),
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(),
-                            ),
-                            const SizedBox(width: 12),
-                            IconButton(
-                              icon: const Icon(
-                                Icons.delete_outline,
-                                size: 20,
-                                color: Colors.redAccent,
+                            if (_can('edit') && _can('delete'))
+                              const SizedBox(width: 12),
+                            if (_can('delete'))
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.delete_outline,
+                                  size: 20,
+                                  color: Colors.redAccent,
+                                ),
+                                onPressed: () async {
+                                  await FirebaseFirestore.instance
+                                      .collection('notifications')
+                                      .doc(doc.id)
+                                      .delete();
+                                },
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
                               ),
-                              onPressed: () async {
-                                await FirebaseFirestore.instance
-                                    .collection('notifications')
-                                    .doc(doc.id)
-                                    .delete();
-                              },
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(),
-                            ),
                           ],
                         ),
                       ),

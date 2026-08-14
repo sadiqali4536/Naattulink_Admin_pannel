@@ -47,8 +47,19 @@ class _SuspendedUsersPageState extends State<SuspendedUsersPage> {
   String _selectedDuration = "All Durations";
   DateTimeRange? _selectedDateRange;
 
-  List<DocumentSnapshot> _suspendedDocs = [];
-  bool _isLoading = false;
+  // Pagination States
+  int _currentPage = 1;
+  int _pageSize = 10;
+  List<DocumentSnapshot> _pageCursors = [];
+  DocumentSnapshot? _lastDocument;
+  bool _hasNextPage = true;
+  List<SuspendedUserModel> _users = [];
+  bool _isLoading = true;
+
+  // Stats
+  int _totalSuspended = 0;
+  int _indefiniteSuspensions = 0;
+  int _thisMonthSuspensions = 0;
 
   final Set<String> _selectedUserIds = {};
 
@@ -99,7 +110,8 @@ class _SuspendedUsersPageState extends State<SuspendedUsersPage> {
         setState(() {
           _selectedUserIds.clear();
         });
-        _fetchSuspendedUsers(); // Refresh
+        _fetchStats();
+        _fetchSuspendedUsers();
       }
     } catch (e) {
       if (mounted) {
@@ -196,7 +208,8 @@ class _SuspendedUsersPageState extends State<SuspendedUsersPage> {
         setState(() {
           _selectedUserIds.clear();
         });
-        _fetchSuspendedUsers(); // Refresh
+        _fetchStats();
+        _fetchSuspendedUsers();
       }
     } catch (e) {
       if (mounted) {
@@ -409,6 +422,7 @@ class _SuspendedUsersPageState extends State<SuspendedUsersPage> {
   @override
   void initState() {
     super.initState();
+    _fetchStats();
     _fetchSuspendedUsers();
     _suspendedTableHorizontalHeaderController.addListener(
       _onSuspendedHeaderHScroll,
@@ -448,21 +462,167 @@ class _SuspendedUsersPageState extends State<SuspendedUsersPage> {
     _isSuspendedSyncingScroll = false;
   }
 
-  Future<void> _fetchSuspendedUsers() async {
+  Future<void> _fetchStats() async {
+    try {
+      final db = FirebaseFirestore.instance;
+      
+      final totalSnap = await db.collection("users").where("status", whereIn: ["Suspended", "suspended"]).count().get();
+      _totalSuspended = totalSnap.count ?? 0;
+      
+      final indefSnap = await db.collection("users")
+          .where("status", whereIn: ["Suspended", "suspended"])
+          .where("suspensionType", isEqualTo: "Indefinite").count().get();
+      _indefiniteSuspensions = indefSnap.count ?? 0;
+      
+      if (mounted) setState(() {});
+    } catch (e) {
+      print("Error fetching stats: $e");
+    }
+  }
+
+  Future<void> _fetchSuspendedUsers({bool isNext = false, bool isPrev = false}) async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
     try {
-      final snap =
-          await FirebaseFirestore.instance
-              .collection("users")
-              .where("status", whereIn: ["Suspended", "Suspended"])
-              .get();
-      setState(() {
-        _suspendedDocs = snap.docs;
-        _isLoading = false;
-      });
+      final db = FirebaseFirestore.instance;
+      Query query = db.collection("users")
+          .where("status", whereIn: ["Suspended", "suspended"])
+          .orderBy('suspendedOn', descending: true);
+
+      List<SuspendedUserModel> loaded = [];
+
+      if (_searchQuery.isNotEmpty || _selectedsuspensionType != "All Types" || _selectedDuration != "All Durations" || _selectedDateRange != null) {
+        // Local filtering
+        final snapshot = await query.get();
+        List<SuspendedUserModel> allMatches = [];
+        
+        for (int i = 0; i < snapshot.docs.length; i++) {
+          final doc = snapshot.docs[i];
+          final data = doc.data() as Map<String, dynamic>;
+          final name = data['name'] ?? data['username'] ?? 'User';
+          final email = data['email'] ?? 'No email';
+          final phone = data['phone'] ?? 'No phone';
+          final reason = data['suspensionReason'] ?? data['reason'] ?? 'Violation of community guidelines';
+          final suspensionType = data['suspensionType'] ?? 'Temporary';
+          final suspendedOn = data['suspendedOn'] ?? data['joinedDate'] ?? 'Recently';
+          final suspendedBy = data['suspendedBy'] ?? 'Admin';
+          final suspensionDuration = data['suspensionDuration'] ?? '-';
+          
+          allMatches.add(SuspendedUserModel(
+            name: name,
+            userId: doc.id,
+            email: email,
+            phone: phone,
+            reason: reason,
+            suspensionType: suspensionType,
+            suspendedOn: suspendedOn,
+            suspendedBy: suspendedBy,
+            suspensionDuration: suspensionDuration,
+            status: "Suspended",
+            avatarUrl: "https://randomuser.me/api/portraits/men/${i % 10 + 1}.jpg",
+          ));
+        }
+
+        final q = _searchQuery.trim().toLowerCase();
+
+        allMatches = allMatches.where((user) {
+          if (_selectedsuspensionType != "All Types" && user.suspensionType != _selectedsuspensionType) return false;
+          if (_selectedDuration != "All Durations" && user.suspensionDuration != _selectedDuration && !user.suspensionDuration.contains(_selectedDuration)) return false;
+          
+          if (q.isNotEmpty) {
+            return user.name.toLowerCase().contains(q) ||
+                   user.email.toLowerCase().contains(q) ||
+                   user.phone.contains(q) ||
+                   user.reason.toLowerCase().contains(q);
+          }
+
+          return true;
+        }).toList();
+
+        if (isNext) {
+          _currentPage++;
+        } else if (isPrev && _currentPage > 1) {
+          _currentPage--;
+        } else if (!isNext && !isPrev) {
+          _currentPage = 1;
+        }
+
+        int startIndex = (_currentPage - 1) * _pageSize;
+        int endIndex = startIndex + _pageSize;
+
+        if (endIndex >= allMatches.length) {
+          endIndex = allMatches.length;
+          _hasNextPage = false;
+        } else {
+          _hasNextPage = true;
+        }
+
+        if (startIndex < allMatches.length) {
+          loaded = allMatches.sublist(startIndex, endIndex);
+        } else {
+          loaded = [];
+        }
+      } else {
+        if (isNext && _lastDocument != null) {
+          _pageCursors.add(_lastDocument!);
+          _currentPage++;
+          query = query.startAfterDocument(_lastDocument!);
+        } else if (isPrev && _currentPage > 1) {
+          _currentPage--;
+          _pageCursors.removeLast();
+          if (_pageCursors.isNotEmpty) {
+            query = query.startAfterDocument(_pageCursors.last);
+          }
+        } else if (!isNext && !isPrev) {
+          _currentPage = 1;
+          _pageCursors.clear();
+        }
+
+        query = query.limit(_pageSize);
+        final snapshot = await query.get();
+
+        _hasNextPage = snapshot.docs.length == _pageSize;
+        if (snapshot.docs.isNotEmpty) {
+          _lastDocument = snapshot.docs.last;
+        }
+
+        for (int i = 0; i < snapshot.docs.length; i++) {
+          final doc = snapshot.docs[i];
+          final data = doc.data() as Map<String, dynamic>;
+          final name = data['name'] ?? data['username'] ?? 'User';
+          final email = data['email'] ?? 'No email';
+          final phone = data['phone'] ?? 'No phone';
+          final reason = data['suspensionReason'] ?? data['reason'] ?? 'Violation of community guidelines';
+          final suspensionType = data['suspensionType'] ?? 'Temporary';
+          final suspendedOn = data['suspendedOn'] ?? data['joinedDate'] ?? 'Recently';
+          final suspendedBy = data['suspendedBy'] ?? 'Admin';
+          final suspensionDuration = data['suspensionDuration'] ?? '-';
+          
+          loaded.add(SuspendedUserModel(
+            name: name,
+            userId: doc.id,
+            email: email,
+            phone: phone,
+            reason: reason,
+            suspensionType: suspensionType,
+            suspendedOn: suspendedOn,
+            suspendedBy: suspendedBy,
+            suspensionDuration: suspensionDuration,
+            status: "Suspended",
+            avatarUrl: "https://randomuser.me/api/portraits/men/${i % 10 + 1}.jpg",
+          ));
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _users = loaded;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
-      print("Error fetching Suspended Users: $e");
-      setState(() => _isLoading = false);
+      print("Error fetching suspended users: $e");
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -513,114 +673,7 @@ class _SuspendedUsersPageState extends State<SuspendedUsersPage> {
       builder: (context, constraints) {
         final double width = constraints.maxWidth;
 
-        final List<SuspendedUserModel> SuspendedUsersList =
-            _suspendedDocs.asMap().entries.map((entry) {
-              final doc = entry.value;
-              final data = doc.data() as Map<String, dynamic>? ?? {};
-              final name = data['name'] ?? data['username'] ?? 'User';
-              final email = data['email'] ?? 'No email';
-              final phone = data['phone'] ?? 'No phone';
-              final reason =
-                  data['banReason'] ??
-                  data['reason'] ??
-                  'Violation of community guidelines';
-              final suspensionType = data['suspensionType'] ?? 'Suspended';
-              final suspendedOn =
-                  data['suspendedOn'] ?? data['joinedDate'] ?? 'Recently';
-              final suspendedBy = data['suspendedBy'] ?? 'Admin';
-              final suspensionDuration = data['suspensionDuration'] ?? '-';
-
-              return SuspendedUserModel(
-                name: name,
-                userId: doc.id,
-                email: email,
-                phone: phone,
-                reason: reason,
-                suspensionType: suspensionType,
-                suspendedOn: suspendedOn,
-                suspendedBy: suspendedBy,
-                suspensionDuration: suspensionDuration,
-                status: "Suspended",
-                avatarUrl:
-                    "https://randomuser.me/api/portraits/men/${entry.key % 10 + 1}.jpg",
-              );
-            }).toList();
-
-        // Apply filters
-        final filteredUsers =
-            SuspendedUsersList.where((user) {
-              final matchesSearch =
-                  user.name.toLowerCase().contains(
-                    _searchQuery.toLowerCase(),
-                  ) ||
-                  user.email.toLowerCase().contains(
-                    _searchQuery.toLowerCase(),
-                  ) ||
-                  user.phone.contains(_searchQuery) ||
-                  user.reason.toLowerCase().contains(
-                    _searchQuery.toLowerCase(),
-                  );
-
-              final matchesType =
-                  _selectedsuspensionType == "All Types" ||
-                  user.suspensionType == _selectedsuspensionType;
-              final matchesDuration =
-                  _selectedDuration == "All Durations" ||
-                  (_selectedDuration == "1 Day" &&
-                      user.suspensionDuration.contains("1 Day")) ||
-                  (_selectedDuration == "7 Days" &&
-                      user.suspensionDuration.contains("7 Days")) ||
-                  (_selectedDuration == "30 Days" &&
-                      user.suspensionDuration.contains("30 Days"));
-
-              bool matchesDate = true;
-              if (_selectedDateRange != null) {
-                try {
-                  DateTime? cellDateTime = DateTime.tryParse(user.suspendedOn);
-                  if (cellDateTime == null) {
-                    final parts = user.suspendedOn
-                        .replaceAll(',', '')
-                        .split(' ');
-                    if (parts.length >= 3) {
-                      const months = {
-                        'Jan': 1,
-                        'Feb': 2,
-                        'Mar': 3,
-                        'Apr': 4,
-                        'May': 5,
-                        'Jun': 6,
-                        'Jul': 7,
-                        'Aug': 8,
-                        'Sep': 9,
-                        'Oct': 10,
-                        'Nov': 11,
-                        'Dec': 12,
-                      };
-                      final month = months[parts[0]];
-                      final day = int.tryParse(parts[1]);
-                      final year = int.tryParse(parts[2]);
-                      if (month != null && day != null && year != null) {
-                        cellDateTime = DateTime(year, month, day);
-                      }
-                    }
-                  }
-                  if (cellDateTime != null) {
-                    final rangeEnd = _selectedDateRange!.end.add(
-                      const Duration(days: 1),
-                    );
-                    if (cellDateTime.isBefore(_selectedDateRange!.start) ||
-                        cellDateTime.isAfter(rangeEnd)) {
-                      matchesDate = false;
-                    }
-                  }
-                } catch (_) {}
-              }
-
-              return matchesSearch &&
-                  matchesType &&
-                  matchesDuration &&
-                  matchesDate;
-            }).toList();
+        final List<SuspendedUserModel> filteredUsers = _users;
 
         return SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -649,7 +702,7 @@ class _SuspendedUsersPageState extends State<SuspendedUsersPage> {
               const SizedBox(height: 24),
 
               // Stats Cards
-              _buildStatsGrid(width, SuspendedUsersList),
+              _buildStatsGrid(width),
               const SizedBox(height: 24),
 
               // Filter Controls
@@ -670,10 +723,7 @@ class _SuspendedUsersPageState extends State<SuspendedUsersPage> {
               const SizedBox(height: 16),
 
               // Table Footer
-              _buildTableFooter(
-                filteredUsers.length,
-                SuspendedUsersList.length,
-              ),
+              if (!_isLoading && _users.isNotEmpty) _buildPaginationFooter(),
             ],
           ),
         );
@@ -681,54 +731,17 @@ class _SuspendedUsersPageState extends State<SuspendedUsersPage> {
     );
   }
 
-  Widget _buildStatsGrid(
-    double width,
-    List<SuspendedUserModel> SuspendedUsersList,
-  ) {
-    int crossAxisCount = 3;
+  Widget _buildStatsGrid(double width) {
+    int crossAxisCount = 4;
     if (width < 600) {
       crossAxisCount = 1;
     } else if (width < 1100) {
       crossAxisCount = 2;
     }
 
-    final double itemWidth =
-        (width - (crossAxisCount - 1) * 16) / crossAxisCount;
+    final double itemWidth = (width - (crossAxisCount - 1) * 16) / crossAxisCount;
     const double itemHeight = 115;
     final double aspectRatio = itemWidth / itemHeight;
-
-    final totalSuspended = SuspendedUsersList.length;
-    final permanentBans =
-        SuspendedUsersList.where((u) => u.suspensionType == "Suspended").length;
-    final temporaryBans =
-        SuspendedUsersList.where((u) => u.suspensionType == "Temporary").length;
-
-    int thisMonthBans = 0;
-    try {
-      final now = DateTime.now();
-      final monthsShort = [
-        "Jan",
-        "Feb",
-        "Mar",
-        "Apr",
-        "May",
-        "Jun",
-        "Jul",
-        "Aug",
-        "Sep",
-        "Oct",
-        "Nov",
-        "Dec",
-      ];
-      final currentMonthStr = monthsShort[now.month - 1];
-      final currentYearStr = now.year.toString();
-      thisMonthBans =
-          SuspendedUsersList.where((u) {
-            return (u.suspendedOn.contains(currentMonthStr) &&
-                    u.suspendedOn.contains(currentYearStr)) ||
-                u.suspendedOn == 'Recently';
-          }).length;
-    } catch (_) {}
 
     return GridView.count(
       shrinkWrap: true,
@@ -740,24 +753,16 @@ class _SuspendedUsersPageState extends State<SuspendedUsersPage> {
       children: [
         StatsCard(
           title: "Total Suspended Users",
-          value: totalSuspended.toString(),
-          trendPeriod: "Users are Suspended from the platform",
+          value: _totalSuspended.toString(),
+          trendPeriod: "Users are suspended from the platform",
           icon: Icons.person_off_rounded,
           iconColor: const Color(0xFFEF4444),
           iconBgColor: const Color(0xFFFEF2F2),
         ),
         StatsCard(
-          title: "This Month",
-          value: thisMonthBans.toString(),
-          trendPeriod: "Users Suspended this month",
-          icon: Icons.calendar_month_rounded,
-          iconColor: const Color(0xFFF59E0B),
-          iconBgColor: const Color(0xFFFEF3C7),
-        ),
-        StatsCard(
-          title: "Suspended",
-          value: permanentBans.toString(),
-          trendPeriod: "Suspended Users",
+          title: "Indefinite Suspensions",
+          value: _indefiniteSuspensions.toString(),
+          trendPeriod: "Indefinite suspended users",
           icon: Icons.lock_outline_rounded,
           iconColor: const Color(0xFF6366F1),
           iconBgColor: const Color(0xFFEEF2FF),
@@ -1300,94 +1305,70 @@ class _SuspendedUsersPageState extends State<SuspendedUsersPage> {
     );
   }
 
-  Widget _buildTableFooter(int totalFiltered, int totalSuspended) {
-    return Row(
-      children: [
-        Text(
-          "Showing 1 to $totalFiltered of $totalSuspended Suspended Users",
-          style: GoogleFonts.inter(
-            fontSize: 12,
-            color: const Color(0xFF64748B),
-          ),
-        ),
-        const Spacer(),
-        Row(
-          children: [
-            const IconButton(
-              icon: Icon(Icons.chevron_left_rounded, size: 18),
-              onPressed: null,
-            ),
-            ...[1, 2, 3, 4, 5].map((page) {
-              final bool isSelected = page == 1;
-              return InkWell(
-                onTap: () {},
-                borderRadius: BorderRadius.circular(6),
-                child: Container(
-                  width: 28,
-                  height: 28,
-                  margin: const EdgeInsets.symmetric(horizontal: 2),
-                  decoration: BoxDecoration(
-                    color:
-                        isSelected
-                            ? const Color(0xFF10B981)
-                            : Colors.transparent,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Center(
-                    child: Text(
-                      page.toString(),
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        fontWeight:
-                            isSelected ? FontWeight.bold : FontWeight.w500,
-                        color:
-                            isSelected ? Colors.white : const Color(0xFF475569),
-                      ),
-                    ),
-                  ),
+  Widget _buildPaginationFooter() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Text(
+                "Rows per page: ",
+                style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF64748B)),
+              ),
+              const SizedBox(width: 8),
+              DropdownButtonHideUnderline(
+                child: DropdownButton<int>(
+                  value: _pageSize,
+                  items: [10, 20, 50].map((size) {
+                    return DropdownMenuItem<int>(
+                      value: size,
+                      child: Text(size.toString(), style: GoogleFonts.inter(fontSize: 14)),
+                    );
+                  }).toList(),
+                  onChanged: (val) {
+                    if (val != null) {
+                      setState(() {
+                        _pageSize = val;
+                        _currentPage = 1;
+                        _pageCursors.clear();
+                      });
+                      _fetchSuspendedUsers();
+                    }
+                  },
                 ),
-              );
-            }),
-            IconButton(
-              icon: const Icon(Icons.chevron_right_rounded, size: 18),
-              onPressed: () {},
-            ),
-          ],
-        ),
-        const SizedBox(width: 16),
-        SizedBox(
-          width: 110,
-          height: 32,
-          child: DropdownButtonFormField<int>(
-            initialValue: 10,
-            decoration: InputDecoration(
-              isDense: true,
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 8,
-                vertical: 4,
               ),
-              fillColor: Colors.white,
-              filled: true,
-              border: OutlineInputBorder(
-                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-                borderRadius: BorderRadius.circular(6),
-              ),
-            ),
-            style: GoogleFonts.inter(
-              color: const Color(0xFF1E293B),
-              fontSize: 11,
-            ),
-            items: const [
-              DropdownMenuItem(value: 10, child: Text("10 / page")),
             ],
-            onChanged: (val) {},
           ),
-        ),
-      ],
+          Row(
+            children: [
+              Text(
+                "Page $_currentPage",
+                style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF64748B)),
+              ),
+              const SizedBox(width: 16),
+              IconButton(
+                icon: const Icon(Icons.chevron_left_rounded),
+                onPressed: _currentPage > 1 && !_isLoading
+                    ? () => _fetchSuspendedUsers(isPrev: true)
+                    : null,
+              ),
+              IconButton(
+                icon: const Icon(Icons.chevron_right_rounded),
+                onPressed: _hasNextPage && !_isLoading
+                    ? () => _fetchSuspendedUsers(isNext: true)
+                    : null,
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 

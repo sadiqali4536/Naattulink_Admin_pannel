@@ -105,6 +105,12 @@ class _StoreProductsPageState extends State<StoreProductsPage> {
   String _selectedCategory = "All Categories";
   String _selectedStatus = "All Status";
 
+  int _pageSize = 10;
+  int _currentPage = 1;
+  List<DocumentSnapshot> _pageCursors = [];
+  DocumentSnapshot? _lastDocument;
+  bool _hasNextPage = true;
+
   final ScrollController _verticalScrollController = ScrollController();
   final ScrollController _horizontalScrollController = ScrollController();
   final _productImageService = ProductImageService();
@@ -127,6 +133,7 @@ class _StoreProductsPageState extends State<StoreProductsPage> {
     super.initState();
     _fetchCategories();
     _fetchProducts();
+    _fetchStats();
   }
 
   @override
@@ -143,16 +150,62 @@ class _StoreProductsPageState extends State<StoreProductsPage> {
     _searchDebounce = Timer(const Duration(milliseconds: 500), () {
       setState(() {
         _searchQuery = val;
+        _currentPage = 1;
+        _pageCursors.clear();
       });
       _fetchProducts();
     });
   }
 
   void _onFilterChanged() {
+    setState(() {
+      _currentPage = 1;
+      _pageCursors.clear();
+    });
     _fetchProducts();
   }
 
-  Future<void> _fetchProducts() async {
+  Future<void> _fetchStats() async {
+    try {
+      final db = FirebaseFirestore.instance;
+      final totalQuery = await db.collection("store_products").count().get();
+      final activeQuery =
+          await db
+              .collection("store_products")
+              .where("status", isEqualTo: "Active")
+              .count()
+              .get();
+      final oosQuery =
+          await db
+              .collection("store_products")
+              .where("stockQuantity", isLessThanOrEqualTo: 0)
+              .count()
+              .get();
+      final lowStockQuery =
+          await db
+              .collection("store_products")
+              .where("stockQuantity", isGreaterThan: 0)
+              .where("stockQuantity", isLessThanOrEqualTo: 5)
+              .count()
+              .get();
+
+      if (mounted) {
+        setState(() {
+          _statTotalProducts = totalQuery.count ?? 0;
+          _statActiveProducts = activeQuery.count ?? 0;
+          _statOutOfStock = oosQuery.count ?? 0;
+          _statLowStock = lowStockQuery.count ?? 0;
+        });
+      }
+    } catch (e) {
+      print("Error fetching stats: $e");
+    }
+  }
+
+  Future<void> _fetchProducts({
+    bool isNext = false,
+    bool isPrev = false,
+  }) async {
     setState(() {
       _isLoading = true;
     });
@@ -167,38 +220,84 @@ class _StoreProductsPageState extends State<StoreProductsPage> {
       if (_selectedCategory != "All Categories") {
         query = query.where("category", isEqualTo: _selectedCategory);
       }
+      query = query.orderBy("createdAt", descending: true);
 
-      final snapshot = await query.get();
-      List<StoreProductModel> loadedProducts =
-          snapshot.docs
-              .map((doc) => StoreProductModel.fromFirestore(doc))
-              .toList();
+      List<StoreProductModel> loadedProducts = [];
 
       if (_searchQuery.isNotEmpty) {
+        // Fallback to local filtering for search
+        final snapshot = await query.get();
+        List<StoreProductModel> allMatches =
+            snapshot.docs
+                .map((doc) => StoreProductModel.fromFirestore(doc))
+                .toList();
+
         final queryLower = _searchQuery.toLowerCase();
-        loadedProducts =
-            loadedProducts.where((p) {
+        allMatches =
+            allMatches.where((p) {
               return p.productName.toLowerCase().contains(queryLower) ||
                   p.sku.toLowerCase().contains(queryLower);
             }).toList();
-      }
 
-      loadedProducts.sort(
-        (a, b) => (b.createdAt ?? DateTime.now()).compareTo(
-          a.createdAt ?? DateTime.now(),
-        ),
-      );
+        if (isNext) {
+          _currentPage++;
+        } else if (isPrev && _currentPage > 1) {
+          _currentPage--;
+        } else if (!isNext && !isPrev) {
+          _currentPage = 1;
+        }
+
+        int startIndex = (_currentPage - 1) * _pageSize;
+        int endIndex = startIndex + _pageSize;
+
+        if (endIndex >= allMatches.length) {
+          endIndex = allMatches.length;
+          _hasNextPage = false;
+        } else {
+          _hasNextPage = true;
+        }
+
+        if (startIndex < allMatches.length) {
+          loadedProducts = allMatches.sublist(startIndex, endIndex);
+        } else {
+          loadedProducts = [];
+        }
+      } else {
+        // Native Firestore cursor pagination
+        if (isNext && _lastDocument != null) {
+          _pageCursors.add(_lastDocument!);
+          _currentPage++;
+          query = query.startAfterDocument(_lastDocument!);
+        } else if (isPrev && _currentPage > 1) {
+          _currentPage--;
+          _pageCursors.removeLast();
+          if (_pageCursors.isNotEmpty) {
+            query = query.startAfterDocument(_pageCursors.last);
+          }
+        } else if (!isNext && !isPrev) {
+          _currentPage = 1;
+          _pageCursors.clear();
+        }
+
+        query = query.limit(_pageSize);
+        final snapshot = await query.get();
+
+        _hasNextPage = snapshot.docs.length == _pageSize;
+        if (snapshot.docs.isNotEmpty) {
+          _lastDocument = snapshot.docs.last;
+        }
+
+        loadedProducts =
+            snapshot.docs
+                .map((doc) => StoreProductModel.fromFirestore(doc))
+                .toList();
+      }
 
       if (mounted) {
         setState(() {
           _products = loadedProducts;
           _isLoading = false;
         });
-        _calculateStats(
-          snapshot.docs
-              .map((doc) => StoreProductModel.fromFirestore(doc))
-              .toList(),
-        );
       }
     } catch (e) {
       print("Error fetching products: $e");
@@ -208,29 +307,6 @@ class _StoreProductsPageState extends State<StoreProductsPage> {
         });
       }
     }
-  }
-
-  void _calculateStats(List<StoreProductModel> allUnfilteredProducts) {
-    int total = allUnfilteredProducts.length;
-    int active = 0;
-    int outOfStock = 0;
-    int lowStock = 0;
-
-    for (var p in allUnfilteredProducts) {
-      if (p.status == 'Active') active++;
-      if (p.stockQuantity <= 0) {
-        outOfStock++;
-      } else if (p.stockQuantity <= 5) {
-        lowStock++;
-      }
-    }
-
-    setState(() {
-      _statTotalProducts = total;
-      _statActiveProducts = active;
-      _statOutOfStock = outOfStock;
-      _statLowStock = lowStock;
-    });
   }
 
   bool _can(String action) {
@@ -260,7 +336,6 @@ class _StoreProductsPageState extends State<StoreProductsPage> {
     }
   }
 
-
   void _showCreateProductDialog({StoreProductModel? productToEdit}) {
     showDialog(
       context: context,
@@ -271,6 +346,7 @@ class _StoreProductsPageState extends State<StoreProductsPage> {
             categories: _categories,
             onSaved: () {
               _fetchProducts();
+              _fetchStats();
             },
           ),
     );
@@ -327,6 +403,7 @@ class _StoreProductsPageState extends State<StoreProductsPage> {
             const SnackBar(content: Text("Product deleted successfully.")),
           );
           _fetchProducts();
+          _fetchStats();
         }
       } catch (e) {
         if (mounted) {
@@ -444,7 +521,6 @@ class _StoreProductsPageState extends State<StoreProductsPage> {
           if (_can(Perms.create))
             Row(
               children: [
-
                 ElevatedButton.icon(
                   onPressed: _showCreateProductDialog,
                   icon: const Icon(Icons.add_rounded, size: 20),
@@ -705,76 +781,159 @@ class _StoreProductsPageState extends State<StoreProductsPage> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFFE2E8F0)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x05000000),
-            blurRadius: 10,
-            offset: Offset(0, 2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          LayoutBuilder(
+            builder: (context, constraints) {
+              return Scrollbar(
+                controller: _horizontalScrollController,
+                thumbVisibility: true,
+                child: SingleChildScrollView(
+                  controller: _horizontalScrollController,
+                  scrollDirection: Axis.horizontal,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                    child: DataTable(
+                      headingRowHeight: 56,
+                      dataRowMinHeight: 72,
+                      dataRowMaxHeight: 72,
+                      horizontalMargin: 24,
+                      columnSpacing: 24,
+                      headingRowColor: MaterialStateProperty.all(
+                        const Color(0xFFF8FAFC),
+                      ),
+                      border: const TableBorder(
+                        horizontalInside: BorderSide(color: Color(0xFFF1F5F9)),
+                      ),
+                      columns: [
+                        DataColumn(label: _tableHeader("Product")),
+                        DataColumn(label: _tableHeader("Category")),
+                        DataColumn(label: _tableHeader("Price")),
+                        DataColumn(label: _tableHeader("Stock")),
+                        DataColumn(label: _tableHeader("SKU")),
+                        DataColumn(label: _tableHeader("Status")),
+                        if (_can(Perms.edit) || _can(Perms.delete))
+                          DataColumn(label: _tableHeader("Actions")),
+                      ],
+                      rows:
+                          _products.map((product) {
+                            return DataRow(
+                              cells: [
+                                DataCell(_buildProductCell(product)),
+                                DataCell(
+                                  Text(
+                                    product.category,
+                                    style: _rowTextStyle(),
+                                  ),
+                                ),
+                                DataCell(_buildPriceCell(product)),
+                                DataCell(
+                                  _buildStockCell(product.stockQuantity),
+                                ),
+                                DataCell(
+                                  Text(
+                                    product.sku.isEmpty ? "-" : product.sku,
+                                    style: _rowTextStyle(),
+                                  ),
+                                ),
+                                DataCell(_buildStatusBadge(product.status)),
+                                if (_can(Perms.edit) || _can(Perms.delete))
+                                  DataCell(_buildActionsCell(product)),
+                              ],
+                            );
+                          }).toList(),
+                    ),
+                  ),
+                ),
+              );
+            },
           ),
+          if (!_isLoading && _products.isNotEmpty) _buildPaginationFooter(),
         ],
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: Scrollbar(
-          controller: _horizontalScrollController,
-          thumbVisibility: true,
-          child: SingleChildScrollView(
-            controller: _horizontalScrollController,
-            scrollDirection: Axis.horizontal,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                minWidth: MediaQuery.of(context).size.width - 350,
-              ),
-              child: DataTable(
-                headingRowHeight: 56,
-                dataRowMinHeight: 72,
-                dataRowMaxHeight: 72,
-                horizontalMargin: 24,
-                columnSpacing: 24,
-                headingRowColor: MaterialStateProperty.all(
-                  const Color(0xFFF8FAFC),
+    );
+  }
+
+  Widget _buildPaginationFooter() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Text(
+                "Rows per page: ",
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  color: const Color(0xFF64748B),
                 ),
-                border: const TableBorder(
-                  horizontalInside: BorderSide(color: Color(0xFFF1F5F9)),
-                ),
-                columns: [
-                  DataColumn(label: _tableHeader("Product")),
-                  DataColumn(label: _tableHeader("Category")),
-                  DataColumn(label: _tableHeader("Price")),
-                  DataColumn(label: _tableHeader("Stock")),
-                  DataColumn(label: _tableHeader("SKU")),
-                  DataColumn(label: _tableHeader("Status")),
-                  if (_can(Perms.edit) || _can(Perms.delete))
-                    DataColumn(label: _tableHeader("Actions")),
-                ],
-                rows:
-                    _products.map((product) {
-                      return DataRow(
-                        cells: [
-                          DataCell(_buildProductCell(product)),
-                          DataCell(
-                            Text(product.category, style: _rowTextStyle()),
-                          ),
-                          DataCell(_buildPriceCell(product)),
-                          DataCell(_buildStockCell(product.stockQuantity)),
-                          DataCell(
-                            Text(
-                              product.sku.isEmpty ? "-" : product.sku,
-                              style: _rowTextStyle(),
-                            ),
-                          ),
-                          DataCell(_buildStatusBadge(product.status)),
-                          if (_can(Perms.edit) || _can(Perms.delete))
-                            DataCell(_buildActionsCell(product)),
-                        ],
-                      );
-                    }).toList(),
               ),
-            ),
+              const SizedBox(width: 8),
+              DropdownButtonHideUnderline(
+                child: DropdownButton<int>(
+                  isDense: true,
+                  value: _pageSize,
+                  items:
+                      [10, 20, 50].map((size) {
+                        return DropdownMenuItem<int>(
+                          value: size,
+                          child: Text(
+                            size.toString(),
+                            style: GoogleFonts.inter(fontSize: 14),
+                          ),
+                        );
+                      }).toList(),
+                  onChanged: (val) {
+                    if (val != null) {
+                      setState(() {
+                        _pageSize = val;
+                        _currentPage = 1;
+                        _pageCursors.clear();
+                      });
+                      _fetchProducts();
+                    }
+                  },
+                ),
+              ),
+            ],
           ),
-        ),
+          Row(
+            children: [
+              Text(
+                "Page $_currentPage",
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  color: const Color(0xFF64748B),
+                ),
+              ),
+              const SizedBox(width: 16),
+              IconButton(
+                icon: const Icon(Icons.chevron_left_rounded),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                onPressed:
+                    _currentPage > 1 && !_isLoading
+                        ? () => _fetchProducts(isPrev: true)
+                        : null,
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                icon: const Icon(Icons.chevron_right_rounded),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                onPressed:
+                    _hasNextPage && !_isLoading
+                        ? () => _fetchProducts(isNext: true)
+                        : null,
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

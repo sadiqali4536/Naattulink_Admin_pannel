@@ -17,8 +17,74 @@ class _StoreCategoriesPageState extends State<StoreCategoriesPage> {
   final ScrollController _verticalScrollController = ScrollController();
   final _session = RbacSession();
 
+  int _pageSize = 10;
+  int _currentPage = 1;
+  List<DocumentSnapshot> _pageCursors = [];
+  DocumentSnapshot? _lastDocument;
+  bool _hasNextPage = true;
+  bool _isLoading = true;
+  List<DocumentSnapshot> _categories = [];
+  int _totalCategories = 0;
+
   bool _can(String action) {
     return _session.hasPermission(Modules.storeProducts, action);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchCategories();
+  }
+
+  Future<void> _fetchCategories({
+    bool isNext = false,
+    bool isPrev = false,
+  }) async {
+    setState(() => _isLoading = true);
+    try {
+      final totalQuery = await FirebaseFirestore.instance.collection("store_product_categories").count().get();
+      int totalCount = totalQuery.count ?? 0;
+
+      Query query = FirebaseFirestore.instance
+          .collection("store_product_categories")
+          .orderBy("createdAt", descending: true);
+
+      if (isNext && _lastDocument != null) {
+        _pageCursors.add(_lastDocument!);
+        _currentPage++;
+        query = query.startAfterDocument(_lastDocument!);
+      } else if (isPrev && _currentPage > 1) {
+        _currentPage--;
+        _pageCursors.removeLast();
+        if (isPrev && _pageCursors.isNotEmpty) {
+          query = query.startAfterDocument(_pageCursors.last);
+        }
+      } else if (!isNext && !isPrev) {
+        _currentPage = 1;
+        _pageCursors.clear();
+      }
+
+      query = query.limit(_pageSize);
+      final snapshot = await query.get();
+
+      _hasNextPage = snapshot.docs.length == _pageSize;
+      if (snapshot.docs.isNotEmpty) {
+        _lastDocument = snapshot.docs.last;
+      }
+
+      if (mounted) {
+        setState(() {
+          _categories = snapshot.docs;
+          _totalCategories = totalCount;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print("Error fetching categories: $e");
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   @override
@@ -194,6 +260,7 @@ class _StoreCategoriesPageState extends State<StoreCategoriesPage> {
                                               ),
                                             );
                                             Navigator.pop(dialogContext);
+                                            _fetchCategories();
                                           }
                                         } catch (e) {
                                           ScaffoldMessenger.of(
@@ -443,6 +510,7 @@ class _StoreCategoriesPageState extends State<StoreCategoriesPage> {
                                               ),
                                             );
                                             Navigator.pop(dialogContext);
+                                            _fetchCategories();
                                           }
                                         } catch (e) {
                                           ScaffoldMessenger.of(
@@ -544,6 +612,7 @@ class _StoreCategoriesPageState extends State<StoreCategoriesPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Category deleted successfully.")),
         );
+        _fetchCategories();
       }
     } catch (e) {
       if (mounted) {
@@ -617,53 +686,49 @@ class _StoreCategoriesPageState extends State<StoreCategoriesPage> {
           ),
           // Body
           Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
-                ),
-                child: StreamBuilder<QuerySnapshot>(
-                  stream:
-                      FirebaseFirestore.instance
-                          .collection("store_product_categories")
-                          .orderBy("createdAt", descending: true)
-                          .snapshots(),
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(
-                        child: CircularProgressIndicator(
-                          color: Color(0xFFFFC107),
-                        ),
-                      );
-                    }
-                    if (snapshot.hasError) {
-                      return Center(child: Text("Error: ${snapshot.error}"));
-                    }
-                    if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                      return Center(
-                        child: Text(
-                          "No categories found.",
-                          style: GoogleFonts.inter(
-                            color: const Color(0xFF64748B),
-                            fontSize: 16,
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildStatsRow(),
+                    const SizedBox(height: 24),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (_isLoading)
+                            const Padding(
+                              padding: EdgeInsets.all(32.0),
+                              child: Center(
+                                child: CircularProgressIndicator(
+                                  color: Color(0xFFFFC107),
+                                ),
+                              ),
+                            )
+                      else if (_categories.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.all(32.0),
+                          child: Center(
+                            child: Text(
+                              "No categories found.",
+                              style: GoogleFonts.inter(
+                                color: const Color(0xFF64748B),
+                                fontSize: 16,
+                              ),
+                            ),
                           ),
-                        ),
-                      );
-                    }
-
-                    final categories = snapshot.data!.docs;
-
-                    return LayoutBuilder(
-                      builder: (context, constraints) {
-                        return Scrollbar(
-                          controller: _verticalScrollController,
-                          thumbVisibility: true,
-                          child: SingleChildScrollView(
-                            controller: _verticalScrollController,
-                            child: Scrollbar(
+                        )
+                      else
+                        LayoutBuilder(
+                          builder: (context, constraints) {
+                            return Scrollbar(
                               controller: _horizontalScrollController,
                               thumbVisibility: true,
                               child: SingleChildScrollView(
@@ -707,7 +772,7 @@ class _StoreCategoriesPageState extends State<StoreCategoriesPage> {
                                       ),
                                     ],
                                     rows:
-                                        categories.map((doc) {
+                                        _categories.map((doc) {
                                           final data =
                                               doc.data()
                                                   as Map<String, dynamic>;
@@ -784,15 +849,175 @@ class _StoreCategoriesPageState extends State<StoreCategoriesPage> {
                                   ),
                                 ),
                               ),
-                            ),
+                            );
+                          },
+                        ),
+                      _buildPaginationFooter(),
+                    ],
+                  ),
+                ),
+                ],
+              ),
+            ),
+          ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatsRow() {
+    return Row(
+      children: [
+        Expanded(
+          flex: 1,
+          child: _buildStatCard(
+            "Total Categories",
+            _totalCategories.toString(),
+            Icons.category_outlined,
+            const Color(0xFF3B82F6),
+          ),
+        ),
+        const Expanded(flex: 3, child: SizedBox()),
+      ],
+    );
+  }
+
+  Widget _buildStatCard(
+    String title,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x05000000),
+            blurRadius: 10,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: color, size: 24),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: const Color(0xFF64748B),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: GoogleFonts.inter(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF1E293B),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPaginationFooter() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Text(
+                "Rows per page: ",
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  color: const Color(0xFF64748B),
+                ),
+              ),
+              const SizedBox(width: 8),
+              DropdownButtonHideUnderline(
+                child: DropdownButton<int>(
+                  isDense: true,
+                  value: _pageSize,
+                  items:
+                      [10, 20, 50].map((size) {
+                        return DropdownMenuItem<int>(
+                          value: size,
+                          child: Text(
+                            size.toString(),
+                            style: GoogleFonts.inter(fontSize: 14),
                           ),
                         );
-                      },
-                    );
+                      }).toList(),
+                  onChanged: (val) {
+                    if (val != null) {
+                      setState(() {
+                        _pageSize = val;
+                        _currentPage = 1;
+                        _pageCursors.clear();
+                      });
+                      _fetchCategories();
+                    }
                   },
                 ),
               ),
-            ),
+            ],
+          ),
+          Row(
+            children: [
+              Text(
+                "Page $_currentPage",
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  color: const Color(0xFF64748B),
+                ),
+              ),
+              const SizedBox(width: 16),
+              IconButton(
+                icon: const Icon(Icons.chevron_left_rounded),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                onPressed:
+                    _currentPage > 1 && !_isLoading
+                        ? () => _fetchCategories(isPrev: true)
+                        : null,
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                icon: const Icon(Icons.chevron_right_rounded),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                onPressed:
+                    _hasNextPage && !_isLoading
+                        ? () => _fetchCategories(isNext: true)
+                        : null,
+              ),
+            ],
           ),
         ],
       ),

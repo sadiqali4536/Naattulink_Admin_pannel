@@ -1047,7 +1047,7 @@ class _MobileScaffoldState extends State<MobileScaffold> {
                                 _scaffoldKey.currentState?.closeDrawer();
                               },
                             ),
-                          if (_can(Modules.storeProducts, Perms.view))
+                          if (_can(Modules.storeProducts, 'manage_categories'))
                             SidebarTile(
                               title: "Manage Category",
                               icon: Icons.category_rounded,

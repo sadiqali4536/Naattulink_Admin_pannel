@@ -270,13 +270,27 @@ class AppModules {
     ModuleDefinition(
       id: Modules.truck,
       displayName: 'Truck & JCB',
-      actions: ['view', 'create', 'edit', 'delete', 'active_inactive', 'export'],
+      actions: [
+        'view',
+        'create',
+        'edit',
+        'delete',
+        'active_inactive',
+        'export',
+      ],
     ),
     // ── Healthcare ────────────────────────────────────────────────────────
     ModuleDefinition(
       id: Modules.healthcare,
       displayName: 'Healthcare',
-      actions: ['view', 'create', 'edit', 'delete', 'active_inactive', 'export'],
+      actions: [
+        'view',
+        'create',
+        'edit',
+        'delete',
+        'active_inactive',
+        'export',
+      ],
     ),
     // ── Businesses ────────────────────────────────────────────────────────
     ModuleDefinition(
@@ -294,14 +308,7 @@ class AppModules {
     ModuleDefinition(
       id: Modules.storeProducts,
       displayName: 'Store Products',
-      actions: [
-        'view',
-        'create',
-        'edit',
-        'delete',
-        'manage_categories',
-        'upload_image',
-      ],
+      actions: ['view', 'create', 'edit', 'delete', 'manage_categories'],
     ),
     // ── Store Orders ──────────────────────────────────────────────────────
     ModuleDefinition(
@@ -313,13 +320,13 @@ class AppModules {
     ModuleDefinition(
       id: Modules.notifications,
       displayName: 'Notifications',
-      actions: ['view', 'send', 'create'],
+      actions: ['view', 'create', 'edit', 'delete'],
     ),
     // ── Reports & Analytics ───────────────────────────────────────────────
     ModuleDefinition(
       id: Modules.reports,
       displayName: 'Reports & Analytics',
-      actions: ['view', 'export', 'download'],
+      actions: ['view', 'export'],
     ),
     // ── Settings ──────────────────────────────────────────────────────────
     ModuleDefinition(

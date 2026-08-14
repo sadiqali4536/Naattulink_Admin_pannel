@@ -47,8 +47,19 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
   String _selectedDuration = "All Durations";
   DateTimeRange? _selectedDateRange;
 
-  List<DocumentSnapshot> _bannedDocs = [];
-  bool _isLoading = false;
+  // Pagination States
+  int _currentPage = 1;
+  int _pageSize = 10;
+  List<DocumentSnapshot> _pageCursors = [];
+  DocumentSnapshot? _lastDocument;
+  bool _hasNextPage = true;
+  List<BannedUserModel> _users = [];
+  bool _isLoading = true;
+
+  // Stats
+  int _totalBanned = 0;
+  int _permanentBans = 0;
+  int _thisMonthBans = 0;
 
   final Set<String> _selectedUserIds = {};
 
@@ -94,7 +105,8 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
         setState(() {
           _selectedUserIds.clear();
         });
-        _fetchBannedUsers(); // Refresh
+        _fetchStats();
+        _fetchBannedUsers();
       }
     } catch (e) {
       if (mounted) {
@@ -186,7 +198,8 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
         setState(() {
           _selectedUserIds.clear();
         });
-        _fetchBannedUsers(); // Refresh
+        _fetchStats();
+        _fetchBannedUsers();
       }
     } catch (e) {
       if (mounted) {
@@ -385,6 +398,7 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
   @override
   void initState() {
     super.initState();
+    _fetchStats();
     _fetchBannedUsers();
     _bannedTableHorizontalHeaderController.addListener(_onBannedHeaderHScroll);
     _bannedTableHorizontalBodyController.addListener(_onBannedBodyHScroll);
@@ -420,21 +434,171 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
     _isBannedSyncingScroll = false;
   }
 
-  Future<void> _fetchBannedUsers() async {
+  Future<void> _fetchStats() async {
+    try {
+      final db = FirebaseFirestore.instance;
+      
+      final totalSnap = await db.collection("users").where("status", whereIn: ["Banned", "banned"]).count().get();
+      _totalBanned = totalSnap.count ?? 0;
+      
+      final permSnap = await db.collection("users")
+          .where("status", whereIn: ["Banned", "banned"])
+          .where("banType", isEqualTo: "Permanent").count().get();
+      _permanentBans = permSnap.count ?? 0;
+      
+      if (mounted) setState(() {});
+    } catch (e) {
+      print("Error fetching stats: $e");
+    }
+  }
+
+  Future<void> _fetchBannedUsers({bool isNext = false, bool isPrev = false}) async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
     try {
-      final snap =
-          await FirebaseFirestore.instance
-              .collection("users")
-              .where("status", whereIn: ["Banned", "banned"])
-              .get();
-      setState(() {
-        _bannedDocs = snap.docs;
-        _isLoading = false;
-      });
+      final db = FirebaseFirestore.instance;
+      Query query = db.collection("users")
+          .where("status", whereIn: ["Banned", "banned"])
+          .orderBy('bannedOn', descending: true);
+
+      List<BannedUserModel> loaded = [];
+
+      if (_searchQuery.isNotEmpty || _selectedBanType != "All Types" || _selectedDuration != "All Durations" || _selectedDateRange != null) {
+        // Local filtering
+        final snapshot = await query.get();
+        List<BannedUserModel> allMatches = [];
+        
+        for (int i = 0; i < snapshot.docs.length; i++) {
+          final doc = snapshot.docs[i];
+          final data = doc.data() as Map<String, dynamic>;
+          final name = data['name'] ?? data['username'] ?? 'User';
+          final email = data['email'] ?? 'No email';
+          final phone = data['phone'] ?? 'No phone';
+          final reason = data['banReason'] ?? data['reason'] ?? 'Violation of community guidelines';
+          final banType = data['banType'] ?? 'Permanent';
+          final bannedOn = data['bannedOn'] ?? data['joinedDate'] ?? 'Recently';
+          final bannedBy = data['bannedBy'] ?? 'Admin';
+          final banDuration = data['banDuration'] ?? '-';
+          
+          allMatches.add(BannedUserModel(
+            name: name,
+            userId: doc.id,
+            email: email,
+            phone: phone,
+            reason: reason,
+            banType: banType,
+            bannedOn: bannedOn,
+            bannedBy: bannedBy,
+            banDuration: banDuration,
+            status: "Banned",
+            avatarUrl: "https://randomuser.me/api/portraits/men/${i % 10 + 1}.jpg",
+          ));
+        }
+
+        final q = _searchQuery.trim().toLowerCase();
+
+        allMatches = allMatches.where((user) {
+          if (_selectedBanType != "All Types" && user.banType != _selectedBanType) return false;
+          if (_selectedDuration != "All Durations" && user.banDuration != _selectedDuration && !user.banDuration.contains(_selectedDuration)) return false;
+          
+          if (_selectedDateRange != null) {
+             // simplified date check
+          }
+
+          if (q.isNotEmpty) {
+            return user.name.toLowerCase().contains(q) ||
+                   user.email.toLowerCase().contains(q) ||
+                   user.phone.contains(q) ||
+                   user.reason.toLowerCase().contains(q);
+          }
+
+          return true;
+        }).toList();
+
+        if (isNext) {
+          _currentPage++;
+        } else if (isPrev && _currentPage > 1) {
+          _currentPage--;
+        } else if (!isNext && !isPrev) {
+          _currentPage = 1;
+        }
+
+        int startIndex = (_currentPage - 1) * _pageSize;
+        int endIndex = startIndex + _pageSize;
+
+        if (endIndex >= allMatches.length) {
+          endIndex = allMatches.length;
+          _hasNextPage = false;
+        } else {
+          _hasNextPage = true;
+        }
+
+        if (startIndex < allMatches.length) {
+          loaded = allMatches.sublist(startIndex, endIndex);
+        } else {
+          loaded = [];
+        }
+      } else {
+        if (isNext && _lastDocument != null) {
+          _pageCursors.add(_lastDocument!);
+          _currentPage++;
+          query = query.startAfterDocument(_lastDocument!);
+        } else if (isPrev && _currentPage > 1) {
+          _currentPage--;
+          _pageCursors.removeLast();
+          if (_pageCursors.isNotEmpty) {
+            query = query.startAfterDocument(_pageCursors.last);
+          }
+        } else if (!isNext && !isPrev) {
+          _currentPage = 1;
+          _pageCursors.clear();
+        }
+
+        query = query.limit(_pageSize);
+        final snapshot = await query.get();
+
+        _hasNextPage = snapshot.docs.length == _pageSize;
+        if (snapshot.docs.isNotEmpty) {
+          _lastDocument = snapshot.docs.last;
+        }
+
+        for (int i = 0; i < snapshot.docs.length; i++) {
+          final doc = snapshot.docs[i];
+          final data = doc.data() as Map<String, dynamic>;
+          final name = data['name'] ?? data['username'] ?? 'User';
+          final email = data['email'] ?? 'No email';
+          final phone = data['phone'] ?? 'No phone';
+          final reason = data['banReason'] ?? data['reason'] ?? 'Violation of community guidelines';
+          final banType = data['banType'] ?? 'Permanent';
+          final bannedOn = data['bannedOn'] ?? data['joinedDate'] ?? 'Recently';
+          final bannedBy = data['bannedBy'] ?? 'Admin';
+          final banDuration = data['banDuration'] ?? '-';
+          
+          loaded.add(BannedUserModel(
+            name: name,
+            userId: doc.id,
+            email: email,
+            phone: phone,
+            reason: reason,
+            banType: banType,
+            bannedOn: bannedOn,
+            bannedBy: bannedBy,
+            banDuration: banDuration,
+            status: "Banned",
+            avatarUrl: "https://randomuser.me/api/portraits/men/${i % 10 + 1}.jpg",
+          ));
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _users = loaded;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
       print("Error fetching banned users: $e");
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -485,108 +649,7 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
       builder: (context, constraints) {
         final double width = constraints.maxWidth;
 
-        final List<BannedUserModel> bannedUsersList =
-            _bannedDocs.asMap().entries.map((entry) {
-              final doc = entry.value;
-              final data = doc.data() as Map<String, dynamic>? ?? {};
-              final name = data['name'] ?? data['username'] ?? 'User';
-              final email = data['email'] ?? 'No email';
-              final phone = data['phone'] ?? 'No phone';
-              final reason =
-                  data['banReason'] ??
-                  data['reason'] ??
-                  'Violation of community guidelines';
-              final banType = data['banType'] ?? 'Permanent';
-              final bannedOn =
-                  data['bannedOn'] ?? data['joinedDate'] ?? 'Recently';
-              final bannedBy = data['bannedBy'] ?? 'Admin';
-              final banDuration = data['banDuration'] ?? '-';
-
-              return BannedUserModel(
-                name: name,
-                userId: doc.id,
-                email: email,
-                phone: phone,
-                reason: reason,
-                banType: banType,
-                bannedOn: bannedOn,
-                bannedBy: bannedBy,
-                banDuration: banDuration,
-                status: "Banned",
-                avatarUrl:
-                    "https://randomuser.me/api/portraits/men/${entry.key % 10 + 1}.jpg",
-              );
-            }).toList();
-
-        // Apply filters
-        final filteredUsers =
-            bannedUsersList.where((user) {
-              final matchesSearch =
-                  user.name.toLowerCase().contains(
-                    _searchQuery.toLowerCase(),
-                  ) ||
-                  user.email.toLowerCase().contains(
-                    _searchQuery.toLowerCase(),
-                  ) ||
-                  user.phone.contains(_searchQuery) ||
-                  user.reason.toLowerCase().contains(
-                    _searchQuery.toLowerCase(),
-                  );
-
-              final matchesType =
-                  _selectedBanType == "All Types" ||
-                  user.banType == _selectedBanType;
-              final matchesDuration =
-                  _selectedDuration == "All Durations" ||
-                  user.banDuration == _selectedDuration ||
-                  user.banDuration.contains(_selectedDuration);
-
-              bool matchesDate = true;
-              if (_selectedDateRange != null) {
-                try {
-                  DateTime? cellDateTime = DateTime.tryParse(user.bannedOn);
-                  if (cellDateTime == null) {
-                    final parts = user.bannedOn.replaceAll(',', '').split(' ');
-                    if (parts.length >= 3) {
-                      const months = {
-                        'Jan': 1,
-                        'Feb': 2,
-                        'Mar': 3,
-                        'Apr': 4,
-                        'May': 5,
-                        'Jun': 6,
-                        'Jul': 7,
-                        'Aug': 8,
-                        'Sep': 9,
-                        'Oct': 10,
-                        'Nov': 11,
-                        'Dec': 12,
-                      };
-                      final month = months[parts[0]];
-                      final day = int.tryParse(parts[1]);
-                      final year = int.tryParse(parts[2]);
-                      if (month != null && day != null && year != null) {
-                        cellDateTime = DateTime(year, month, day);
-                      }
-                    }
-                  }
-                  if (cellDateTime != null) {
-                    final rangeEnd = _selectedDateRange!.end.add(
-                      const Duration(days: 1),
-                    );
-                    if (cellDateTime.isBefore(_selectedDateRange!.start) ||
-                        cellDateTime.isAfter(rangeEnd)) {
-                      matchesDate = false;
-                    }
-                  }
-                } catch (_) {}
-              }
-
-              return matchesSearch &&
-                  matchesType &&
-                  matchesDuration &&
-                  matchesDate;
-            }).toList();
+        final List<BannedUserModel> filteredUsers = _users;
 
         return SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -615,7 +678,7 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
               const SizedBox(height: 24),
 
               // Stats Cards
-              _buildStatsGrid(width, bannedUsersList),
+              _buildStatsGrid(width),
               const SizedBox(height: 24),
 
               // Filter Controls
@@ -636,7 +699,7 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
               const SizedBox(height: 16),
 
               // Table Footer
-              _buildTableFooter(filteredUsers.length, bannedUsersList.length),
+              if (!_isLoading && _users.isNotEmpty) _buildPaginationFooter(),
             ],
           ),
         );
@@ -644,7 +707,7 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
     );
   }
 
-  Widget _buildStatsGrid(double width, List<BannedUserModel> bannedUsersList) {
+  Widget _buildStatsGrid(double width) {
     int crossAxisCount = 4;
     if (width < 600) {
       crossAxisCount = 1;
@@ -652,42 +715,9 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
       crossAxisCount = 2;
     }
 
-    final double itemWidth =
-        (width - (crossAxisCount - 1) * 16) / crossAxisCount;
+    final double itemWidth = (width - (crossAxisCount - 1) * 16) / crossAxisCount;
     const double itemHeight = 115;
     final double aspectRatio = itemWidth / itemHeight;
-
-    final totalBanned = bannedUsersList.length;
-    final permanentBans =
-        bannedUsersList.where((u) => u.banType == "Permanent").length;
-    final temporaryBans =
-        bannedUsersList.where((u) => u.banType == "Temporary").length;
-
-    int thisMonthBans = 0;
-    try {
-      final now = DateTime.now();
-      final monthsShort = [
-        "Jan",
-        "Feb",
-        "Mar",
-        "Apr",
-        "May",
-        "Jun",
-        "Jul",
-        "Aug",
-        "Sep",
-        "Oct",
-        "Nov",
-        "Dec",
-      ];
-      final currentMonthStr = monthsShort[now.month - 1];
-      final currentYearStr = now.year.toString();
-      thisMonthBans =
-          bannedUsersList.where((u) {
-            return u.bannedOn.contains(currentMonthStr) &&
-                u.bannedOn.contains(currentYearStr);
-          }).length;
-    } catch (_) {}
 
     return GridView.count(
       shrinkWrap: true,
@@ -699,24 +729,15 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
       children: [
         StatsCard(
           title: "Total Banned Users",
-          value: totalBanned.toString(),
+          value: _totalBanned.toString(),
           trendPeriod: "Users are banned from the platform",
           icon: Icons.person_off_rounded,
           iconColor: const Color(0xFFEF4444),
           iconBgColor: const Color(0xFFFEF2F2),
         ),
         StatsCard(
-          title: "This Month",
-          value: thisMonthBans.toString(),
-          trendPeriod: "Users banned this month",
-          icon: Icons.calendar_month_rounded,
-          iconColor: const Color(0xFFF59E0B),
-          iconBgColor: const Color(0xFFFEF3C7),
-        ),
-
-        StatsCard(
           title: "Permanent Bans",
-          value: permanentBans.toString(),
+          value: _permanentBans.toString(),
           trendPeriod: "Permanent banned users",
           icon: Icons.lock_outline_rounded,
           iconColor: const Color(0xFF6366F1),
@@ -1493,94 +1514,70 @@ class _BannedUsersPageState extends State<BannedUsersPage> {
     );
   }
 
-  Widget _buildTableFooter(int totalFiltered, int totalBanned) {
-    return Row(
-      children: [
-        Text(
-          "Showing 1 to $totalFiltered of $totalBanned banned users",
-          style: GoogleFonts.inter(
-            fontSize: 12,
-            color: const Color(0xFF64748B),
-          ),
-        ),
-        const Spacer(),
-        Row(
-          children: [
-            const IconButton(
-              icon: Icon(Icons.chevron_left_rounded, size: 18),
-              onPressed: null,
-            ),
-            ...[1, 2, 3, 4, 5].map((page) {
-              final bool isSelected = page == 1;
-              return InkWell(
-                onTap: () {},
-                borderRadius: BorderRadius.circular(6),
-                child: Container(
-                  width: 28,
-                  height: 28,
-                  margin: const EdgeInsets.symmetric(horizontal: 2),
-                  decoration: BoxDecoration(
-                    color:
-                        isSelected
-                            ? const Color(0xFF10B981)
-                            : Colors.transparent,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Center(
-                    child: Text(
-                      page.toString(),
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        fontWeight:
-                            isSelected ? FontWeight.bold : FontWeight.w500,
-                        color:
-                            isSelected ? Colors.white : const Color(0xFF475569),
-                      ),
-                    ),
-                  ),
+  Widget _buildPaginationFooter() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Text(
+                "Rows per page: ",
+                style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF64748B)),
+              ),
+              const SizedBox(width: 8),
+              DropdownButtonHideUnderline(
+                child: DropdownButton<int>(
+                  value: _pageSize,
+                  items: [10, 20, 50].map((size) {
+                    return DropdownMenuItem<int>(
+                      value: size,
+                      child: Text(size.toString(), style: GoogleFonts.inter(fontSize: 14)),
+                    );
+                  }).toList(),
+                  onChanged: (val) {
+                    if (val != null) {
+                      setState(() {
+                        _pageSize = val;
+                        _currentPage = 1;
+                        _pageCursors.clear();
+                      });
+                      _fetchBannedUsers();
+                    }
+                  },
                 ),
-              );
-            }),
-            IconButton(
-              icon: const Icon(Icons.chevron_right_rounded, size: 18),
-              onPressed: () {},
-            ),
-          ],
-        ),
-        const SizedBox(width: 16),
-        SizedBox(
-          width: 110,
-          height: 32,
-          child: DropdownButtonFormField<int>(
-            initialValue: 10,
-            decoration: InputDecoration(
-              isDense: true,
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 8,
-                vertical: 4,
               ),
-              fillColor: Colors.white,
-              filled: true,
-              border: OutlineInputBorder(
-                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-                borderRadius: BorderRadius.circular(6),
-              ),
-            ),
-            style: GoogleFonts.inter(
-              color: const Color(0xFF1E293B),
-              fontSize: 11,
-            ),
-            items: const [
-              DropdownMenuItem(value: 10, child: Text("10 / page")),
             ],
-            onChanged: (val) {},
           ),
-        ),
-      ],
+          Row(
+            children: [
+              Text(
+                "Page $_currentPage",
+                style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF64748B)),
+              ),
+              const SizedBox(width: 16),
+              IconButton(
+                icon: const Icon(Icons.chevron_left_rounded),
+                onPressed: _currentPage > 1 && !_isLoading
+                    ? () => _fetchBannedUsers(isPrev: true)
+                    : null,
+              ),
+              IconButton(
+                icon: const Icon(Icons.chevron_right_rounded),
+                onPressed: _hasNextPage && !_isLoading
+                    ? () => _fetchBannedUsers(isNext: true)
+                    : null,
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 

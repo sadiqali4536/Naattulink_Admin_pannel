@@ -293,10 +293,7 @@ final List<ModulePermission> modulePermissionsList = [
         apiKey: 'active_inactive',
         displayName: 'Active / Inactive',
       ),
-      ActionPermission(
-        apiKey: 'export',
-        displayName: 'Export Vehicle',
-      ),
+      ActionPermission(apiKey: 'export', displayName: 'Export Vehicle'),
     ],
   ),
 
@@ -313,10 +310,7 @@ final List<ModulePermission> modulePermissionsList = [
         apiKey: 'active_inactive',
         displayName: 'Active / Inactive',
       ),
-      ActionPermission(
-        apiKey: 'export',
-        displayName: 'Export Healthcare',
-      ),
+      ActionPermission(apiKey: 'export', displayName: 'Export Healthcare'),
     ],
   ),
 
@@ -352,10 +346,6 @@ final List<ModulePermission> modulePermissionsList = [
         apiKey: 'manage_categories',
         displayName: 'Manage Product Categories',
       ),
-      ActionPermission(
-        apiKey: 'upload_image',
-        displayName: 'Upload Product Image',
-      ),
     ],
   ),
 
@@ -379,8 +369,9 @@ final List<ModulePermission> modulePermissionsList = [
     moduleName: 'Notifications',
     actions: [
       ActionPermission(apiKey: 'view', displayName: 'View Notifications'),
-      ActionPermission(apiKey: 'send', displayName: 'Send Push Notification'),
       ActionPermission(apiKey: 'create', displayName: 'Create Notification'),
+      ActionPermission(apiKey: 'edit', displayName: 'Edit Notification'),
+      ActionPermission(apiKey: 'delete', displayName: 'Delete Notification'),
     ],
   ),
 
@@ -391,7 +382,6 @@ final List<ModulePermission> modulePermissionsList = [
     actions: [
       ActionPermission(apiKey: 'view', displayName: 'View Reports'),
       ActionPermission(apiKey: 'export', displayName: 'Export Reports'),
-      ActionPermission(apiKey: 'download', displayName: 'Download Analytics'),
     ],
   ),
 
@@ -418,26 +408,236 @@ class UserRolesPage extends StatefulWidget {
 }
 
 class _UserRolesPageState extends State<UserRolesPage> {
-  Stream<QuerySnapshot>? _rolesStream;
-  Stream<QuerySnapshot>? _adminUsersStream;
+  // Pagination States
+  int _currentPage = 1;
+  int _pageSize = 10;
+  List<DocumentSnapshot> _pageCursors = [];
+  DocumentSnapshot? _lastDocument;
+  bool _hasNextPage = true;
+  List<RoleModel> _roles = [];
+  bool _isLoading = true;
 
-  Stream<QuerySnapshot> get rolesStream {
-    _rolesStream ??= FirebaseFirestore.instance.collection("roles").snapshots();
-    return _rolesStream!;
+  // Stats
+  int _totalRoles = 0;
+  int _activeRoles = 0;
+  int _inactiveRoles = 0;
+  int _totalUsers = 0;
+
+  Future<void> _fetchStats() async {
+    try {
+      final db = FirebaseFirestore.instance;
+
+      final rolesSnap = await db.collection("roles").get();
+      _totalRoles = rolesSnap.docs.length;
+      _activeRoles =
+          rolesSnap.docs
+              .where(
+                (d) => (d.data() as Map<String, dynamic>)['status'] == 'Active',
+              )
+              .length;
+      _inactiveRoles =
+          rolesSnap.docs
+              .where(
+                (d) =>
+                    (d.data() as Map<String, dynamic>)['status'] == 'Inactive',
+              )
+              .length;
+
+      final usersSnap =
+          await db
+              .collection("admin_users")
+              .where("status", isEqualTo: "Active")
+              .get();
+      _totalUsers =
+          usersSnap
+              .docs
+              .length; // Approximate, ignoring superadmin check for total for speed
+
+      if (mounted) setState(() {});
+    } catch (e) {
+      print("Error fetching stats: $e");
+    }
   }
 
-  Stream<QuerySnapshot> get adminUsersStream {
-    _adminUsersStream ??=
-        FirebaseFirestore.instance.collection("admin_users").snapshots();
-    return _adminUsersStream!;
+  Future<void> _fetchRoles({bool isNext = false, bool isPrev = false}) async {
+    if (!mounted) return;
+    setState(() => _isLoading = true);
+    try {
+      final db = FirebaseFirestore.instance;
+      Query query = db
+          .collection("roles")
+          .orderBy('createdAt', descending: true);
+
+      List<RoleModel> loaded = [];
+
+      // Always fetch all admin_users to calculate dynamically since it's a small collection
+      final adminUsersSnapshot = await db.collection("admin_users").get();
+      final Map<String, int> roleUserCounts = {};
+      for (var doc in adminUsersSnapshot.docs) {
+        final adminData = doc.data() as Map<String, dynamic>?;
+        if (adminData != null && adminData['status'] == 'Active') {
+          final email = (adminData['email'] ?? '').toString().toLowerCase();
+          final rId = (adminData['roleId'] ?? '').toString();
+          if (email == 'superadmin@naattulink.com') continue;
+          final rName = (adminData['roleDisplayName'] ?? '').toString();
+          if (rName.isNotEmpty) {
+            roleUserCounts[rName] = (roleUserCounts[rName] ?? 0) + 1;
+          }
+          if (rId.isNotEmpty) {
+            String normName = rId;
+            if (rId == 'super_admin')
+              normName = 'Super Admin';
+            else if (rId == 'admin')
+              normName = 'Admin';
+            else if (rId == 'manager')
+              normName = 'Manager';
+            else if (rId == 'staff')
+              normName = 'Staff';
+            else if (rId == 'operator')
+              normName = 'Operator';
+            else if (rId == 'support')
+              normName = 'Support';
+            else if (rId == 'developer')
+              normName = 'Developer';
+
+            if (normName != rName) {
+              roleUserCounts[normName] = (roleUserCounts[normName] ?? 0) + 1;
+            }
+          }
+        }
+      }
+
+      if (_searchQuery.isNotEmpty || _selectedStatus != "All Status") {
+        // Local filtering
+        final snapshot = await query.get();
+        List<RoleModel> allMatches = [];
+
+        for (int i = 0; i < snapshot.docs.length; i++) {
+          final doc = snapshot.docs[i];
+          final baseRole = RoleModel.fromFirestore(doc);
+          if (baseRole.name.toLowerCase() == "developer") continue;
+          if (baseRole.name == "Super Admin" && !widget.isSuperAdmin) continue;
+
+          final dynamicCount = roleUserCounts[baseRole.name] ?? 0;
+          allMatches.add(
+            RoleModel(
+              id: baseRole.id,
+              name: baseRole.name,
+              description: baseRole.description,
+              usersCount: dynamicCount,
+              status: baseRole.status,
+              createdAt: baseRole.createdAt,
+              initials: baseRole.initials,
+              badgeColor: baseRole.badgeColor,
+              permissions: baseRole.permissions,
+              showInUserRoles: baseRole.showInUserRoles,
+            ),
+          );
+        }
+
+        final q = _searchQuery.trim().toLowerCase();
+
+        allMatches =
+            allMatches.where((role) {
+              if (_selectedStatus != "All Status" &&
+                  role.status != _selectedStatus)
+                return false;
+
+              if (q.isNotEmpty) {
+                return role.name.toLowerCase().contains(q) ||
+                    role.description.toLowerCase().contains(q);
+              }
+              return true;
+            }).toList();
+
+        if (isNext) {
+          _currentPage++;
+        } else if (isPrev && _currentPage > 1) {
+          _currentPage--;
+        } else if (!isNext && !isPrev) {
+          _currentPage = 1;
+        }
+
+        int startIndex = (_currentPage - 1) * _pageSize;
+        int endIndex = startIndex + _pageSize;
+
+        if (endIndex >= allMatches.length) {
+          endIndex = allMatches.length;
+          _hasNextPage = false;
+        } else {
+          _hasNextPage = true;
+        }
+
+        if (startIndex < allMatches.length) {
+          loaded = allMatches.sublist(startIndex, endIndex);
+        } else {
+          loaded = [];
+        }
+      } else {
+        if (isNext && _lastDocument != null) {
+          _pageCursors.add(_lastDocument!);
+          _currentPage++;
+          query = query.startAfterDocument(_lastDocument!);
+        } else if (isPrev && _currentPage > 1) {
+          _currentPage--;
+          _pageCursors.removeLast();
+          if (_pageCursors.isNotEmpty) {
+            query = query.startAfterDocument(_pageCursors.last);
+          }
+        } else if (!isNext && !isPrev) {
+          _currentPage = 1;
+          _pageCursors.clear();
+        }
+
+        query = query.limit(_pageSize);
+        final snapshot = await query.get();
+
+        _hasNextPage = snapshot.docs.length == _pageSize;
+        if (snapshot.docs.isNotEmpty) {
+          _lastDocument = snapshot.docs.last;
+        }
+
+        for (int i = 0; i < snapshot.docs.length; i++) {
+          final doc = snapshot.docs[i];
+          final baseRole = RoleModel.fromFirestore(doc);
+          if (baseRole.name.toLowerCase() == "developer") continue;
+          if (baseRole.name == "Super Admin" && !widget.isSuperAdmin) continue;
+
+          final dynamicCount = roleUserCounts[baseRole.name] ?? 0;
+          loaded.add(
+            RoleModel(
+              id: baseRole.id,
+              name: baseRole.name,
+              description: baseRole.description,
+              usersCount: dynamicCount,
+              status: baseRole.status,
+              createdAt: baseRole.createdAt,
+              initials: baseRole.initials,
+              badgeColor: baseRole.badgeColor,
+              permissions: baseRole.permissions,
+              showInUserRoles: baseRole.showInUserRoles,
+            ),
+          );
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _roles = loaded;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print("Error fetching roles: $e");
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override
   void initState() {
     super.initState();
-    _rolesStream = FirebaseFirestore.instance.collection("roles").snapshots();
-    _adminUsersStream =
-        FirebaseFirestore.instance.collection("admin_users").snapshots();
+    _fetchStats();
+    _fetchRoles();
     _rolesTableHorizontalHeaderController.addListener(_onRolesHeaderHScroll);
     _rolesTableHorizontalBodyController.addListener(_onRolesBodyHScroll);
   }
@@ -538,232 +738,122 @@ class _UserRolesPageState extends State<UserRolesPage> {
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<QuerySnapshot>(
-      stream: rolesStream,
-      builder: (context, rolesSnapshot) {
-        return StreamBuilder<QuerySnapshot>(
-          stream: adminUsersStream,
-          builder: (context, adminUsersSnapshot) {
-            List<RoleModel> roles = [];
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final double width = constraints.maxWidth;
 
-            // Map user roles counts dynamically
-            final Map<String, int> roleUserCounts = {};
-            if (adminUsersSnapshot.hasData) {
-              for (var doc in adminUsersSnapshot.data!.docs) {
-                final adminData = doc.data() as Map<String, dynamic>?;
-                if (adminData != null && adminData['status'] == 'Active') {
-                  final email =
-                      (adminData['email'] ?? '').toString().toLowerCase();
-                  final rId = (adminData['roleId'] ?? '').toString();
-                  if (email == 'superadmin@naattulink.com') {
-                    continue;
-                  }
-                  final rName = (adminData['roleDisplayName'] ?? '').toString();
-                  if (rName.isNotEmpty) {
-                    roleUserCounts[rName] = (roleUserCounts[rName] ?? 0) + 1;
-                  }
-                  if (rId.isNotEmpty) {
-                    String normName = rId;
-                    if (rId == 'super_admin')
-                      normName = 'Super Admin';
-                    else if (rId == 'admin')
-                      normName = 'Admin';
-                    else if (rId == 'manager')
-                      normName = 'Manager';
-                    else if (rId == 'staff')
-                      normName = 'Staff';
-                    else if (rId == 'operator')
-                      normName = 'Operator';
-                    else if (rId == 'support')
-                      normName = 'Support';
-                    else if (rId == 'developer')
-                      normName = 'Developer';
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Breadcrumbs
+              _buildBreadcrumbs(),
+              const SizedBox(height: 8),
 
-                    if (normName != rName) {
-                      roleUserCounts[normName] =
-                          (roleUserCounts[normName] ?? 0) + 1;
-                    }
-                  }
-                }
-              }
-            }
-
-            if (rolesSnapshot.hasData && rolesSnapshot.data!.docs.isNotEmpty) {
-              roles =
-                  rolesSnapshot.data!.docs.map((doc) {
-                    final baseRole = RoleModel.fromFirestore(doc);
-                    final dynamicCount = roleUserCounts[baseRole.name] ?? 0;
-                    return RoleModel(
-                      id: baseRole.id,
-                      name: baseRole.name,
-                      description: baseRole.description,
-                      usersCount: dynamicCount,
-                      status: baseRole.status,
-                      createdAt: baseRole.createdAt,
-                      initials: baseRole.initials,
-                      badgeColor: baseRole.badgeColor,
-                      permissions: baseRole.permissions,
-                      showInUserRoles: baseRole.showInUserRoles,
-                    );
-                  }).toList();
-            }
-
-            final int totalRoles = roles.length;
-            final int activeRoles =
-                roles.where((r) => r.status == "Active").length;
-            final int inactiveRoles =
-                roles.where((r) => r.status == "Inactive").length;
-            final int totalUsers = roles.fold(
-              0,
-              (total, r) => total + r.usersCount,
-            );
-
-            return LayoutBuilder(
-              builder: (context, constraints) {
-                final double width = constraints.maxWidth;
-
-                // Filter logic
-                final filteredRoles =
-                    roles.where((role) {
-                      // Hide Developer role from user roles list completely
-                      if (role.name.toLowerCase() == "developer") {
-                        return false;
-                      }
-
-                      // Hide Super Admin from roles list for non-Developers / non-SuperAdmins
-                      if (role.name == "Super Admin" &&
-                          !RbacSession().isDev &&
-                          !RbacSession().isSuperAdmin) {
-                        return false;
-                      }
-
-                      final matchesSearch =
-                          role.name.toLowerCase().contains(
-                            _searchQuery.toLowerCase(),
-                          ) ||
-                          role.description.toLowerCase().contains(
-                            _searchQuery.toLowerCase(),
-                          );
-                      final matchesStatus =
-                          _selectedStatus == "All Status" ||
-                          role.status.toLowerCase() ==
-                              _selectedStatus.toLowerCase();
-                      return matchesSearch && matchesStatus;
-                    }).toList();
-
-                return SingleChildScrollView(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+              // Title Row
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    "User Roles Management",
+                    style: GoogleFonts.inter(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF1E293B),
+                    ),
+                  ),
+                  Row(
                     children: [
-                      // Breadcrumbs
-                      _buildBreadcrumbs(),
-                      const SizedBox(height: 8),
-
-                      // Title Row
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            "User Roles Management",
-                            style: GoogleFonts.inter(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              color: const Color(0xFF1E293B),
-                            ),
+                      OutlinedButton.icon(
+                        onPressed: () => _showRoleHistoryDialog(context),
+                        icon: const Icon(Icons.history_rounded, size: 14),
+                        label: Text(
+                          "Role History",
+                          style: GoogleFonts.inter(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
                           ),
-                          Row(
-                            children: [
-                              OutlinedButton.icon(
-                                onPressed:
-                                    () => _showRoleHistoryDialog(context),
-                                icon: const Icon(
-                                  Icons.history_rounded,
-                                  size: 14,
-                                ),
-                                label: Text(
-                                  "Role History",
-                                  style: GoogleFonts.inter(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: const Color(0xFF64748B),
-                                  side: const BorderSide(
-                                    color: Color(0xFFCBD5E1),
-                                  ),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 10,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              ElevatedButton.icon(
-                                onPressed: () {
-                                  if (widget.onTabChanged != null) {
-                                    widget.onTabChanged!("Grant Access");
-                                  } else {
-                                    _showAddRoleDialog(context);
-                                  }
-                                },
-                                icon: const Icon(Icons.add, size: 14),
-                                label: Text(
-                                  "Add New Role",
-                                  style: GoogleFonts.inter(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF10B981),
-                                  foregroundColor: Colors.white,
-                                  elevation: 0,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 10,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                ),
-                              ),
-                            ],
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF64748B),
+                          side: const BorderSide(color: Color(0xFFCBD5E1)),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 10,
                           ),
-                        ],
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
                       ),
-                      const SizedBox(height: 24),
-
-                      // Stats Cards
-                      _buildStatsCardsGrid(
-                        width,
-                        totalRoles: totalRoles,
-                        activeRoles: activeRoles,
-                        inactiveRoles: inactiveRoles,
-                        totalUsers: totalUsers,
+                      const SizedBox(width: 12),
+                      ElevatedButton.icon(
+                        onPressed: () {
+                          if (widget.onTabChanged != null) {
+                            widget.onTabChanged!("Grant Access");
+                          } else {
+                            _showAddRoleDialog(context);
+                          }
+                        },
+                        icon: const Icon(Icons.add, size: 14),
+                        label: Text(
+                          "Add New Role",
+                          style: GoogleFonts.inter(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF10B981),
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 10,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
                       ),
-                      const SizedBox(height: 24),
-
-                      // Filter row
-                      _buildFilterRow(context, width),
-                      const SizedBox(height: 24),
-
-                      // Table
-                      _buildRolesTable(filteredRoles),
-                      const SizedBox(height: 16),
-
-                      // Footer counters
-                      _buildTableFooter(filteredRoles.length),
                     ],
                   ),
-                );
-              },
-            );
-          },
+                ],
+              ),
+              const SizedBox(height: 24),
+
+              // Stats Cards
+              _buildStatsCardsGrid(
+                width,
+                totalRoles: _totalRoles,
+                activeRoles: _activeRoles,
+                inactiveRoles: _inactiveRoles,
+                totalUsers: _totalUsers,
+              ),
+              const SizedBox(height: 24),
+
+              // Filter row
+              _buildFilterRow(context, width),
+              const SizedBox(height: 24),
+
+              // Table
+              _isLoading
+                  ? const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 60),
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        color: Color(0xFFEF4444),
+                      ),
+                    ),
+                  )
+                  : _buildRolesTable(_roles),
+              const SizedBox(height: 16),
+
+              // Footer counters
+              if (!_isLoading && _roles.isNotEmpty) _buildPaginationFooter(),
+            ],
+          ),
         );
       },
     );
@@ -844,10 +934,14 @@ class _UserRolesPageState extends State<UserRolesPage> {
       width: isSmall ? double.infinity : 300,
       height: 38,
       child: TextFormField(
-        onChanged:
-            (val) => setState(() {
-              _searchQuery = val;
-            }),
+        onChanged: (val) {
+          setState(() {
+            _searchQuery = val;
+            _currentPage = 1;
+            _pageCursors.clear();
+          });
+          _fetchRoles();
+        },
         decoration: InputDecoration(
           isDense: true,
           contentPadding: const EdgeInsets.symmetric(
@@ -909,10 +1003,14 @@ class _UserRolesPageState extends State<UserRolesPage> {
                       DropdownMenuItem(value: status, child: Text(status)),
                 )
                 .toList(),
-        onChanged:
-            (val) => setState(() {
-              _selectedStatus = val!;
-            }),
+        onChanged: (val) {
+          setState(() {
+            _selectedStatus = val!;
+            _currentPage = 1;
+            _pageCursors.clear();
+          });
+          _fetchRoles();
+        },
       ),
     );
 
@@ -968,6 +1066,91 @@ class _UserRolesPageState extends State<UserRolesPage> {
         ],
       );
     }
+  }
+
+  Widget _buildPaginationFooter() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Text(
+                "Rows per page: ",
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  color: const Color(0xFF64748B),
+                ),
+              ),
+              const SizedBox(width: 8),
+              DropdownButtonHideUnderline(
+                child: DropdownButton<int>(
+                  isDense: true,
+                  value: _pageSize,
+                  items:
+                      [10, 20, 50].map((size) {
+                        return DropdownMenuItem<int>(
+                          value: size,
+                          child: Text(
+                            size.toString(),
+                            style: GoogleFonts.inter(fontSize: 14),
+                          ),
+                        );
+                      }).toList(),
+                  onChanged: (val) {
+                    if (val != null) {
+                      setState(() {
+                        _pageSize = val;
+                        _currentPage = 1;
+                        _pageCursors.clear();
+                      });
+                      _fetchRoles();
+                    }
+                  },
+                ),
+              ),
+            ],
+          ),
+          Row(
+            children: [
+              Text(
+                "Page $_currentPage",
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  color: const Color(0xFF64748B),
+                ),
+              ),
+              const SizedBox(width: 16),
+              IconButton(
+                icon: const Icon(Icons.chevron_left_rounded),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                onPressed:
+                    _currentPage > 1 && !_isLoading
+                        ? () => _fetchRoles(isPrev: true)
+                        : null,
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                icon: const Icon(Icons.chevron_right_rounded),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                onPressed:
+                    _hasNextPage && !_isLoading
+                        ? () => _fetchRoles(isNext: true)
+                        : null,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildRolesTable(List<RoleModel> roles) {
